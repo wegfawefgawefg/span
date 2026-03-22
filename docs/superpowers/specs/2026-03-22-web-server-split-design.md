@@ -28,7 +28,6 @@ span/
 │   └── project.py          # project/sheet/annotation file logic
 ├── web/
 │   ├── package.json
-│   ├── bunfig.toml
 │   ├── tsconfig.json
 │   ├── vite.config.ts      # proxy /api → FastAPI in dev
 │   ├── index.html

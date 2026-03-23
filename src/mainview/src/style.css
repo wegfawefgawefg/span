@@ -76,6 +76,30 @@ body {
 	user-select: inherit;
 }
 
+/* --- Scrollbars --- */
+
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-border);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-border-strong);
+}
+
+::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
 /* --- Base form elements --- */
 
 input,

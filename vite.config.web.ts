@@ -1,6 +1,7 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
+import { resolve } from "path";
 
 export default defineConfig({
 	plugins: [vue(), tailwindcss()],
@@ -9,7 +10,7 @@ export default defineConfig({
 		outDir: "../../dist-web",
 		emptyOutDir: true,
 		rollupOptions: {
-			input: "index-web.html",
+			input: resolve(__dirname, "src/mainview/index-web.html"),
 		},
 	},
 	base: "/span/",

@@ -21,7 +21,7 @@ bun run dev:hmr
 
 ## Project Layout
 
-```
+```plaintext
 src/
   bun/              Electrobun main process (file I/O, menus, RPC)
   shared/           Shared RPC type definitions
@@ -61,16 +61,16 @@ Expected project layout:
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `Cmd+S` | Save annotations |
-| `Cmd+D` | Duplicate selected sprite |
-| `Delete` / `Backspace` | Delete selected sprite |
-| `Space` + drag | Pan canvas |
-| Middle mouse drag | Pan canvas |
-| `Alt/Option` + drag | Duplicate and drag |
-| Scroll wheel | Zoom toward cursor |
-| `Cmd+Alt+I` | Toggle developer tools |
+| Shortcut               | Action                    |
+| ---------------------- | ------------------------- |
+| `Cmd+S`                | Save annotations          |
+| `Cmd+D`                | Duplicate selected sprite |
+| `Delete` / `Backspace` | Delete selected sprite    |
+| `Space` + drag         | Pan canvas                |
+| Middle mouse drag      | Pan canvas                |
+| `Alt/Option` + drag    | Duplicate and drag        |
+| Scroll wheel           | Zoom toward cursor        |
+| `Cmd+Alt+I`            | Toggle developer tools    |
 
 ## Tech Stack
 

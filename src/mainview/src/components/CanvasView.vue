@@ -156,9 +156,30 @@ function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {
 		return;
 	}
 
-	selectAnnotation(annotation.id);
 	const target = event.target as HTMLElement;
 	const isResize = target.dataset.resize === "true";
+
+	// Alt/Option+drag: duplicate first, then drag the copy
+	if (event.altKey && !isResize) {
+		selectAnnotation(annotation.id);
+		duplicateSelected();
+		// duplicateSelected selects the new copy and offsets it —
+		// reset the copy's position to match the original so the
+		// drag feels like "pull off a clone"
+		const copy = selectedAnnotation.value;
+		if (copy) {
+			copy.x = annotation.x;
+			copy.y = annotation.y;
+			startDrag(event, copy, false);
+			// pointer capture stays on the original box element,
+			// but drag state tracks the copy's id
+			const box = event.currentTarget as HTMLElement;
+			box.setPointerCapture(event.pointerId);
+		}
+		return;
+	}
+
+	selectAnnotation(annotation.id);
 	startDrag(event, annotation, isResize);
 
 	const box = event.currentTarget as HTMLElement;

@@ -21,36 +21,48 @@
 
 ## Editor UI
 
-- Sheet browser on the left with filter input.
-- Current sheet loads into a central canvas view.
-- Selection inspector lives on the right.
-- Existing annotations for the current sheet are listed in the right column.
-- Add, duplicate, delete, and save actions are exposed as buttons.
+- All panels are dockable, rearrangeable, and tab-stackable (Dockview).
+- Sheet browser panel with filter input.
+- Canvas panel for the current sheet with annotation overlays.
+- Inspector panel for editing selected annotation fields.
+- Sprites In Sheet panel listing all annotations on the current sheet.
+- Gallery panel showing realized sprite previews with adjustable zoom.
+- Fixed status bar at the bottom showing current state.
+- Actions available via native macOS menus and keyboard shortcuts.
 
-## Sheet Interaction
+## Canvas Interaction
 
 - Add creates a new single-frame sprite box near the current viewport center.
-- Boxes can be dragged.
+- Boxes can be dragged to reposition.
 - Boxes can be resized from the bottom-right handle.
-- Mouse wheel zooms toward the cursor.
-- `+` and `-` buttons also adjust zoom.
+- Mouse wheel zooms toward the cursor in 10% increments.
+- Floating `+` and `-` buttons also adjust zoom.
+- Space + drag or middle mouse button pans the canvas.
+- Alt/Option + drag duplicates the annotation and drags the copy.
 - Overlapping sprite boxes use explicit z-order so one box wins the click.
+- Right-click on a box: Duplicate, Delete, Pick chroma.
+- Right-click on empty canvas: Add sprite, Pick chroma.
 
 ## Annotation Editing
 
 - Inspector edits update the selected annotation directly.
+- Changes are reflected live in the gallery preview.
 - Duplicate creates a copied annotation with the frame incremented.
-- `Ctrl/Cmd + D` duplicates the selected annotation and increments `frame`.
-- Delete removes the selected annotation.
+- `Cmd+D` duplicates the selected annotation.
+- `Delete` / `Backspace` removes the selected annotation.
+- `Cmd+S` saves annotations to disk.
 - Saved annotations are stored as JSON in `annotations/*.annotations.json`.
 
 ## Gallery
 
-- Realized sprites are shown in a bottom gallery.
+- Realized sprites are shown in a gallery panel.
 - Gallery groups frames by sprite identity metadata.
 - Multi-frame groups animate in place.
 - Current-sheet groups are sorted first.
 - Clicking a gallery item jumps to the corresponding sprite, opening another sheet if needed.
+- Zoom slider controls preview scale (1x to 8x).
+- Text labels hidden at small scales, visible at 3x+.
+- Gallery updates live during canvas drag and inspector edits.
 
 ## Chroma Key
 
@@ -59,6 +71,33 @@
 - A `Pick` button arms sheet sampling mode.
 - Clicking a color on the sheet stores the sampled color as `#rrggbb`.
 - Gallery previews apply exact RGB chroma removal before rendering.
+
+## Panel Layout
+
+- Panels can be dragged, resized, and stacked as tabs.
+- Layout persists across app restarts.
+- View > Reset Panel Layout restores the default arrangement.
+- View > Add Panel re-opens a closed panel in the active group.
+- Close buttons hidden by default, shown on tab hover.
+
+## Context Menus
+
+- Sheet sidebar: Open, Reveal in Finder, Refresh all sheets.
+- Canvas annotation box: Duplicate, Delete, Pick chroma.
+- Canvas empty area: Add sprite, Pick chroma.
+- Annotation list: Duplicate, Delete.
+- Gallery: Select sprite, Open sheet (cross-sheet).
+- Inspector: Native Cut/Copy/Paste on form inputs.
+- Global right-click disabled outside of these contexts.
+
+## Native Menus
+
+- **Span**: About, Hide, Hide Others, Show All, Quit.
+- **File**: Save, Refresh Sheets.
+- **Edit**: Undo, Redo, Cut, Copy, Paste, Select All, Add Sprite, Duplicate Sprite, Delete Sprite.
+- **View**: Add Panel (submenu), Reset Panel Layout, Toggle Full Screen.
+- **Window**: Minimize, Zoom, Close, Bring All to Front.
+- **Help**: Toggle Developer Tools.
 
 ## Planned Annotation Types
 
@@ -74,33 +113,32 @@
   - `hitbox`
   - `grab_box`
 - These should be attachable to a sprite annotation instead of requiring a separate top-level sprite.
-- The intended direction is a sprite owning multiple auxiliary annotations, not flattening all of them into unrelated standalone entries.
-
-## Hot Reload
-
-- HTML, CSS, and JS changes trigger browser reload.
-- `server.py` changes restart the Python server process.
-- If the current sheet has unsaved edits, the UI warns instead of force-reloading.
 
 ## Project Layout
 
-- `web/`
-  - frontend files served by the annotator
+- `src/bun/`
+  - Electrobun main process (file I/O, menus, window, RPC handlers)
+- `src/shared/`
+  - Shared RPC type definitions
+- `src/mainview/`
+  - Vue 3 webview (all UI)
 - `example_project/`
-  - sample project bundled with the repo
+  - sample project bundled with the app
 - `example_project/sheets/`
   - Zelda sheets copied from the source game repo
 - `example_project/annotations/`
   - sample annotations
 - `example_project/manifest.json`
-  - optional source metadata surfaced in the UI
+  - optional source metadata
 
 ## Runtime Entry
 
 - Default command:
-  - `uv run server.py`
+  - `bun start`
+- With HMR:
+  - `bun run dev:hmr`
 - Alternate project:
-  - `uv run server.py --project /abs/path/to/project`
+  - `bun start -- --project /path/to/project`
 - Expected external project layout:
   - `sheets/`
   - `annotations/`

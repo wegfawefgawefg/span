@@ -1,42 +1,85 @@
-# span
+# Span
 
-Standalone spritesheet annotator.
+Standalone spritesheet annotator. Native desktop app built with Electrobun, Vue 3, and TypeScript.
 
-## Run
+## Quick Start
 
 ```bash
-cd /home/vega/Coding/GameDev/zelda_1_multiplayer/span
-uv run server.py
+bun install
+bun start
 ```
 
-Then open `http://127.0.0.1:8765`.
+## Development
 
-## Docs
+```bash
+# Without HMR (rebuilds on file change)
+bun run dev
 
-- [docs/features.md](/home/vega/Coding/GameDev/zelda_1_multiplayer/span/docs/features.md)
+# With Vite HMR (live reload for Vue components)
+bun run dev:hmr
+```
 
-## Layout
+## Project Layout
 
-- `web/`: the annotator UI
-- `server.py`: tiny Python server with hot reload
-- `example_project/`: a runnable sample project
-- `example_project/sheets/`: Zelda sheets copied from the main game repo
-- `example_project/annotations/`: saved annotation JSON
+```
+src/
+  bun/              Electrobun main process (file I/O, menus, RPC)
+  shared/           Shared RPC type definitions
+  mainview/         Vue 3 webview (UI)
+    src/
+      components/   Vue components (panels, context menus)
+      composables/  Vue composables (canvas, chroma key)
+      state.ts      Reactive store
+      rpc.ts        Electroview RPC client
+      types.ts      TypeScript interfaces
+example_project/    Bundled sample project
+docs/               Feature docs and design specs
+```
 
 ## Use A Different Project
 
 ```bash
-uv run server.py --project /abs/path/to/your/project
+bun start -- --project /path/to/your/project
 ```
 
 Expected project layout:
 
-- `sheets/`
-- `annotations/`
-- optional `manifest.json`
+- `sheets/` — PNG spritesheet images
+- `annotations/` — annotation JSON (created automatically)
+- `manifest.json` — optional asset metadata
 
-## Dev Notes
+## Key Features
 
-- HTML/CSS/JS changes trigger browser reload
-- `server.py` changes restart the Python process
-- if the current sheet has unsaved edits, the UI warns instead of force-reloading
+- Dockable, rearrangeable panel layout (Dockview)
+- Sprite annotation with drag, resize, and zoom
+- Inspector for editing annotation metadata
+- Gallery with animated multi-frame sprite previews
+- Chroma key sampling and removal
+- Native macOS menus and keyboard shortcuts
+- Layout persistence across restarts
+- Context menus on all panels
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd+S` | Save annotations |
+| `Cmd+D` | Duplicate selected sprite |
+| `Delete` / `Backspace` | Delete selected sprite |
+| `Space` + drag | Pan canvas |
+| Middle mouse drag | Pan canvas |
+| `Alt/Option` + drag | Duplicate and drag |
+| Scroll wheel | Zoom toward cursor |
+| `Cmd+Alt+I` | Toggle developer tools |
+
+## Tech Stack
+
+- [Electrobun](https://electrobun.dev) — native desktop runtime (Bun + system webview)
+- [Vue 3](https://vuejs.org) — Composition API with TypeScript
+- [Dockview](https://dockview.dev) — dockable panel layout
+- [Tailwind CSS v4](https://tailwindcss.com) — utility-first styling
+- [Vite](https://vitejs.dev) — build tooling and HMR
+
+## Docs
+
+- [Features](docs/features.md)

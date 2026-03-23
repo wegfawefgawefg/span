@@ -8,7 +8,7 @@ import {
 	openSheet,
 	selectAnnotation,
 } from "../state";
-import { api } from "../rpc";
+import { api } from "../platform/adapter";
 import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";

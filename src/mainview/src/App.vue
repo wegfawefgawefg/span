@@ -10,7 +10,7 @@ import {
 	deleteSelected,
 	saveCurrentAnnotations,
 } from "./state";
-import { api, setResetLayoutHandler, setAddPanelHandler } from "./rpc";
+import { api, setResetLayoutHandler, setAddPanelHandler } from "./platform/adapter";
 
 const PANELS: Record<string, { component: string; title: string }> = {
 	sheets: { component: "sheets", title: "Sheets" },

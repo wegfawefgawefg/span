@@ -1,7 +1,7 @@
 import { computed, ref, triggerRef } from "vue";
 import type { Annotation, Sheet, SheetWithAnnotations } from "./types";
 import { makeId, normalizeAnnotation } from "./types";
-import { api, setCanCloseHandler, setMenuHandlers } from "./rpc";
+import { api } from "./platform/adapter";
 
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 32;
@@ -43,29 +43,11 @@ export function registerViewportCenterFn(
 	getViewportCenter = fn;
 }
 
-// --- Dirty guard for quit ---
-
-setCanCloseHandler(() => {
-	if (!dirty.value) return true;
-	return window.confirm("You have unsaved changes. Quit without saving?");
-});
-
-// --- Menu handlers ---
-
-setMenuHandlers({
-	addSprite: () => {
-		const center = getViewportCenter();
-		addAnnotation(center.x, center.y);
-	},
-	duplicateSprite: () => duplicateSelected(),
-	deleteSprite: () => deleteSelected(),
-	triggerSave: () => {
-		saveCurrentAnnotations().catch((e) => {
-			console.error(e);
-			statusText.value = "Save failed \u2014 check disk permissions";
-		});
-	},
-});
+/** Called from desktop menu handler — passes current viewport center */
+export function addAnnotationAtViewportCenter() {
+	const center = getViewportCenter();
+	addAnnotation(center.x, center.y);
+}
 
 // --- Actions ---
 

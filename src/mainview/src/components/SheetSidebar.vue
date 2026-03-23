@@ -8,7 +8,7 @@ import {
 	statusText,
 	loadProjectData,
 } from "../state";
-import { api } from "../rpc";
+import { api, platform } from "../platform/adapter";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
 
@@ -59,10 +59,9 @@ function onSheetContextMenu(event: MouseEvent, file: string) {
 			action: () => handleOpen(file),
 			disabled: currentSheet.value?.file === file,
 		},
-		{
-			label: "Reveal in Finder",
-			action: () => api.revealSheet(file),
-		},
+		...(platform.value === "desktop"
+			? [{ label: "Reveal in Finder", action: () => api.revealSheet(file) }]
+			: []),
 		{ separator: true },
 		{ label: "Refresh all sheets", action: () => handleRefresh() },
 	];

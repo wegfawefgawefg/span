@@ -274,25 +274,29 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 				v-for="group in groups"
 				:key="group.key"
 				type="button"
-				class="inline-flex flex-col gap-1.5 p-2 border rounded-sm text-left transition-all cursor-pointer active:translate-y-px"
-				:class="
-					group.inCurrentSheet
-						? 'bg-copper-glow border-copper/30'
-						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
-				"
+				class="inline-flex flex-col border rounded-sm text-left transition-all cursor-pointer active:translate-y-px overflow-hidden"
+			:class="[
+				previewScale >= 3 ? 'gap-1.5 p-2' : 'gap-0 p-1',
+				group.inCurrentSheet
+					? 'bg-copper-glow border-copper/30'
+					: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
+			]"
 				@click="handleClick(group)"
 			@contextmenu.stop="onGroupContextMenu($event, group)"
 			>
 				<canvas
 					:ref="(el: any) => setCanvasRef(group.key, el)"
 					class="gallery-preview"
+					:title="`${group.name} — ${group.frames.length}f${group.direction ? ' · ' + group.direction : ''}${group.variant ? ' · ' + group.variant : ''}`"
 				></canvas>
-				<div class="text-xs font-medium truncate" :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'">
-					{{ group.name }}
-				</div>
-				<div class="font-mono text-[10px] text-text-faint">
-					{{ group.frames.length }}f<template v-if="group.direction"> &middot; {{ group.direction }}</template><template v-if="group.variant"> &middot; {{ group.variant }}</template>
-				</div>
+				<template v-if="previewScale >= 3">
+					<div class="text-xs font-medium truncate max-w-full" :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'">
+						{{ group.name }}
+					</div>
+					<div class="font-mono text-[10px] text-text-faint truncate max-w-full">
+						{{ group.frames.length }}f<template v-if="group.direction"> &middot; {{ group.direction }}</template><template v-if="group.variant"> &middot; {{ group.variant }}</template>
+					</div>
+				</template>
 			</button>
 		</div>
 		<ContextMenu ref="ctxMenu" />

@@ -3,6 +3,7 @@ import { ref } from "vue";
 
 const props = defineProps<{
 	hasDirectoryPicker: boolean;
+	externalError?: string;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +18,7 @@ const fileInput = ref<HTMLInputElement | null>(null);
 
 function onDrop(e: DragEvent) {
 	dragging.value = false;
+	error.value = "";
 	e.preventDefault();
 
 	// Try to get a directory handle (Chromium only)
@@ -46,6 +48,7 @@ function onDrop(e: DragEvent) {
 }
 
 function onFileInputChange(e: Event) {
+	error.value = "";
 	const input = e.target as HTMLInputElement;
 	if (input.files && input.files.length > 0) {
 		emit("selectFiles", input.files);
@@ -105,11 +108,11 @@ function onFileInputChange(e: Event) {
 				/>
 			</template>
 
-			<p class="text-[11px] text-text-faint">
+			<p v-if="hasDirectoryPicker" class="text-[11px] text-text-faint">
 				or drag and drop a folder here
 			</p>
 
-			<p v-if="error" class="text-xs text-danger">{{ error }}</p>
+			<p v-if="error || externalError" class="text-xs text-danger">{{ error || externalError }}</p>
 		</div>
 	</div>
 </template>

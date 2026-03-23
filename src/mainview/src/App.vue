@@ -25,6 +25,7 @@ const PANELS: Record<string, { component: string; title: string }> = {
 let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const statusFlash = ref(false);
+const landingError = ref("");
 
 // Flash the status bar briefly on save (dirty goes true → false)
 watch(dirty, (now, was) => {
@@ -50,6 +51,7 @@ function debouncedSaveLayout() {
 const hasDirectoryPicker = "showDirectoryPicker" in window;
 
 async function handlePickDirectory() {
+	landingError.value = "";
 	try {
 		await api.pickProjectDirectory();
 		if (projectOpen.value) {
@@ -57,28 +59,30 @@ async function handlePickDirectory() {
 		}
 	} catch (e: any) {
 		if (e?.message === "no-sheets" || e?.message === "no-png") {
-			statusText.value = "No spritesheet files found in this folder";
+			landingError.value = "No spritesheet files found in this folder";
 		}
 	}
 }
 
 async function handleOpenHandle(handle: FileSystemDirectoryHandle) {
+	landingError.value = "";
 	if (platform.value !== "web") return;
 	const webAdapter = getRawAdapter<WebPlatformAdapter>();
 	const result = await webAdapter.openWithHandle(handle);
 	if (!result.ok) {
-		statusText.value = result.error ?? "Invalid project folder";
+		landingError.value = result.error ?? "Invalid project folder";
 		return;
 	}
 	await loadProjectData();
 }
 
 async function handleSelectFiles(files: FileList) {
+	landingError.value = "";
 	if (platform.value !== "web") return;
 	const webAdapter = getRawAdapter<WebPlatformAdapter>();
 	const result = webAdapter.setFallbackFiles(files);
 	if (!result.ok) {
-		statusText.value = result.error ?? "Failed to open folder";
+		landingError.value = result.error ?? "Failed to open folder";
 		return;
 	}
 	await loadProjectData();
@@ -245,6 +249,7 @@ onUnmounted(() => {
 		<LandingScreen
 			v-else
 			:has-directory-picker="hasDirectoryPicker"
+			:external-error="landingError"
 			@pick-directory="handlePickDirectory"
 			@open-handle="handleOpenHandle"
 			@select-files="handleSelectFiles"

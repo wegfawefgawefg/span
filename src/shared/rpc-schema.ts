@@ -46,6 +46,10 @@ export type SpanRPC = {
 				params: {};
 				response: string | null;
 			};
+			revealSheet: {
+				params: { sheet: string };
+				response: void;
+			};
 			saveLayout: {
 				params: { layout: object };
 				response: { ok: boolean };

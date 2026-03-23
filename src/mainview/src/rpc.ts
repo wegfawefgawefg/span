@@ -86,6 +86,8 @@ export const api = {
 		electroview.rpc.request.getSheetImage({ sheet }),
 	pickProjectDirectory: () =>
 		electroview.rpc.request.pickProjectDirectory({}),
+	revealSheet: (sheet: string) =>
+		electroview.rpc.request.revealSheet({ sheet }),
 	saveLayout: (layout: object) =>
 		electroview.rpc.request.saveLayout({ layout }),
 	loadLayout: () => electroview.rpc.request.loadLayout({}),

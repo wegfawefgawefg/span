@@ -81,6 +81,10 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 					return null;
 				}
 			},
+			revealSheet: ({ sheet }) => {
+				const path = join(project.sheetsDir, sheet);
+				Utils.showItemInFolder(path);
+			},
 		},
 		messages: {},
 	},

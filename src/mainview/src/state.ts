@@ -1,4 +1,4 @@
-import { computed, ref } from "vue";
+import { computed, ref, triggerRef } from "vue";
 import type { Annotation, Sheet, SheetWithAnnotations } from "./types";
 import { makeId, normalizeAnnotation } from "./types";
 import { api, setCanCloseHandler, setMenuHandlers } from "./rpc";
@@ -91,6 +91,8 @@ function syncCurrentSheetIntoProject() {
 	record.annotations = annotations.value.map((a) =>
 		normalizeAnnotation(a as unknown as Record<string, unknown>),
 	);
+	// Force Vue to notice the deep mutation so gallery recomputes
+	triggerRef(projectSheets);
 }
 
 export async function loadProjectData() {

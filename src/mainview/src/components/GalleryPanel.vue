@@ -29,7 +29,7 @@ interface SpriteGroup {
 	frames: GalleryFrame[];
 }
 
-const PREVIEW_SCALE = 3;
+const previewScale = ref(3);
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 const sourceCanvas = document.createElement("canvas");
 const sourceCtx = sourceCanvas.getContext("2d", {
@@ -126,8 +126,8 @@ function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 	const w = Math.max(1, frame.annotation.width);
 	const h = Math.max(1, frame.annotation.height);
-	canvas.width = w * PREVIEW_SCALE;
-	canvas.height = h * PREVIEW_SCALE;
+	canvas.width = w * previewScale.value;
+	canvas.height = h * previewScale.value;
 
 	loadImage(frame.sheetFile)
 		.then((img) => {
@@ -201,6 +201,10 @@ watch(groups, () => {
 	requestAnimationFrame(renderPreviews);
 });
 
+watch(previewScale, () => {
+	requestAnimationFrame(renderPreviews);
+});
+
 onMounted(() => {
 	galleryTimer = window.setInterval(() => {
 		galleryTick++;
@@ -252,7 +256,23 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 
 <template>
 	<div class="h-full flex flex-col overflow-hidden bg-surface-1">
-		<div class="flex-1 overflow-y-auto min-h-0 px-2 py-2 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 auto-rows-max content-start">
+		<div class="flex items-center gap-2 px-2 pt-1.5 pb-0.5">
+			<span class="text-[10px] font-mono text-text-faint">{{ previewScale }}x</span>
+			<input
+				type="range"
+				min="1"
+				max="8"
+				step="1"
+				:value="previewScale"
+				class="gallery-zoom-slider flex-1"
+				@input="previewScale = Number(($event.target as HTMLInputElement).value)"
+			/>
+			<span class="text-[10px] font-mono text-text-faint border border-border rounded-sm px-1">{{ groups.length }}</span>
+		</div>
+		<div
+			class="flex-1 overflow-y-auto min-h-0 px-2 py-2 grid gap-2 auto-rows-max content-start"
+			:style="{ gridTemplateColumns: `repeat(auto-fill, minmax(${60 + previewScale * 20}px, 1fr))` }"
+		>
 			<button
 				v-for="group in groups"
 				:key="group.key"

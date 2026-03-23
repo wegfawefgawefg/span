@@ -138,10 +138,18 @@ function boxStyle(annotation: Annotation, index: number) {
 
 <template>
 	<div class="canvas-shell">
-		<div class="canvas-zoom-controls">
-			<button type="button" @click="handleZoomOut">-</button>
-			<span class="zoom-label">{{ zoomLabel }}</span>
-			<button type="button" @click="handleZoomIn">+</button>
+		<div class="absolute top-2 right-2 z-50 flex items-center gap-0.5 p-1 bg-surface-0/90 border border-border rounded-sm backdrop-blur-sm">
+			<button
+				type="button"
+				class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
+				@click="handleZoomOut"
+			>-</button>
+			<span class="min-w-[42px] text-center text-[10px] font-mono text-text-faint select-none">{{ zoomLabel }}</span>
+			<button
+				type="button"
+				class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
+				@click="handleZoomIn"
+			>+</button>
 		</div>
 		<div ref="scroller" class="canvas-scroller" @wheel.prevent="handleWheel">
 			<div

@@ -30,182 +30,121 @@ function togglePick() {
 </script>
 
 <template>
-	<section class="panel">
-		<div class="panel-header">
-			<h2>Selection</h2>
-		</div>
-		<div v-if="!selectedAnnotation" class="empty-state">
+	<div class="h-full p-3 overflow-y-auto bg-surface-1">
+		<h2 class="text-sm font-semibold tracking-wide text-text-dim uppercase mb-3">Selection</h2>
+
+		<div v-if="!selectedAnnotation" class="text-text-faint text-sm italic py-6 text-center">
 			Select a sprite on the sheet.
 		</div>
-		<form v-else class="inspector-form" @submit.prevent>
-			<label>
+
+		<form v-else class="grid grid-cols-2 gap-2" @submit.prevent>
+			<label class="col-span-2 flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Name
 				<input
 					type="text"
 					:value="selectedAnnotation.name"
-					@input="
-						onFieldInput(
-							'name',
-							($event.target as HTMLInputElement).value,
-						)
-					"
+					@input="onFieldInput('name', ($event.target as HTMLInputElement).value)"
 				/>
 			</label>
-			<label>
+
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Type
 				<select
 					:value="selectedAnnotation.type"
-					@input="
-						onFieldInput(
-							'type',
-							($event.target as HTMLSelectElement).value,
-						)
-					"
+					@input="onFieldInput('type', ($event.target as HTMLSelectElement).value)"
 				>
 					<option value="sprite">sprite</option>
 					<option value="tile">tile</option>
 				</select>
 			</label>
-			<label>
+
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Frame
 				<input
 					type="number"
 					min="0"
 					:value="selectedAnnotation.frame"
-					@input="
-						onFieldInput(
-							'frame',
-							($event.target as HTMLInputElement).value,
-						)
-					"
+					@input="onFieldInput('frame', ($event.target as HTMLInputElement).value)"
 				/>
 			</label>
-			<label>
+
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Direction
 				<input
 					type="text"
 					:value="selectedAnnotation.direction"
-					@input="
-						onFieldInput(
-							'direction',
-							($event.target as HTMLInputElement).value,
-						)
-					"
+					@input="onFieldInput('direction', ($event.target as HTMLInputElement).value)"
 				/>
 			</label>
-			<label>
+
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Variant
 				<input
 					type="text"
 					:value="selectedAnnotation.variant"
-					@input="
-						onFieldInput(
-							'variant',
-							($event.target as HTMLInputElement).value,
-						)
-					"
+					@input="onFieldInput('variant', ($event.target as HTMLInputElement).value)"
 				/>
 			</label>
-			<label>
+
+			<label class="col-span-2 flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Chroma Key
-				<div class="inline-field">
+				<div class="grid grid-cols-[1fr_auto] gap-1.5">
 					<input
 						type="text"
 						placeholder="#00a000"
 						:value="selectedAnnotation.chroma_key"
-						@input="
-							onFieldInput(
-								'chroma_key',
-								($event.target as HTMLInputElement).value,
-							)
-						"
+						@input="onFieldInput('chroma_key', ($event.target as HTMLInputElement).value)"
 					/>
-					<button type="button" @click="togglePick">
-						{{ colorPickArmed ? "Click Sheet" : "Pick" }}
+					<button
+						type="button"
+						class="px-2.5 py-1 text-[11px] font-mono border rounded-sm cursor-pointer whitespace-nowrap transition-colors"
+						:class="
+							colorPickArmed
+								? 'bg-copper-glow border-copper text-copper-bright'
+								: 'bg-surface-2 border-border text-text-dim hover:border-copper hover:text-copper'
+						"
+						@click="togglePick"
+					>
+						{{ colorPickArmed ? "Sampling..." : "Pick" }}
 					</button>
 				</div>
 			</label>
-			<label>
+
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				X
-				<input
-					type="number"
-					:value="selectedAnnotation.x"
-					@input="
-						onFieldInput(
-							'x',
-							($event.target as HTMLInputElement).value,
-						)
-					"
-				/>
+				<input type="number" :value="selectedAnnotation.x" @input="onFieldInput('x', ($event.target as HTMLInputElement).value)" />
 			</label>
-			<label>
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Y
-				<input
-					type="number"
-					:value="selectedAnnotation.y"
-					@input="
-						onFieldInput(
-							'y',
-							($event.target as HTMLInputElement).value,
-						)
-					"
-				/>
+				<input type="number" :value="selectedAnnotation.y" @input="onFieldInput('y', ($event.target as HTMLInputElement).value)" />
 			</label>
-			<label>
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Width
-				<input
-					type="number"
-					min="1"
-					:value="selectedAnnotation.width"
-					@input="
-						onFieldInput(
-							'width',
-							($event.target as HTMLInputElement).value,
-						)
-					"
-				/>
+				<input type="number" min="1" :value="selectedAnnotation.width" @input="onFieldInput('width', ($event.target as HTMLInputElement).value)" />
 			</label>
-			<label>
+			<label class="flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Height
-				<input
-					type="number"
-					min="1"
-					:value="selectedAnnotation.height"
-					@input="
-						onFieldInput(
-							'height',
-							($event.target as HTMLInputElement).value,
-						)
-					"
-				/>
+				<input type="number" min="1" :value="selectedAnnotation.height" @input="onFieldInput('height', ($event.target as HTMLInputElement).value)" />
 			</label>
-			<label>
+
+			<label class="col-span-2 flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Tags
 				<input
 					type="text"
 					placeholder="comma,separated"
 					:value="selectedAnnotation.tags"
-					@input="
-						onFieldInput(
-							'tags',
-							($event.target as HTMLInputElement).value,
-						)
-					"
+					@input="onFieldInput('tags', ($event.target as HTMLInputElement).value)"
 				/>
 			</label>
-			<label>
+
+			<label class="col-span-2 flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider">
 				Notes
 				<textarea
-					rows="4"
+					rows="3"
 					:value="selectedAnnotation.notes"
-					@input="
-						onFieldInput(
-							'notes',
-							($event.target as HTMLTextAreaElement).value,
-						)
-					"
+					@input="onFieldInput('notes', ($event.target as HTMLTextAreaElement).value)"
 				></textarea>
 			</label>
 		</form>
-	</section>
+	</div>
 </template>

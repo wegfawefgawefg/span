@@ -12,28 +12,33 @@ const sorted = computed(() =>
 </script>
 
 <template>
-	<section class="panel">
-		<div class="panel-header">
-			<h2>Sprites In Sheet</h2>
-			<span class="pill">{{ annotations.length }}</span>
+	<div class="flex flex-col h-full p-3 overflow-hidden bg-surface-1">
+		<div class="flex items-center justify-between mb-2">
+			<h2 class="text-sm font-semibold tracking-wide text-text-dim uppercase">Sprites</h2>
+			<span class="px-1.5 py-0.5 text-[10px] font-mono text-text-faint border border-border rounded-sm">
+				{{ annotations.length }}
+			</span>
 		</div>
-		<div class="annotation-list">
+		<div class="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0">
 			<button
 				v-for="annotation in sorted"
 				:key="annotation.id"
 				type="button"
-				class="annotation-card"
-				:class="{ selected: annotation.id === selectedId }"
+				class="w-full text-left px-2.5 py-1.5 border rounded-sm transition-all cursor-pointer"
+				:class="
+					annotation.id === selectedId
+						? 'bg-copper-glow border-copper'
+						: 'bg-surface-2 border-border hover:border-border-strong'
+				"
 				@click="selectAnnotation(annotation.id)"
 			>
-				<div class="annotation-name">{{ annotation.name }}</div>
-				<div class="annotation-meta">
-					frame {{ annotation.frame }} &bull; {{ annotation.x }},{{
-						annotation.y
-					}}
-					&bull; {{ annotation.width }}x{{ annotation.height }}
+				<div class="text-[12px] font-medium truncate" :class="annotation.id === selectedId ? 'text-copper-bright' : 'text-text'">
+					{{ annotation.name }}
+				</div>
+				<div class="font-mono text-[10px] text-text-faint mt-0.5">
+					f{{ annotation.frame }} &middot; {{ annotation.x }},{{ annotation.y }} &middot; {{ annotation.width }}&times;{{ annotation.height }}
 				</div>
 			</button>
 		</div>
-	</section>
+	</div>
 </template>

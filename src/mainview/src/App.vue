@@ -142,6 +142,8 @@ onUnmounted(() => {
 		<div class="dockview-theme-dark dockview-container">
 			<DockviewVue @ready="onReady" />
 		</div>
-		<div class="status-bar">{{ statusText }}</div>
+		<div class="px-3 py-1 border-t border-border bg-surface-1 text-text-faint text-[11px] font-mono truncate">
+			{{ statusText }}
+		</div>
 	</div>
 </template>

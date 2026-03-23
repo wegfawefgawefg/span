@@ -11,9 +11,11 @@
 		"build:canary": "vite build && electrobun build --env=canary"
 	},
 	"dependencies": {
+		"@tailwindcss/vite": "^4.2.2",
 		"dockview-core": "^5.1.0",
 		"dockview-vue": "^5.1.0",
-		"electrobun": "1.16.0"
+		"electrobun": "1.16.0",
+		"tailwindcss": "^4.2.2"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",

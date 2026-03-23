@@ -219,40 +219,37 @@ async function handleClick(group: SpriteGroup) {
 </script>
 
 <template>
-	<section class="gallery-panel">
-		<div class="panel-header">
-			<h2>Realized Sprites</h2>
-			<span class="pill">{{ groups.length }}</span>
+	<div class="h-full p-3 overflow-y-auto bg-surface-1">
+		<div class="flex items-center justify-between mb-3">
+			<h2 class="text-sm font-semibold tracking-wide text-text-dim uppercase">Gallery</h2>
+			<span class="px-1.5 py-0.5 text-[10px] font-mono text-text-faint border border-border rounded-sm">
+				{{ groups.length }}
+			</span>
 		</div>
-		<div class="gallery-list">
+		<div class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
 			<button
 				v-for="group in groups"
 				:key="group.key"
 				type="button"
-				class="gallery-card"
-				:class="{ 'current-sheet': group.inCurrentSheet }"
+				class="flex flex-col gap-1.5 p-2 border rounded-sm text-left transition-all cursor-pointer"
+				:class="
+					group.inCurrentSheet
+						? 'bg-copper-glow border-copper/30'
+						: 'bg-surface-2 border-border hover:border-border-strong'
+				"
 				@click="handleClick(group)"
 			>
 				<canvas
 					:ref="(el: any) => setCanvasRef(group.key, el)"
 					class="gallery-preview"
 				></canvas>
-				<div class="gallery-name">{{ group.name }}</div>
-				<div class="gallery-meta">
-					{{ group.frames.length }} frame{{
-						group.frames.length === 1 ? "" : "s"
-					}}
-					<template v-if="group.direction">
-						&bull; {{ group.direction }}</template
-					>
-					<template v-if="group.variant">
-						&bull; {{ group.variant }}</template
-					>
-					<template v-if="group.inCurrentSheet">
-						&bull; current sheet</template
-					>
+				<div class="text-[12px] font-medium truncate" :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'">
+					{{ group.name }}
+				</div>
+				<div class="font-mono text-[10px] text-text-faint">
+					{{ group.frames.length }}f<template v-if="group.direction"> &middot; {{ group.direction }}</template><template v-if="group.variant"> &middot; {{ group.variant }}</template>
 				</div>
 			</button>
 		</div>
-	</section>
+	</div>
 </template>

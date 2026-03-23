@@ -220,13 +220,7 @@ async function handleClick(group: SpriteGroup) {
 
 <template>
 	<div class="h-full flex flex-col overflow-hidden bg-surface-1">
-		<div class="flex items-center justify-between p-3 pb-0">
-			<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase">Gallery</h2>
-			<span class="px-1.5 py-0.5 text-[10px] font-mono text-text-faint border border-border rounded-sm">
-				{{ groups.length }}
-			</span>
-		</div>
-		<div class="flex-1 overflow-y-auto min-h-0 px-2 pb-2 pt-2 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 auto-rows-max content-start">
+		<div class="flex-1 overflow-y-auto min-h-0 px-2 py-2 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 auto-rows-max content-start">
 			<button
 				v-for="group in groups"
 				:key="group.key"

@@ -33,10 +33,6 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 
 <template>
 	<div class="h-full flex flex-col overflow-hidden bg-surface-1">
-		<div class="p-3 pb-0">
-			<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase">Selection</h2>
-		</div>
-
 		<div v-if="!selectedAnnotation" class="flex-1 flex flex-col items-center justify-center gap-2 text-center">
 			<svg class="w-8 h-8 text-text-faint/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<rect x="3" y="3" width="18" height="18" rx="1" stroke-dasharray="4 2" />
@@ -45,7 +41,7 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 			<span class="text-xs text-text-faint">Select a sprite on the sheet</span>
 		</div>
 
-		<form v-else class="flex-1 overflow-y-auto min-h-0 grid grid-cols-2 gap-2 px-3 pb-3 pt-2 auto-rows-max content-start" @submit.prevent>
+		<form v-else class="flex-1 overflow-y-auto min-h-0 grid grid-cols-2 gap-2 px-2 pb-2 pt-2 auto-rows-max content-start" @submit.prevent>
 			<label :class="[labelClass, 'col-span-2']">
 				Name
 				<input type="text" :value="selectedAnnotation.name" @input="onFieldInput('name', ($event.target as HTMLInputElement).value)" />

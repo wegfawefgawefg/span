@@ -51,15 +51,7 @@ async function handleRefresh() {
 
 <template>
 	<div class="h-full flex flex-col gap-2 overflow-hidden bg-surface-1">
-		<div class="flex flex-col gap-1 p-3 pb-0">
-			<div class="flex items-center justify-between">
-				<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase">Sheets</h2>
-				<button type="button" class="px-2 py-1 text-[11px] font-mono text-text-dim bg-surface-2 border border-border rounded-sm
-					hover:border-copper hover:text-copper focus-visible:outline-copper transition-colors cursor-pointer active:translate-y-px"
-					@click="handleRefresh">
-					Refresh
-				</button>
-			</div>
+		<div class="flex flex-col gap-1.5 p-2 pb-0">
 			<input v-model="filterQuery" type="search" placeholder="Filter sheets..." autocomplete="off" />
 		</div>
 		<div class="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0 px-2 pb-2">

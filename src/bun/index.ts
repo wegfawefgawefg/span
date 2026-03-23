@@ -23,12 +23,18 @@ for (let i = 0; i < args.length; i++) {
 async function resolveProjectPath(): Promise<string> {
 	if (projectPath) return projectPath;
 
-	// Fall back to bundled example project
 	const channel = await Updater.localInfo.channel();
 	if (channel === "dev") {
-		return new URL("../../example_project", import.meta.url).pathname;
+		// In dev, walk up from the app bundle to find the repo root.
+		// The bundled main.js lives at:
+		//   <repo>/build/dev-<platform>/Span-dev.app/Contents/Resources/main.js
+		const { resolve, join } = await import("path");
+		const resourcesDir = new URL(".", import.meta.url).pathname;
+		const repoRoot = resolve(resourcesDir, "../../../../../../..");
+		return join(repoRoot, "example_project");
 	}
 
+	// Production: bundled in resources
 	return "resources://example_project";
 }
 

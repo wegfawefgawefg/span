@@ -2,11 +2,6 @@
 import { onMounted, onUnmounted } from "vue";
 import { DockviewVue } from "dockview-vue";
 import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
-import SheetSidebar from "./components/SheetSidebar.vue";
-import CanvasView from "./components/CanvasView.vue";
-import Inspector from "./components/Inspector.vue";
-import AnnotationList from "./components/AnnotationList.vue";
-import GalleryPanel from "./components/GalleryPanel.vue";
 import {
 	statusText,
 	loadProjectData,
@@ -145,23 +140,7 @@ onUnmounted(() => {
 <template>
 	<div class="app-shell">
 		<div class="dockview-theme-dark dockview-container">
-			<DockviewVue @ready="onReady">
-				<template #sheets>
-					<SheetSidebar />
-				</template>
-				<template #canvas>
-					<CanvasView />
-				</template>
-				<template #inspector>
-					<Inspector />
-				</template>
-				<template #annotations>
-					<AnnotationList />
-				</template>
-				<template #gallery>
-					<GalleryPanel />
-				</template>
-			</DockviewVue>
+			<DockviewVue @ready="onReady" />
 		</div>
 		<div class="status-bar">{{ statusText }}</div>
 	</div>

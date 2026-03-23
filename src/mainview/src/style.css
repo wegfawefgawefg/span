@@ -390,8 +390,6 @@ textarea {
 
 .gallery-preview {
 	display: block;
-	width: auto;
-	max-width: 100%;
 	image-rendering: pixelated;
 	border: 1px solid var(--color-border);
 	border-radius: 2px;

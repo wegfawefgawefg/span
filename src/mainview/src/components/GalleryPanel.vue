@@ -274,7 +274,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 				v-for="group in groups"
 				:key="group.key"
 				type="button"
-				class="flex flex-col gap-1.5 p-2 border rounded-sm text-left transition-all cursor-pointer active:translate-y-px"
+				class="inline-flex flex-col gap-1.5 p-2 border rounded-sm text-left transition-all cursor-pointer active:translate-y-px"
 				:class="
 					group.inCurrentSheet
 						? 'bg-copper-glow border-copper/30'

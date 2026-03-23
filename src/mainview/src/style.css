@@ -205,6 +205,15 @@ textarea {
 	/* Floating */
 	--dv-floating-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 
+	/* Hide close buttons, show on tab hover */
+	& .dv-default-tab-action {
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+	& .dv-default-tab:hover .dv-default-tab-action {
+		opacity: 1;
+	}
+
 	/* Sizing & typography */
 	--dv-tabs-and-actions-container-height: 30px;
 	--dv-tabs-and-actions-container-font-size: 12px;

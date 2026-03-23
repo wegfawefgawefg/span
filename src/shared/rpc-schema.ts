@@ -46,6 +46,14 @@ export type SpanRPC = {
 				params: {};
 				response: string | null;
 			};
+			saveLayout: {
+				params: { layout: object };
+				response: { ok: boolean };
+			};
+			loadLayout: {
+				params: {};
+				response: object | null;
+			};
 		};
 		messages: {};
 	}>;
@@ -54,6 +62,26 @@ export type SpanRPC = {
 			canClose: {
 				params: {};
 				response: boolean;
+			};
+			addSprite: {
+				params: {};
+				response: void;
+			};
+			duplicateSprite: {
+				params: {};
+				response: void;
+			};
+			deleteSprite: {
+				params: {};
+				response: void;
+			};
+			triggerSave: {
+				params: {};
+				response: void;
+			};
+			resetLayout: {
+				params: {};
+				response: void;
 			};
 		};
 		messages: {

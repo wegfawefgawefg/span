@@ -1,7 +1,7 @@
 import { computed, ref } from "vue";
 import type { Annotation, Sheet, SheetWithAnnotations } from "./types";
 import { makeId, normalizeAnnotation } from "./types";
-import { api, setCanCloseHandler } from "./rpc";
+import { api, setCanCloseHandler, setMenuHandlers } from "./rpc";
 
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 12;
@@ -21,6 +21,8 @@ export const dirty = ref(false);
 export const colorPickArmed = ref(false);
 export const statusText = ref("Loading sheets\u2026");
 export const currentSheetImageSrc = ref<string>("");
+export const imageWidth = ref(0);
+export const imageHeight = ref(0);
 
 // --- Derived ---
 
@@ -28,11 +30,41 @@ export const selectedAnnotation = computed<Annotation | null>(
 	() => annotations.value.find((a) => a.id === selectedId.value) ?? null,
 );
 
+// --- Viewport center callback (set by CanvasView on mount) ---
+
+let getViewportCenter: () => { x: number; y: number } = () => ({
+	x: 0,
+	y: 0,
+});
+
+export function registerViewportCenterFn(
+	fn: () => { x: number; y: number },
+) {
+	getViewportCenter = fn;
+}
+
 // --- Dirty guard for quit ---
 
 setCanCloseHandler(() => {
 	if (!dirty.value) return true;
 	return window.confirm("You have unsaved changes. Quit anyway?");
+});
+
+// --- Menu handlers ---
+
+setMenuHandlers({
+	addSprite: () => {
+		const center = getViewportCenter();
+		addAnnotation(center.x, center.y);
+	},
+	duplicateSprite: () => duplicateSelected(),
+	deleteSprite: () => deleteSelected(),
+	triggerSave: () => {
+		saveCurrentAnnotations().catch((e) => {
+			console.error(e);
+			statusText.value = "Save failed";
+		});
+	},
 });
 
 // --- Actions ---
@@ -107,13 +139,11 @@ export async function openSheet(
 }
 
 export function addAnnotation(
-	viewportCenterX: number,
-	viewportCenterY: number,
-	imageWidth: number,
-	imageHeight: number,
+	viewportCenterX: number = 0,
+	viewportCenterY: number = 0,
 ) {
-	const w = Math.min(16, imageWidth || 16);
-	const h = Math.min(16, imageHeight || 16);
+	const w = Math.min(16, imageWidth.value || 16);
+	const h = Math.min(16, imageHeight.value || 16);
 	const x = Math.max(0, Math.round(viewportCenterX - w / 2));
 	const y = Math.max(0, Math.round(viewportCenterY - h / 2));
 	const annotation: Annotation = {
@@ -185,22 +215,19 @@ export async function saveCurrentAnnotations() {
 
 export function clampAnnotationToImage(
 	annotation: Annotation,
-	imageWidth: number,
-	imageHeight: number,
+	imgW: number = imageWidth.value,
+	imgH: number = imageHeight.value,
 ) {
 	annotation.frame = Math.max(0, Math.round(annotation.frame));
 	annotation.x = Math.max(0, Math.round(annotation.x));
 	annotation.y = Math.max(0, Math.round(annotation.y));
 	annotation.width = Math.max(1, Math.round(annotation.width));
 	annotation.height = Math.max(1, Math.round(annotation.height));
-	annotation.width = Math.min(annotation.width, imageWidth);
-	annotation.height = Math.min(annotation.height, imageHeight);
-	annotation.x = Math.min(
-		annotation.x,
-		Math.max(0, imageWidth - annotation.width),
-	);
+	annotation.width = Math.min(annotation.width, imgW);
+	annotation.height = Math.min(annotation.height, imgH);
+	annotation.x = Math.min(annotation.x, Math.max(0, imgW - annotation.width));
 	annotation.y = Math.min(
 		annotation.y,
-		Math.max(0, imageHeight - annotation.height),
+		Math.max(0, imgH - annotation.height),
 	);
 }

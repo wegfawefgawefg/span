@@ -1,3 +1,4 @@
+import "dockview-vue/dist/styles/dockview.css";
 import "./src/style.css";
 import App from "./src/App.vue";
 import { createApp } from "vue";

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
 import type { Annotation } from "../types";
 import {
 	zoom,
@@ -8,27 +8,22 @@ import {
 	selectAnnotation,
 	colorPickArmed,
 	currentSheetImageSrc,
+	imageWidth,
+	imageHeight,
+	registerViewportCenterFn,
+	updateSelectedAnnotation,
 } from "../state";
 import { ZOOM_FACTOR } from "../state";
 import { useCanvas } from "../composables/useCanvas";
-
-const emit = defineEmits<{
-	chromaSampled: [color: string];
-	imageLoaded: [width: number, height: number];
-}>();
-
-const props = defineProps<{
-	imageWidth: number;
-	imageHeight: number;
-}>();
 
 const scroller = ref<HTMLElement | null>(null);
 const stage = ref<HTMLElement | null>(null);
 const sheetImg = ref<HTMLImageElement | null>(null);
 const { zoomTo, startDrag, onPointerMove, endDrag } = useCanvas();
 
-const stageWidth = computed(() => Math.round(props.imageWidth * zoom.value));
-const stageHeight = computed(() => Math.round(props.imageHeight * zoom.value));
+const stageWidth = computed(() => Math.round(imageWidth.value * zoom.value));
+const stageHeight = computed(() => Math.round(imageHeight.value * zoom.value));
+const zoomLabel = computed(() => `${Math.round(zoom.value * 100)}%`);
 
 // Chroma sampling canvas
 const sampleCanvas = document.createElement("canvas");
@@ -36,18 +31,29 @@ const sampleCtx = sampleCanvas.getContext("2d", {
 	willReadFrequently: true,
 })!;
 
+onMounted(() => {
+	registerViewportCenterFn(() => {
+		const el = scroller.value;
+		if (!el) return { x: 0, y: 0 };
+		const x = (el.scrollLeft + el.clientWidth / 2) / zoom.value;
+		const y = (el.scrollTop + el.clientHeight / 2) / zoom.value;
+		return { x, y };
+	});
+});
+
 function onImageLoad() {
 	const img = sheetImg.value;
 	if (!img) return;
+	imageWidth.value = img.naturalWidth;
+	imageHeight.value = img.naturalHeight;
 	sampleCanvas.width = img.naturalWidth;
 	sampleCanvas.height = img.naturalHeight;
 	sampleCtx.clearRect(0, 0, img.naturalWidth, img.naturalHeight);
 	sampleCtx.drawImage(img, 0, 0);
-	emit("imageLoaded", img.naturalWidth, img.naturalHeight);
 }
 
 function handleWheel(event: WheelEvent) {
-	if (!props.imageWidth) return;
+	if (!imageWidth.value) return;
 	event.preventDefault();
 	const factor = event.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
 	zoomTo(
@@ -86,7 +92,7 @@ function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {
 }
 
 function handleBoxPointerMove(event: PointerEvent) {
-	onPointerMove(event, props.imageWidth, props.imageHeight);
+	onPointerMove(event, imageWidth.value, imageHeight.value);
 }
 
 function handleBoxPointerUp(event: PointerEvent) {
@@ -108,13 +114,14 @@ function sampleColorAt(clientX: number, clientY: number) {
 	const rect = layer.getBoundingClientRect();
 	const x = Math.floor((clientX - rect.left) / zoom.value);
 	const y = Math.floor((clientY - rect.top) / zoom.value);
-	if (x < 0 || y < 0 || x >= props.imageWidth || y >= props.imageHeight)
+	if (x < 0 || y < 0 || x >= imageWidth.value || y >= imageHeight.value)
 		return;
 
 	const pixel = sampleCtx.getImageData(x, y, 1, 1).data;
 	const hex = (v: number) => v.toString(16).padStart(2, "0");
 	const color = `#${hex(pixel[0])}${hex(pixel[1])}${hex(pixel[2])}`;
-	emit("chromaSampled", color);
+	updateSelectedAnnotation({ chroma_key: color });
+	colorPickArmed.value = false;
 }
 
 function boxStyle(annotation: Annotation, index: number) {
@@ -127,22 +134,15 @@ function boxStyle(annotation: Annotation, index: number) {
 		zIndex: isSelected ? annotations.value.length + 10 : index + 1,
 	};
 }
-
-defineExpose({
-	getViewportCenter() {
-		const el = scroller.value;
-		if (!el) return { x: 0, y: 0 };
-		const x = (el.scrollLeft + el.clientWidth / 2) / zoom.value;
-		const y = (el.scrollTop + el.clientHeight / 2) / zoom.value;
-		return { x, y };
-	},
-	handleZoomIn,
-	handleZoomOut,
-});
 </script>
 
 <template>
 	<div class="canvas-shell">
+		<div class="canvas-zoom-controls">
+			<button type="button" @click="handleZoomOut">-</button>
+			<span class="zoom-label">{{ zoomLabel }}</span>
+			<button type="button" @click="handleZoomIn">+</button>
+		</div>
 		<div ref="scroller" class="canvas-scroller" @wheel.prevent="handleWheel">
 			<div
 				ref="stage"

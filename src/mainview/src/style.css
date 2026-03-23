@@ -20,7 +20,7 @@ body {
   margin: 0;
   height: 100vh;
   overflow: hidden;
-  background: linear-gradient(180deg, #16181a, #0f1012);
+  background: var(--bg);
   color: var(--text);
   font: 14px/1.4 "Trebuchet MS", "Segoe UI", sans-serif;
 }
@@ -50,68 +50,54 @@ textarea {
   resize: vertical;
 }
 
-.app {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr) 340px;
+/* --- App shell + Dockview --- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
   height: 100vh;
+  overflow: hidden;
 }
 
-.sidebar,
-.workspace,
-.inspector {
+.dockview-container {
+  flex: 1;
   min-height: 0;
 }
 
-.sidebar,
-.inspector {
-  background: rgba(22, 24, 27, 0.96);
-}
-
-.sidebar {
-  border-right: 1px solid var(--panel-border);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: hidden;
-}
-
-.workspace {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) 280px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.inspector {
-  border-left: 1px solid var(--panel-border);
-  padding: 16px;
-  overflow: auto;
-}
-
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--panel-border);
+.status-bar {
+  padding: 4px 12px;
+  border-top: 1px solid var(--panel-border);
   background: var(--panel);
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.toolbar-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+/* --- Dockview dark theme overrides --- */
+
+.dockview-theme-dark {
+  --dv-paneview-header-border-color: var(--panel-border);
+  --dv-tabs-and-actions-container-background-color: var(--panel);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--panel-muted);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--panel);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--panel-muted);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--panel);
+  --dv-tab-divider-color: var(--panel-border);
+  --dv-activegroup-visiblepanel-tab-color: var(--text);
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-muted);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-muted);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-muted);
+  --dv-background-color: var(--bg);
+  --dv-group-view-background-color: var(--panel);
+  --dv-separator-border: var(--panel-border);
+  --dv-drag-over-background-color: var(--overlay);
+  --dv-drag-over-border-color: var(--accent);
 }
 
-.toolbar-group button {
-  width: auto;
-}
+/* --- Muted text --- */
 
-.toolbar-help,
-.status-label,
 .sheet-meta,
 .annotation-meta,
 .gallery-meta,
@@ -121,19 +107,38 @@ textarea {
   color: var(--text-muted);
 }
 
-.status-label {
-  margin-left: auto;
-  white-space: nowrap;
+/* --- Canvas --- */
+
+.canvas-shell {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
 }
 
-.zoom-label {
-  min-width: 56px;
+.canvas-zoom-controls {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(23, 25, 28, 0.9);
+  border: 1px solid var(--panel-border);
+}
+
+.canvas-zoom-controls button {
+  width: 28px;
+  padding: 4px;
   text-align: center;
 }
 
-.canvas-shell {
-  min-height: 0;
-  padding: 16px;
+.canvas-zoom-controls .zoom-label {
+  min-width: 48px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .canvas-scroller {
@@ -213,6 +218,25 @@ textarea {
   cursor: nwse-resize;
 }
 
+/* --- Sidebar --- */
+
+.sidebar {
+  height: 100%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* --- Inspector --- */
+
+.inspector {
+  height: 100%;
+  padding: 16px;
+  overflow: auto;
+}
+
 .inline-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -222,20 +246,6 @@ textarea {
 .inline-field button {
   width: auto;
   white-space: nowrap;
-}
-
-.panel,
-.gallery-panel {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  padding: 12px;
-}
-
-.gallery-panel {
-  border-left: 0;
-  border-right: 0;
-  border-bottom: 0;
-  overflow: auto;
 }
 
 .panel {
@@ -259,6 +269,27 @@ textarea {
 .search-input {
   margin-bottom: 4px;
 }
+
+.inspector-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.inspector-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.inspector-form label:nth-child(1),
+.inspector-form label:nth-child(2),
+.inspector-form label:last-child {
+  grid-column: 1 / -1;
+}
+
+/* --- Lists --- */
 
 .sheet-list,
 .annotation-list {
@@ -300,23 +331,12 @@ textarea {
   border: 1px solid var(--panel-border);
 }
 
-.inspector-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
+/* --- Gallery --- */
 
-.inspector-form label {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--text-muted);
-}
-
-.inspector-form label:nth-child(1),
-.inspector-form label:nth-child(2),
-.inspector-form label:last-child {
-  grid-column: 1 / -1;
+.gallery-panel {
+  height: 100%;
+  padding: 12px;
+  overflow: auto;
 }
 
 .gallery-list {
@@ -344,27 +364,4 @@ textarea {
     linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.04) 75%),
     #111316;
   background-size: 16px 16px;
-}
-
-@media (max-width: 1200px) {
-  .app {
-    grid-template-columns: 240px minmax(0, 1fr) 300px;
-  }
-}
-
-@media (max-width: 1024px) {
-  .app {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(420px, 1fr) auto;
-  }
-
-  .sidebar,
-  .inspector {
-    border: 0;
-    border-bottom: 1px solid var(--panel-border);
-  }
-
-  .workspace {
-    grid-template-rows: auto minmax(320px, 1fr) 240px;
-  }
 }

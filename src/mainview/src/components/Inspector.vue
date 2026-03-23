@@ -22,7 +22,7 @@ function togglePick() {
 	if (!selectedAnnotation.value) return;
 	colorPickArmed.value = !colorPickArmed.value;
 	if (colorPickArmed.value) {
-		statusText.value = "Click the sheet to sample a chroma key.";
+		statusText.value = "Click the sheet to pick a color";
 	} else if (currentSheet.value) {
 		statusText.value = `${currentSheet.value.file} \u2022 ${dirty.value ? "Unsaved changes" : "Saved"}`;
 	}
@@ -73,7 +73,7 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 			<label :class="[labelClass, 'col-span-2']">
 				Chroma Key
 				<div class="grid grid-cols-[1fr_auto] gap-1.5">
-					<input type="text" placeholder="#00a000" :value="selectedAnnotation.chroma_key" @input="onFieldInput('chroma_key', ($event.target as HTMLInputElement).value)" />
+					<input type="text" placeholder="e.g. #00a000" :value="selectedAnnotation.chroma_key" @input="onFieldInput('chroma_key', ($event.target as HTMLInputElement).value)" />
 					<button
 						type="button"
 						class="px-2 py-1 text-[11px] font-mono border rounded-sm cursor-pointer whitespace-nowrap transition-colors active:translate-y-px"
@@ -96,7 +96,7 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 
 			<label :class="[labelClass, 'col-span-2']">
 				Tags
-				<input type="text" placeholder="comma,separated" :value="selectedAnnotation.tags" @input="onFieldInput('tags', ($event.target as HTMLInputElement).value)" />
+				<input type="text" placeholder="e.g. idle, hurt" :value="selectedAnnotation.tags" @input="onFieldInput('tags', ($event.target as HTMLInputElement).value)" />
 			</label>
 
 			<label :class="[labelClass, 'col-span-2']">

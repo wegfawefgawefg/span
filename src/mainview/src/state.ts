@@ -47,7 +47,7 @@ export function registerViewportCenterFn(
 
 setCanCloseHandler(() => {
 	if (!dirty.value) return true;
-	return window.confirm("You have unsaved changes. Quit anyway?");
+	return window.confirm("You have unsaved changes. Quit without saving?");
 });
 
 // --- Menu handlers ---
@@ -62,7 +62,7 @@ setMenuHandlers({
 	triggerSave: () => {
 		saveCurrentAnnotations().catch((e) => {
 			console.error(e);
-			statusText.value = "Save failed";
+			statusText.value = "Save failed \u2014 check disk permissions";
 		});
 	},
 });
@@ -77,7 +77,7 @@ export function selectAnnotation(id: string | null) {
 export function markDirty(isDirty: boolean) {
 	dirty.value = isDirty;
 	if (!currentSheet.value) {
-		statusText.value = isDirty ? "Unsaved changes" : "Ready";
+		statusText.value = isDirty ? "Unsaved changes" : "No changes";
 		return;
 	}
 	statusText.value = `${currentSheet.value.file} \u2022 ${isDirty ? "Unsaved changes" : "Saved"}`;
@@ -117,7 +117,7 @@ export async function openSheet(
 	selectId: string | null = null,
 ) {
 	if (currentSheet.value?.file !== file && dirty.value) {
-		if (!window.confirm("Discard unsaved changes on the current sheet?")) {
+		if (!window.confirm("Discard unsaved changes to this sheet?")) {
 			return;
 		}
 	}

@@ -111,7 +111,7 @@ function onKeydown(event: KeyboardEvent) {
 		event.preventDefault();
 		saveCurrentAnnotations().catch((e) => {
 			console.error(e);
-			statusText.value = "Save failed";
+			statusText.value = "Save failed \u2014 check disk permissions";
 		});
 		return;
 	}
@@ -137,7 +137,7 @@ onMounted(async () => {
 		await loadProjectData();
 	} catch (e) {
 		console.error(e);
-		statusText.value = "Startup failed";
+		statusText.value = "Failed to load project";
 	}
 });
 

@@ -34,7 +34,7 @@ async function handleRefresh() {
 	if (dirty.value) {
 		if (
 			!window.confirm(
-				"Discard unsaved changes and reload project annotations?",
+				"Discard unsaved changes and reload all sheets?",
 			)
 		) {
 			return;

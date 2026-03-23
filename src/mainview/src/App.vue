@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted } from "vue";
-import {
-	DockviewVue,
-	type DockviewReadyEvent,
-	type DockviewApi,
-} from "dockview-vue";
+import { DockviewVue } from "dockview-vue";
+import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
 import SheetSidebar from "./components/SheetSidebar.vue";
 import CanvasView from "./components/CanvasView.vue";
 import Inspector from "./components/Inspector.vue";
@@ -18,14 +15,6 @@ import {
 	saveCurrentAnnotations,
 } from "./state";
 import { api, setResetLayoutHandler } from "./rpc";
-
-const components = {
-	sheets: SheetSidebar,
-	canvas: CanvasView,
-	inspector: Inspector,
-	annotations: AnnotationList,
-	gallery: GalleryPanel,
-};
 
 let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -78,7 +67,6 @@ function applyDefaultLayout(dv: DockviewApi) {
 		position: { referencePanel: canvasPanel, direction: "below" },
 	});
 
-	// Set relative sizes
 	sheetsPanel.group?.api.setSize({ width: 280 });
 	inspectorPanel.group?.api.setSize({ width: 340 });
 }
@@ -86,7 +74,6 @@ function applyDefaultLayout(dv: DockviewApi) {
 async function onReady(event: DockviewReadyEvent) {
 	dockviewApi = event.api;
 
-	// Try to load saved layout
 	try {
 		const saved = await api.loadLayout();
 		if (saved) {
@@ -98,12 +85,10 @@ async function onReady(event: DockviewReadyEvent) {
 		applyDefaultLayout(event.api);
 	}
 
-	// Listen for layout changes
 	event.api.onDidLayoutChange(() => {
 		debouncedSaveLayout();
 	});
 
-	// Wire reset layout handler
 	setResetLayoutHandler(() => {
 		if (!dockviewApi) return;
 		dockviewApi.clear();
@@ -111,7 +96,6 @@ async function onReady(event: DockviewReadyEvent) {
 	});
 }
 
-// Keyboard shortcuts (fallback for native menus)
 function onKeydown(event: KeyboardEvent) {
 	const mod = event.ctrlKey || event.metaKey;
 	const tag = (document.activeElement?.tagName ?? "").toUpperCase();
@@ -160,12 +144,25 @@ onUnmounted(() => {
 
 <template>
 	<div class="app-shell">
-		<DockviewVue
-			class="dockview-container"
-			:components="components"
-			class-name="dockview-theme-dark"
-			@ready="onReady"
-		/>
+		<div class="dockview-theme-dark dockview-container">
+			<DockviewVue @ready="onReady">
+				<template #sheets>
+					<SheetSidebar />
+				</template>
+				<template #canvas>
+					<CanvasView />
+				</template>
+				<template #inspector>
+					<Inspector />
+				</template>
+				<template #annotations>
+					<AnnotationList />
+				</template>
+				<template #gallery>
+					<GalleryPanel />
+				</template>
+			</DockviewVue>
+		</div>
 		<div class="status-bar">{{ statusText }}</div>
 	</div>
 </template>

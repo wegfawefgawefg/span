@@ -62,6 +62,13 @@ textarea {
 .dockview-container {
   flex: 1;
   min-height: 0;
+  position: relative;
+}
+
+/* DockviewVue renders a plain <div> that needs to fill its container */
+.dockview-container > div {
+  height: 100%;
+  width: 100%;
 }
 
 .status-bar {

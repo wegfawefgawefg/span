@@ -9,6 +9,8 @@ import {
 } from "../state";
 import { api } from "../rpc";
 import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
+import ContextMenu from "./ContextMenu.vue";
+import type { MenuEntry } from "./ContextMenu.vue";
 
 interface GalleryFrame {
 	annotation: Annotation;
@@ -205,6 +207,8 @@ onUnmounted(() => {
 	}
 });
 
+const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
+
 async function handleClick(group: SpriteGroup) {
 	const target =
 		group.frames.find((f) => f.sheetFile === currentSheet.value?.file) ??
@@ -215,6 +219,25 @@ async function handleClick(group: SpriteGroup) {
 	} else {
 		selectAnnotation(target.annotationId);
 	}
+}
+
+function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
+	const target =
+		group.frames.find((f) => f.sheetFile === currentSheet.value?.file) ??
+		group.frames[0];
+	const entries: MenuEntry[] = [
+		{
+			label: "Select sprite",
+			action: () => { if (target) handleClick(group); },
+		},
+	];
+	if (target && target.sheetFile !== currentSheet.value?.file) {
+		entries.unshift({
+			label: `Open ${target.sheetFile}`,
+			action: () => openSheet(target.sheetFile, target.annotationId),
+		});
+	}
+	ctxMenu.value?.show(event, entries);
 }
 </script>
 
@@ -232,6 +255,7 @@ async function handleClick(group: SpriteGroup) {
 						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
 				"
 				@click="handleClick(group)"
+			@contextmenu.stop="onGroupContextMenu($event, group)"
 			>
 				<canvas
 					:ref="(el: any) => setCanvasRef(group.key, el)"
@@ -245,5 +269,6 @@ async function handleClick(group: SpriteGroup) {
 				</div>
 			</button>
 		</div>
+		<ContextMenu ref="ctxMenu" />
 	</div>
 </template>

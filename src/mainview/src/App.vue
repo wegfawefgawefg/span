@@ -148,7 +148,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div class="app-shell">
+	<div class="app-shell" @contextmenu.prevent>
 		<div class="dockview-theme-dark dockview-container">
 			<DockviewVue @ready="onReady" />
 		</div>

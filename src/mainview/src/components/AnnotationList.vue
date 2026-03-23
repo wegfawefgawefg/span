@@ -1,6 +1,16 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import { annotations, selectedId, selectAnnotation } from "../state";
+import { computed, ref } from "vue";
+import {
+	annotations,
+	selectedId,
+	selectAnnotation,
+	duplicateSelected,
+	deleteSelected,
+} from "../state";
+import ContextMenu from "./ContextMenu.vue";
+import type { MenuEntry } from "./ContextMenu.vue";
+
+const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 
 const sorted = computed(() =>
 	[...annotations.value].sort((a, b) => {
@@ -9,6 +19,15 @@ const sorted = computed(() =>
 		return a.frame - b.frame;
 	}),
 );
+
+function onContextMenu(event: MouseEvent, annotationId: string) {
+	selectAnnotation(annotationId);
+	const entries: MenuEntry[] = [
+		{ label: "Duplicate", action: () => duplicateSelected() },
+		{ label: "Delete", action: () => deleteSelected() },
+	];
+	ctxMenu.value?.show(event, entries);
+}
 </script>
 
 <template>
@@ -25,6 +44,7 @@ const sorted = computed(() =>
 						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
 				"
 				@click="selectAnnotation(annotation.id)"
+				@contextmenu="onContextMenu($event, annotation.id)"
 			>
 				<div
 					class="text-xs font-medium truncate"
@@ -37,5 +57,6 @@ const sorted = computed(() =>
 				</div>
 			</button>
 		</div>
+		<ContextMenu ref="ctxMenu" />
 	</div>
 </template>

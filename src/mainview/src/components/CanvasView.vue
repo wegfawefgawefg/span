@@ -12,9 +12,15 @@ import {
 	imageHeight,
 	registerViewportCenterFn,
 	updateSelectedAnnotation,
+	addAnnotation,
+	duplicateSelected,
+	deleteSelected,
+	selectedAnnotation,
 } from "../state";
 import { ZOOM_FACTOR } from "../state";
 import { useCanvas } from "../composables/useCanvas";
+import ContextMenu from "./ContextMenu.vue";
+import type { MenuEntry } from "./ContextMenu.vue";
 
 const scroller = ref<HTMLElement | null>(null);
 const stage = ref<HTMLElement | null>(null);
@@ -193,6 +199,42 @@ function sampleColorAt(clientX: number, clientY: number) {
 	colorPickArmed.value = false;
 }
 
+const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
+
+function onBoxContextMenu(event: MouseEvent, annotation: Annotation) {
+	selectAnnotation(annotation.id);
+	const entries: MenuEntry[] = [
+		{ label: "Duplicate", action: () => duplicateSelected() },
+		{ label: "Delete", action: () => deleteSelected() },
+		{ separator: true },
+		{
+			label: "Pick chroma from sheet",
+			action: () => { colorPickArmed.value = true; },
+		},
+	];
+	ctxMenu.value?.show(event, entries);
+}
+
+function onCanvasContextMenu(event: MouseEvent) {
+	const el = scroller.value;
+	if (!el) return;
+	const cx = (el.scrollLeft + el.clientWidth / 2) / zoom.value;
+	const cy = (el.scrollTop + el.clientHeight / 2) / zoom.value;
+	const entries: MenuEntry[] = [
+		{
+			label: "Add sprite here",
+			action: () => addAnnotation(cx, cy),
+		},
+		{ separator: true },
+		{
+			label: "Pick chroma from sheet",
+			action: () => { colorPickArmed.value = true; },
+			disabled: !selectedAnnotation.value,
+		},
+	];
+	ctxMenu.value?.show(event, entries);
+}
+
 function boxStyle(annotation: Annotation, index: number) {
 	const isSelected = annotation.id === selectedId.value;
 	return {
@@ -226,6 +268,7 @@ function boxStyle(annotation: Annotation, index: number) {
 			@pointermove="handleScrollerPointerMove"
 			@pointerup="handleScrollerPointerUp"
 			@pointercancel="handleScrollerPointerUp"
+			@contextmenu="onCanvasContextMenu"
 		>
 			<div ref="stage" class="canvas-stage" :style="{ width: stageWidth + 'px', height: stageHeight + 'px' }">
 				<img ref="sheetImg" class="sheet-image" :src="currentSheetImageSrc" alt="" :style="{
@@ -240,7 +283,8 @@ function boxStyle(annotation: Annotation, index: number) {
 						class="annotation-box" :class="{ selected: annotation.id === selectedId }"
 						:style="boxStyle(annotation, index)" @pointerdown="handleBoxPointerDown($event, annotation)"
 						@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
-						@pointercancel="handleBoxPointerUp">
+						@pointercancel="handleBoxPointerUp"
+						@contextmenu.stop="onBoxContextMenu($event, annotation)">
 						<div class="annotation-label">
 							{{ annotation.name }} [{{ annotation.frame }}]
 						</div>
@@ -249,5 +293,6 @@ function boxStyle(annotation: Annotation, index: number) {
 				</div>
 			</div>
 		</div>
+		<ContextMenu ref="ctxMenu" />
 	</div>
 </template>

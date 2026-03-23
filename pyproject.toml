@@ -3,3 +3,10 @@ name = "span"
 version = "0.1.0"
 description = "Standalone spritesheet annotator"
 requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+]
+
+[project.scripts]
+span = "span.__main__:main"

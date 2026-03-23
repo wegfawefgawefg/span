@@ -1,4 +1,9 @@
 __pycache__/
 *.pyc
+.mypy_cache/
 .venv/
-uv.lock
+node_modules/
+web/dist/
+web/node_modules/
+.claude/
+*.egg-info/

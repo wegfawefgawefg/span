@@ -270,7 +270,6 @@ function boxStyle(annotation: Annotation, index: number) {
 			@pointercancel="handleScrollerPointerUp"
 			@contextmenu="onCanvasContextMenu"
 		>
-			<div class="canvas-overscan">
 			<div ref="stage" class="canvas-stage" :style="{ width: stageWidth + 'px', height: stageHeight + 'px' }">
 				<img ref="sheetImg" class="sheet-image" :src="currentSheetImageSrc" alt="" :style="{
 					width: stageWidth + 'px',
@@ -292,7 +291,6 @@ function boxStyle(annotation: Annotation, index: number) {
 						<div class="resize-handle" data-resize="true"></div>
 					</button>
 				</div>
-			</div>
 			</div>
 		</div>
 		<ContextMenu ref="ctxMenu" />

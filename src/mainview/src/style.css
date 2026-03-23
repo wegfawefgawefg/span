@@ -242,15 +242,9 @@ textarea {
 		var(--color-surface-0);
 }
 
-.canvas-overscan {
-	/* Overscan wrapper: large padding lets any image edge
-	   scroll to the center of the viewport */
-	display: inline-block;
-	padding: 50vh 50vw;
-}
-
 .canvas-stage {
 	position: relative;
+	margin: 24px;
 	image-rendering: pixelated;
 }
 

@@ -29,8 +29,8 @@ export function useCanvas() {
 		clientX: number | null = null,
 		clientY: number | null = null,
 	) {
-		const clamped = clamp(nextZoom, ZOOM_MIN, ZOOM_MAX);
-		if (Math.abs(clamped - zoom.value) < 0.001) return;
+		const clamped = Math.round(clamp(nextZoom, ZOOM_MIN, ZOOM_MAX) * 10) / 10;
+		if (clamped === zoom.value) return;
 
 		const oldZoom = zoom.value;
 		const scrollerRect = scroller.getBoundingClientRect();

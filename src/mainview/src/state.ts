@@ -3,9 +3,9 @@ import type { Annotation, Sheet, SheetWithAnnotations } from "./types";
 import { makeId, normalizeAnnotation } from "./types";
 import { api, setCanCloseHandler, setMenuHandlers } from "./rpc";
 
-export const ZOOM_MIN = 0.5;
-export const ZOOM_MAX = 12;
-export const ZOOM_FACTOR = 1.15;
+export const ZOOM_MIN = 0.1;
+export const ZOOM_MAX = 32;
+export const ZOOM_STEP = 0.1;
 
 // --- Core state ---
 

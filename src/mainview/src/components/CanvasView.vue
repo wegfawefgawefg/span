@@ -17,7 +17,7 @@ import {
 	deleteSelected,
 	selectedAnnotation,
 } from "../state";
-import { ZOOM_FACTOR } from "../state";
+import { ZOOM_STEP } from "../state";
 import { useCanvas } from "../composables/useCanvas";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
@@ -128,9 +128,9 @@ function onImageLoad() {
 function handleWheel(event: WheelEvent) {
 	if (!imageWidth.value) return;
 	event.preventDefault();
-	const factor = event.deltaY < 0 ? ZOOM_FACTOR : 1 / ZOOM_FACTOR;
+	const delta = event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
 	zoomTo(
-		zoom.value * factor,
+		zoom.value + delta,
 		scroller.value!,
 		stage.value!,
 		event.clientX,
@@ -139,11 +139,11 @@ function handleWheel(event: WheelEvent) {
 }
 
 function handleZoomIn() {
-	zoomTo(zoom.value * ZOOM_FACTOR, scroller.value!, stage.value!);
+	zoomTo(zoom.value + ZOOM_STEP, scroller.value!, stage.value!);
 }
 
 function handleZoomOut() {
-	zoomTo(zoom.value / ZOOM_FACTOR, scroller.value!, stage.value!);
+	zoomTo(zoom.value - ZOOM_STEP, scroller.value!, stage.value!);
 }
 
 function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {

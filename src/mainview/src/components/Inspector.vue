@@ -30,10 +30,23 @@ function togglePick() {
 
 const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider";
 
+const FORM_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
+
+function onContextMenu(event: MouseEvent) {
+	const tag = (event.target as HTMLElement)?.tagName;
+	if (FORM_TAGS.has(tag)) {
+		// Allow native context menu on form elements
+		event.stopPropagation();
+		return;
+	}
+	// Block everywhere else
+	event.preventDefault();
+}
+
 </script>
 
 <template>
-	<div class="h-full flex flex-col overflow-hidden bg-surface-1" @contextmenu.stop>
+	<div class="h-full flex flex-col overflow-hidden bg-surface-1" @contextmenu="onContextMenu">
 		<div v-if="!selectedAnnotation" class="flex-1 flex flex-col items-center justify-center gap-2 text-center">
 			<svg class="w-8 h-8 text-text-faint/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<rect x="3" y="3" width="18" height="18" rx="1" stroke-dasharray="4 2" />

@@ -10,8 +10,8 @@ import { Project } from "./project";
 import { join } from "path";
 import { writeFile, unlink } from "fs/promises";
 
-const DEV_SERVER_PORT = 5173;
-const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
+const DEV_SERVER_PORT_START = 5173;
+const DEV_SERVER_PORT_END = 5183;
 
 // --- CLI args ---
 const args = process.argv.slice(2);
@@ -94,13 +94,17 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 async function getMainViewUrl(): Promise<string> {
 	const channel = await Updater.localInfo.channel();
 	if (channel === "dev") {
-		try {
-			await fetch(DEV_SERVER_URL, { method: "HEAD" });
-			console.log(`HMR: Using Vite at ${DEV_SERVER_URL}`);
-			return DEV_SERVER_URL;
-		} catch {
-			console.log("No Vite dev server. Use 'bun run dev:hmr' for HMR.");
+		for (let port = DEV_SERVER_PORT_START; port <= DEV_SERVER_PORT_END; port++) {
+			try {
+				const url = `http://localhost:${port}`;
+				await fetch(url, { method: "HEAD" });
+				console.log(`HMR: Using Vite at ${url}`);
+				return url;
+			} catch {
+				// try next port
+			}
 		}
+		console.log("No Vite dev server. Use 'bun run dev:hmr' for HMR.");
 	}
 	return "views://mainview/index.html";
 }

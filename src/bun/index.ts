@@ -99,8 +99,8 @@ async function getMainViewUrl(): Promise<string> {
 				const url = `http://localhost:${port}`;
 				const res = await fetch(url, { method: "GET" });
 				const text = await res.text();
-				// Verify it's actually Vite (serves HTML with /src/main.ts)
-				if (text.includes("/main.ts") || text.includes("vite")) {
+				// Verify it's our Vite instance, not another project
+				if (text.includes("Span Sprite Annotator")) {
 					console.log(`HMR: Using Vite at ${url}`);
 					return url;
 				}

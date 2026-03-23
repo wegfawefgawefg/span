@@ -18,6 +18,7 @@ const visible = ref(false);
 const x = ref(0);
 const y = ref(0);
 const items = ref<MenuEntry[]>([]);
+const menuEl = ref<HTMLElement | null>(null);
 
 function show(event: MouseEvent, entries: MenuEntry[]) {
 	event.preventDefault();
@@ -27,11 +28,9 @@ function show(event: MouseEvent, entries: MenuEntry[]) {
 	y.value = event.clientY;
 	visible.value = true;
 
-	// Clamp to viewport after render
 	nextTick(() => {
-		const el = document.querySelector(".ctx-menu") as HTMLElement;
-		if (!el) return;
-		const rect = el.getBoundingClientRect();
+		if (!menuEl.value) return;
+		const rect = menuEl.value.getBoundingClientRect();
 		if (rect.right > window.innerWidth) {
 			x.value = window.innerWidth - rect.width - 4;
 		}
@@ -49,22 +48,25 @@ function handleAction(entry: MenuEntry) {
 	if ("separator" in entry && entry.separator) return;
 	const item = entry as MenuItem;
 	if (item.disabled) return;
+	hide();
 	item.action();
+}
+
+function onOutsideEvent(e: Event) {
+	if (!visible.value) return;
+	if (menuEl.value?.contains(e.target as Node)) return;
 	hide();
 }
 
-function onClickOutside(e: MouseEvent) {
-	if (visible.value) {
-		hide();
-	}
-}
-
 onMounted(() => {
-	window.addEventListener("pointerdown", onClickOutside, true);
+	// Use mousedown (not pointerdown) to avoid racing with click
+	window.addEventListener("mousedown", onOutsideEvent);
+	window.addEventListener("contextmenu", onOutsideEvent);
 });
 
 onUnmounted(() => {
-	window.removeEventListener("pointerdown", onClickOutside, true);
+	window.removeEventListener("mousedown", onOutsideEvent);
+	window.removeEventListener("contextmenu", onOutsideEvent);
 });
 
 defineExpose({ show, hide });
@@ -74,9 +76,9 @@ defineExpose({ show, hide });
 	<Teleport to="body">
 		<div
 			v-if="visible"
+			ref="menuEl"
 			class="ctx-menu fixed z-[9999] min-w-[140px] py-1 bg-surface-2 border border-border rounded shadow-lg shadow-black/40"
 			:style="{ left: x + 'px', top: y + 'px' }"
-			@pointerdown.stop
 			@contextmenu.prevent
 		>
 			<template v-for="(entry, i) in items" :key="i">

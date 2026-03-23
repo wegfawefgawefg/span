@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { ref, triggerRef } from "vue";
 import type { Annotation } from "../types";
 import { zoom, annotations, markDirty } from "../state";
 import { ZOOM_MIN, ZOOM_MAX } from "../state";
@@ -119,6 +119,7 @@ export function useCanvas() {
 		}
 
 		markDirty(true);
+		triggerRef(annotations);
 	}
 
 	function endDrag() {

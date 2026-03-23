@@ -200,6 +200,7 @@ export function updateSelectedAnnotation(patch: Partial<Annotation>) {
 	if (!ann) return;
 	Object.assign(ann, patch);
 	markDirty(true);
+	triggerRef(annotations);
 	syncCurrentSheetIntoProject();
 }
 

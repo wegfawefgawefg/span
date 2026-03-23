@@ -4,6 +4,7 @@ import type { Annotation } from "../types";
 import {
 	projectSheets,
 	currentSheet,
+	annotations as currentAnnotations,
 	openSheet,
 	selectAnnotation,
 } from "../state";
@@ -49,9 +50,17 @@ function groupKey(a: Annotation): string {
 }
 
 const groups = computed<SpriteGroup[]>(() => {
+	// Depend on currentAnnotations so we react to live edits (drag, inspector)
+	const liveAnnotations = currentAnnotations.value;
+	const currentFile = currentSheet.value?.file;
+
 	const map = new Map<string, SpriteGroup>();
 	for (const sheet of projectSheets.value) {
-		for (const ann of sheet.annotations ?? []) {
+		// For the active sheet, use live annotations instead of the
+		// stale projectSheets copy (which only syncs on commit actions)
+		const anns =
+			sheet.file === currentFile ? liveAnnotations : (sheet.annotations ?? []);
+		for (const ann of anns) {
 			const name = ann.name?.trim() ?? "";
 			if (!name) continue;
 			const key = groupKey(ann);
@@ -68,7 +77,7 @@ const groups = computed<SpriteGroup[]>(() => {
 				};
 				map.set(key, group);
 			}
-			group.inCurrentSheet ||= sheet.file === currentSheet.value?.file;
+			group.inCurrentSheet ||= sheet.file === currentFile;
 			group.frames.push({
 				annotation: ann,
 				annotationId: ann.id,

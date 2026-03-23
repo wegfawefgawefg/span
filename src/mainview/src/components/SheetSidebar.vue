@@ -75,7 +75,7 @@ function onPanelContextMenu(event: MouseEvent) {
 <template>
 	<div class="h-full flex flex-col gap-2 overflow-hidden bg-surface-1" @contextmenu="onPanelContextMenu">
 		<div class="flex flex-col gap-1.5 p-2 pb-0">
-			<input v-model="filterQuery" type="search" placeholder="Filter sheets..." autocomplete="off" />
+			<input v-model="filterQuery" type="search" placeholder="Filter sheets..." autocomplete="off" @contextmenu.stop />
 		</div>
 		<div class="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0 px-2 pb-2">
 			<button v-for="sheet in filteredSheets" :key="sheet.file" type="button"

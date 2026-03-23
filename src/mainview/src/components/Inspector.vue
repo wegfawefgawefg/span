@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref } from "vue";
 import {
 	selectedAnnotation,
 	updateSelectedAnnotation,
@@ -7,11 +6,7 @@ import {
 	statusText,
 	currentSheet,
 	dirty,
-	duplicateSelected,
-	deleteSelected,
 } from "../state";
-import ContextMenu from "./ContextMenu.vue";
-import type { MenuEntry } from "./ContextMenu.vue";
 
 const NUMERIC_FIELDS = new Set(["frame", "x", "y", "width", "height"]);
 
@@ -35,25 +30,10 @@ function togglePick() {
 
 const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider";
 
-const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
-
-function onInspectorContextMenu(event: MouseEvent) {
-	if (!selectedAnnotation.value) return;
-	const entries: MenuEntry[] = [
-		{ label: "Duplicate", action: () => duplicateSelected() },
-		{ label: "Delete", action: () => deleteSelected() },
-		{ separator: true },
-		{
-			label: "Pick chroma from sheet",
-			action: () => { colorPickArmed.value = true; },
-		},
-	];
-	ctxMenu.value?.show(event, entries);
-}
 </script>
 
 <template>
-	<div class="h-full flex flex-col overflow-hidden bg-surface-1" @contextmenu="onInspectorContextMenu">
+	<div class="h-full flex flex-col overflow-hidden bg-surface-1" @contextmenu.stop>
 		<div v-if="!selectedAnnotation" class="flex-1 flex flex-col items-center justify-center gap-2 text-center">
 			<svg class="w-8 h-8 text-text-faint/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<rect x="3" y="3" width="18" height="18" rx="1" stroke-dasharray="4 2" />
@@ -125,6 +105,5 @@ function onInspectorContextMenu(event: MouseEvent) {
 				<textarea rows="3" :value="selectedAnnotation.notes" @input="onFieldInput('notes', ($event.target as HTMLTextAreaElement).value)"></textarea>
 			</label>
 		</form>
-		<ContextMenu ref="ctxMenu" />
 	</div>
 </template>

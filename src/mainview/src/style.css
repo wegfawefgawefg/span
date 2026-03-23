@@ -100,7 +100,6 @@ body {
 	background: transparent;
 }
 
-
 /* --- Base form elements --- */
 
 input,
@@ -183,6 +182,8 @@ textarea {
 	--dv-separator-border: var(--color-border);
 	--dv-drag-over-background-color: var(--color-copper-glow);
 	--dv-drag-over-border-color: var(--color-copper);
+	font-family: var(--font-body);
+	font-size: 12px;
 }
 
 /* --- Canvas --- */

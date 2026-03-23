@@ -138,58 +138,32 @@ function boxStyle(annotation: Annotation, index: number) {
 
 <template>
 	<div class="canvas-shell">
-		<div class="absolute top-2 right-2 z-50 flex items-center gap-0.5 p-1 bg-surface-0/90 border border-border rounded-sm backdrop-blur-sm">
-			<button
-				type="button"
+		<div
+			class="absolute top-4 right-4 z-50 flex items-center gap-0.5 p-1 bg-surface-0/90 border border-border rounded-sm backdrop-blur-sm">
+			<button type="button"
 				class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
-				@click="handleZoomOut"
-			>-</button>
-			<span class="min-w-[42px] text-center text-[10px] font-mono text-text-faint select-none">{{ zoomLabel }}</span>
-			<button
-				type="button"
+				@click="handleZoomOut">-</button>
+			<span class="min-w-10.5 text-center text-[10px] font-mono text-text-faint select-none">{{ zoomLabel
+				}}</span>
+			<button type="button"
 				class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
-				@click="handleZoomIn"
-			>+</button>
+				@click="handleZoomIn">+</button>
 		</div>
 		<div ref="scroller" class="canvas-scroller" @wheel.prevent="handleWheel">
-			<div
-				ref="stage"
-				class="canvas-stage"
-				:style="{ width: stageWidth + 'px', height: stageHeight + 'px' }"
-			>
-				<img
-					ref="sheetImg"
-					class="sheet-image"
-					:src="currentSheetImageSrc"
-					alt=""
-					:style="{
-						width: stageWidth + 'px',
-						height: stageHeight + 'px',
-					}"
-					draggable="false"
-					@load="onImageLoad"
-				/>
-				<div
-					class="annotation-layer"
-					:class="{ 'color-pick-armed': colorPickArmed }"
-					:style="{
-						width: stageWidth + 'px',
-						height: stageHeight + 'px',
-					}"
-					@pointerdown="handleLayerPointerDown"
-				>
-					<button
-						v-for="(annotation, index) in annotations"
-						:key="annotation.id"
-						type="button"
-						class="annotation-box"
-						:class="{ selected: annotation.id === selectedId }"
-						:style="boxStyle(annotation, index)"
-						@pointerdown="handleBoxPointerDown($event, annotation)"
-						@pointermove="handleBoxPointerMove"
-						@pointerup="handleBoxPointerUp"
-						@pointercancel="handleBoxPointerUp"
-					>
+			<div ref="stage" class="canvas-stage" :style="{ width: stageWidth + 'px', height: stageHeight + 'px' }">
+				<img ref="sheetImg" class="sheet-image" :src="currentSheetImageSrc" alt="" :style="{
+					width: stageWidth + 'px',
+					height: stageHeight + 'px',
+				}" draggable="false" @load="onImageLoad" />
+				<div class="annotation-layer" :class="{ 'color-pick-armed': colorPickArmed }" :style="{
+					width: stageWidth + 'px',
+					height: stageHeight + 'px',
+				}" @pointerdown="handleLayerPointerDown">
+					<button v-for="(annotation, index) in annotations" :key="annotation.id" type="button"
+						class="annotation-box" :class="{ selected: annotation.id === selectedId }"
+						:style="boxStyle(annotation, index)" @pointerdown="handleBoxPointerDown($event, annotation)"
+						@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
+						@pointercancel="handleBoxPointerUp">
 						<div class="annotation-label">
 							{{ annotation.name }} [{{ annotation.frame }}]
 						</div>

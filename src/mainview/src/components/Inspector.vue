@@ -32,10 +32,12 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 </script>
 
 <template>
-	<div class="h-full p-3 flex flex-col overflow-y-auto  bg-surface-1">
-		<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase mb-3">Selection</h2>
+	<div class="h-full flex flex-col overflow-hidden bg-surface-1">
+		<div class="p-3 pb-0">
+			<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase">Selection</h2>
+		</div>
 
-		<div v-if="!selectedAnnotation" class="flex flex-col items-center justify-center gap-2 py-10 text-center">
+		<div v-if="!selectedAnnotation" class="flex-1 flex flex-col items-center justify-center gap-2 text-center">
 			<svg class="w-8 h-8 text-text-faint/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
 				<rect x="3" y="3" width="18" height="18" rx="1" stroke-dasharray="4 2" />
 				<path d="M9 12h6M12 9v6" stroke-linecap="round" />
@@ -43,7 +45,7 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 			<span class="text-xs text-text-faint">Select a sprite on the sheet</span>
 		</div>
 
-		<form v-else class="grid grid-cols-2 gap-2" @submit.prevent>
+		<form v-else class="flex-1 overflow-y-auto min-h-0 grid grid-cols-2 gap-2 px-3 pb-3 pt-2 auto-rows-max content-start" @submit.prevent>
 			<label :class="[labelClass, 'col-span-2']">
 				Name
 				<input type="text" :value="selectedAnnotation.name" @input="onFieldInput('name', ($event.target as HTMLInputElement).value)" />
@@ -78,7 +80,7 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 					<input type="text" placeholder="#00a000" :value="selectedAnnotation.chroma_key" @input="onFieldInput('chroma_key', ($event.target as HTMLInputElement).value)" />
 					<button
 						type="button"
-						class="px-2 py-1 text-[11px] font-mono border rounded-sm cursor-pointer whitespace-nowrap transition-colors"
+						class="px-2 py-1 text-[11px] font-mono border rounded-sm cursor-pointer whitespace-nowrap transition-colors active:translate-y-px"
 						:class="
 							colorPickArmed
 								? 'bg-copper-glow border-copper text-copper-bright'

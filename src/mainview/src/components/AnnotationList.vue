@@ -12,9 +12,9 @@ const sorted = computed(() =>
 </script>
 
 <template>
-	<div class="flex flex-col h-full p-3 overflow-hidden bg-surface-1">
+	<div class="h-full p-3 flex flex-col overflow-hidden bg-surface-1">
 		<div class="flex items-center justify-between mb-2">
-			<h2 class="text-sm font-semibold tracking-wide text-text-dim uppercase">Sprites</h2>
+			<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase">Sprites</h2>
 			<span class="px-1.5 py-0.5 text-[10px] font-mono text-text-faint border border-border rounded-sm">
 				{{ annotations.length }}
 			</span>
@@ -24,7 +24,7 @@ const sorted = computed(() =>
 				v-for="annotation in sorted"
 				:key="annotation.id"
 				type="button"
-				class="w-full text-left px-2.5 py-1.5 border rounded-sm transition-all cursor-pointer"
+				class="w-full text-left px-2.5 py-2 border rounded-sm transition-colors cursor-pointer"
 				:class="
 					annotation.id === selectedId
 						? 'bg-copper-glow border-copper'
@@ -32,7 +32,10 @@ const sorted = computed(() =>
 				"
 				@click="selectAnnotation(annotation.id)"
 			>
-				<div class="text-[12px] font-medium truncate" :class="annotation.id === selectedId ? 'text-copper-bright' : 'text-text'">
+				<div
+					class="text-xs font-medium truncate"
+					:class="annotation.id === selectedId ? 'text-copper-bright' : 'text-text'"
+				>
 					{{ annotation.name }}
 				</div>
 				<div class="font-mono text-[10px] text-text-faint mt-0.5">

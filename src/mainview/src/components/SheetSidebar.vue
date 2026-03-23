@@ -50,13 +50,13 @@ async function handleRefresh() {
 </script>
 
 <template>
-	<div class="flex flex-col h-full gap-2 p-3 overflow-hidden bg-surface-1">
+	<div class="h-full p-3 flex flex-col gap-2 overflow-hidden bg-surface-1">
 		<div class="flex items-center justify-between">
-			<h1 class="text-sm font-semibold tracking-wide text-text-dim uppercase">Sheets</h1>
+			<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase">Sheets</h2>
 			<button
 				type="button"
-				class="px-2.5 py-1 text-xs font-mono text-text-dim border border-border rounded-sm
-					hover:border-copper hover:text-copper transition-colors cursor-pointer bg-surface-2"
+				class="px-2 py-1 text-[11px] font-mono text-text-dim bg-surface-2 border border-border rounded-sm
+					hover:border-copper hover:text-copper focus-visible:outline-copper transition-colors cursor-pointer"
 				@click="handleRefresh"
 			>
 				Refresh
@@ -64,7 +64,6 @@ async function handleRefresh() {
 		</div>
 		<input
 			v-model="filterQuery"
-			class="!bg-surface-0 !border-border placeholder:text-text-faint"
 			type="search"
 			placeholder="Filter sheets..."
 			autocomplete="off"
@@ -74,15 +73,20 @@ async function handleRefresh() {
 				v-for="sheet in filteredSheets"
 				:key="sheet.file"
 				type="button"
-				class="w-full text-left px-3 py-2 border rounded-sm transition-all cursor-pointer"
+				class="w-full text-left px-2.5 py-2 border rounded-sm transition-colors cursor-pointer"
 				:class="
 					currentSheet?.file === sheet.file
-						? 'bg-copper-glow border-copper text-text'
-						: 'bg-surface-2 border-border text-text-dim hover:border-border-strong hover:text-text'
+						? 'bg-copper-glow border-copper'
+						: 'bg-surface-2 border-border hover:border-border-strong'
 				"
 				@click="handleOpen(sheet.file)"
 			>
-				<div class="font-medium text-[13px] truncate">{{ sheet.name }}</div>
+				<div
+					class="text-xs font-medium truncate"
+					:class="currentSheet?.file === sheet.file ? 'text-copper-bright' : 'text-text'"
+				>
+					{{ sheet.name }}
+				</div>
 				<div class="font-mono text-[10px] text-text-faint truncate mt-0.5">{{ sheet.file }}</div>
 			</button>
 		</div>

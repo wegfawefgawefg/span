@@ -219,14 +219,14 @@ async function handleClick(group: SpriteGroup) {
 </script>
 
 <template>
-	<div class="h-full p-3 overflow-y-auto bg-surface-1">
-		<div class="flex items-center justify-between mb-3">
-			<h2 class="text-sm font-semibold tracking-wide text-text-dim uppercase">Gallery</h2>
+	<div class="h-full p-3 flex flex-col overflow-hidden bg-surface-1">
+		<div class="flex items-center justify-between mb-2">
+			<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase">Gallery</h2>
 			<span class="px-1.5 py-0.5 text-[10px] font-mono text-text-faint border border-border rounded-sm">
 				{{ groups.length }}
 			</span>
 		</div>
-		<div class="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
+		<div class="flex-1 overflow-y-auto min-h-0 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 auto-rows-max content-start">
 			<button
 				v-for="group in groups"
 				:key="group.key"
@@ -243,7 +243,7 @@ async function handleClick(group: SpriteGroup) {
 					:ref="(el: any) => setCanvasRef(group.key, el)"
 					class="gallery-preview"
 				></canvas>
-				<div class="text-[12px] font-medium truncate" :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'">
+				<div class="text-xs font-medium truncate" :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'">
 					{{ group.name }}
 				</div>
 				<div class="font-mono text-[10px] text-text-faint">

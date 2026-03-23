@@ -74,9 +74,9 @@ input,
 select,
 textarea {
 	width: 100%;
-	padding: 6px 8px;
+	padding: 5px 8px;
 	border: 1px solid var(--color-border);
-	background: var(--color-surface-1);
+	background: var(--color-surface-0);
 	color: var(--color-text);
 	border-radius: 3px;
 	font: inherit;
@@ -90,6 +90,19 @@ select:focus,
 textarea:focus {
 	outline: none;
 	border-color: var(--color-copper);
+	box-shadow: 0 0 0 1px var(--color-copper-glow);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+	outline: 1px solid var(--color-copper);
+	outline-offset: -1px;
+}
+
+input::placeholder,
+textarea::placeholder {
+	color: var(--color-text-faint);
 }
 
 textarea {
@@ -194,12 +207,17 @@ textarea {
 	transition: border-color 0.1s, background 0.1s;
 }
 
+.annotation-box:focus-visible {
+	outline: 1px solid var(--color-copper-bright);
+	outline-offset: 2px;
+}
+
 .annotation-box.selected {
 	border-color: var(--color-copper-bright);
 	background: var(--color-copper-glow-strong);
 	box-shadow:
 		inset 0 0 0 1px rgba(0, 0, 0, 0.4),
-		0 0 12px rgba(200, 136, 90, 0.2);
+		0 0 12px var(--color-copper-glow);
 }
 
 .annotation-label {
@@ -208,7 +226,7 @@ textarea {
 	top: -20px;
 	max-width: 200px;
 	padding: 1px 6px;
-	background: rgba(12, 13, 15, 0.92);
+	background: color-mix(in srgb, var(--color-surface-0) 92%, transparent);
 	border: 1px solid var(--color-border);
 	border-radius: 2px;
 	color: var(--color-text-dim);
@@ -245,6 +263,7 @@ textarea {
 	max-width: 100%;
 	image-rendering: pixelated;
 	border: 1px solid var(--color-border);
+	border-radius: 2px;
 	background:
 		repeating-conic-gradient(
 			rgba(255, 255, 255, 0.04) 0% 25%,

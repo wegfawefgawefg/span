@@ -13,6 +13,7 @@ let duplicateSpriteHandler: () => void = () => {};
 let deleteSpriteHandler: () => void = () => {};
 let triggerSaveHandler: () => void = () => {};
 let resetLayoutHandler: () => void = () => {};
+let addPanelHandler: (panelId: string) => void = () => {};
 
 export function setCanCloseHandler(handler: () => boolean) {
 	canCloseHandler = handler;
@@ -32,6 +33,10 @@ export function setMenuHandlers(handlers: {
 
 export function setResetLayoutHandler(handler: () => void) {
 	resetLayoutHandler = handler;
+}
+
+export function setAddPanelHandler(handler: (panelId: string) => void) {
+	addPanelHandler = handler;
 }
 
 // --- RPC ---
@@ -54,6 +59,9 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			},
 			resetLayout: () => {
 				resetLayoutHandler();
+			},
+			addPanel: ({ panelId }) => {
+				addPanelHandler(panelId);
 			},
 		},
 		messages: {

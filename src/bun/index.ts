@@ -168,6 +168,17 @@ ApplicationMenu.setApplicationMenu([
 	{
 		label: "View",
 		submenu: [
+			{
+				label: "Add Panel",
+				submenu: [
+					{ label: "Sheets", action: "addPanel:sheets" },
+					{ label: "Canvas", action: "addPanel:sprite-canvas" },
+					{ label: "Inspector", action: "addPanel:inspector" },
+					{ label: "Sprites In Sheet", action: "addPanel:annotations" },
+					{ label: "Gallery", action: "addPanel:gallery" },
+				],
+			},
+			{ type: "separator" as const },
 			{ label: "Reset Panel Layout", action: "resetLayout" },
 			{ type: "separator" as const },
 			{ role: "toggleFullScreen" },
@@ -224,6 +235,12 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 			break;
 		case "toggleDevTools":
 			mainWindow.webview.openDevTools();
+			break;
+		default:
+			if (action.startsWith("addPanel:")) {
+				const panelId = action.slice("addPanel:".length);
+				mainWindow.webview.rpc.request.addPanel({ panelId });
+			}
 			break;
 	}
 });

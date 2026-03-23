@@ -10,7 +10,15 @@ import {
 	deleteSelected,
 	saveCurrentAnnotations,
 } from "./state";
-import { api, setResetLayoutHandler } from "./rpc";
+import { api, setResetLayoutHandler, setAddPanelHandler } from "./rpc";
+
+const PANELS: Record<string, { component: string; title: string }> = {
+	sheets: { component: "sheets", title: "Sheets" },
+	"sprite-canvas": { component: "sprite-canvas", title: "Canvas" },
+	inspector: { component: "inspector", title: "Inspector" },
+	annotations: { component: "annotations", title: "Sprites In Sheet" },
+	gallery: { component: "gallery", title: "Gallery" },
+};
 
 let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -98,6 +106,30 @@ async function onReady(event: DockviewReadyEvent) {
 		if (!dockviewApi) return;
 		dockviewApi.clear();
 		applyDefaultLayout(dockviewApi);
+	});
+
+	setAddPanelHandler((panelId: string) => {
+		if (!dockviewApi) return;
+		const def = PANELS[panelId];
+		if (!def) return;
+
+		// If panel already exists, focus it
+		const existing = dockviewApi.getPanel(panelId);
+		if (existing) {
+			existing.focus();
+			return;
+		}
+
+		// Add to the active group, or create standalone if no active group
+		const activeGroup = dockviewApi.activeGroup;
+		dockviewApi.addPanel({
+			id: panelId,
+			component: def.component,
+			title: def.title,
+			...(activeGroup
+				? { position: { referenceGroup: activeGroup } }
+				: {}),
+		});
 	});
 }
 

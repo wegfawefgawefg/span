@@ -83,6 +83,10 @@ export type SpanRPC = {
 				params: {};
 				response: void;
 			};
+			addPanel: {
+				params: { panelId: string };
+				response: void;
+			};
 		};
 		messages: {
 			projectLoaded: { projectPath: string };

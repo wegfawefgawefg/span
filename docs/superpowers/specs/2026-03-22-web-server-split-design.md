@@ -23,19 +23,17 @@ span/
 ├── tsconfig.json
 ├── electrobun.config.ts
 ├── src/
+│   ├── shared/                 # Shared between Bun and webview
+│   │   └── rpc-schema.ts       # RPC type definitions
 │   ├── bun/                    # Main process (Bun runtime)
 │   │   ├── index.ts            # Entry: window creation, RPC setup, CLI args
-│   │   ├── project.ts          # File I/O: sheets, annotations, manifest
-│   │   └── rpc-schema.ts       # Shared RPC type definitions
+│   │   └── project.ts          # File I/O: sheets, annotations, manifest
 │   └── mainview/               # Webview (Vue app)
 │       ├── index.html
-│       ├── vite.config.ts
-│       ├── tsconfig.json
 │       └── src/
 │           ├── main.ts
 │           ├── App.vue
 │           ├── rpc.ts           # Electroview RPC client (typed)
-│           ├── rpc-schema.ts    # Shared RPC type definitions (same file)
 │           ├── types.ts         # Annotation, Sheet interfaces
 │           ├── state.ts         # Reactive store
 │           ├── components/
@@ -88,54 +86,79 @@ Functions:
   `example_project/manifest.json` for the full schema.
 - `loadProjectAnnotations(projectDir)` — load all sheets with their annotations
   and manifest metadata. Returns the full project data in one call.
-- `getSheetImageUrl(sheetsDir, sheetName)` — return a `file://` URL for the
-  sheet image so the webview can load it directly.
+- `getSheetImageBase64(sheetsDir, sheetName)` — read a PNG file and return it
+  as a base64 data URL (`data:image/png;base64,...`) for the webview.
 
-### `src/bun/rpc-schema.ts`
+### `src/shared/rpc-schema.ts`
 
-Shared RPC type definitions. This file is duplicated in both `src/bun/` and
-`src/mainview/src/` (Electrobun pattern — both sides need the types).
+Shared RPC type definitions. Imported by both the Bun process and the webview.
+Lives in `src/shared/` and is accessible to both sides.
 
-Electrobun RPC is bidirectional. Each side defines handlers for requests it
-can handle and messages it can receive. The schema below shows both directions:
+Electrobun RPC schema uses `RPCSchema` wrapper with `bun` and `webview`
+top-level keys. `bun` defines what the Bun process handles; `webview` defines
+what the webview handles.
 
 ```typescript
-// Bun-side handlers (webview calls these)
-type BunHandlers = {
-  requests: {
-    getProjectAnnotations: {
-      params: {}
-      response: SheetWithAnnotations[]
-    }
-    saveAnnotations: {
-      params: { sheet: string; annotations: Annotation[] }
-      response: { ok: boolean }
-    }
-    getSheetImageUrl: {
-      params: { sheet: string }
-      response: string  // file:// URL
-    }
-    pickProjectDirectory: {
-      params: {}
-      response: string | null  // native file picker for "Open Project"
-    }
-  }
-  messages: {}
-}
+import { RPCSchema } from "electrobun/bun"
 
-// Webview-side handlers (Bun calls these)
-type ViewHandlers = {
-  requests: {
-    canClose: {
-      params: {}
-      response: boolean  // false if dirty and user cancels
+export type SpanRPC = {
+  bun: RPCSchema<{
+    requests: {
+      getProjectAnnotations: {
+        params: {}
+        response: SheetWithAnnotations[]
+      }
+      saveAnnotations: {
+        params: { sheet: string; annotations: Annotation[] }
+        response: { ok: boolean }
+      }
+      getSheetImage: {
+        params: { sheet: string }
+        response: string  // base64 data URL (data:image/png;base64,...)
+      }
+      pickProjectDirectory: {
+        params: {}
+        response: string | null
+      }
     }
-  }
-  messages: {
-    projectLoaded: { projectPath: string }
-  }
+    messages: {}
+  }>
+  webview: RPCSchema<{
+    requests: {
+      canClose: {
+        params: {}
+        response: boolean
+      }
+    }
+    messages: {
+      projectLoaded: { projectPath: string }
+    }
+  }>
 }
 ```
+
+### Window Close Handling
+
+The Bun process intercepts quit via Electrobun's `before-quit` event. On
+quit, it calls the webview's `canClose` RPC request. If the webview returns
+`false` (dirty + user cancels), the quit is cancelled.
+
+```typescript
+Electrobun.events.on("before-quit", async (e) => {
+  const canClose = await win.webview.rpc.request.canClose({})
+  if (!canClose) {
+    e.response = { allow: false }
+  }
+})
+```
+
+### Sheet Image Loading
+
+Sheet images are loaded as base64 data URLs via the `getSheetImage` RPC.
+The Bun process reads the PNG file and returns `data:image/png;base64,...`.
+This avoids `file://` URL issues with native webviews. Sprite sheets are
+typically small enough (under 500KB) that base64 encoding is not a
+performance concern.
 
 ## Frontend (Vue 3 + TypeScript)
 
@@ -227,8 +250,8 @@ keyboard shortcuts.
 - Switching sheets while dirty (from sidebar or gallery navigation) shows a
   confirm dialog before discarding changes.
 - Window close while dirty is intercepted on the Bun side via Electrobun's
-  window close event — the Bun process asks the webview via RPC whether to
-  allow close, and the webview checks the dirty flag.
+  `before-quit` event — the Bun process calls the webview's `canClose` RPC.
+  If the webview returns false (dirty + user cancels), the quit is cancelled.
 
 **`SheetSidebar.vue`** — Sheet list with text filter input. Clicking a sheet
 loads it. Shows refresh button.
@@ -241,7 +264,7 @@ Handles:
 - Box resize via bottom-right handle
 - Chroma key color sampling mode
 
-Sheet images loaded via `file://` URLs provided by the Bun process through RPC.
+Sheet images loaded as base64 data URLs provided by the Bun process via RPC.
 Uses `useCanvas` composable for interaction logic.
 
 **`Inspector.vue`** — Form for editing selected annotation fields. Includes

@@ -37,7 +37,7 @@ const spaceHeld = ref(false);
 let panStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
 
 function onKeyDown(e: KeyboardEvent) {
-	if (e.code === "Space" && !spaceHeld.value) {
+	if (e.code === "Space") {
 		const tag = (document.activeElement?.tagName ?? "").toUpperCase();
 		if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
 		e.preventDefault();

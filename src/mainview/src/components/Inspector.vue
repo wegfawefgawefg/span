@@ -32,7 +32,7 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 </script>
 
 <template>
-	<div class="h-full p-3 flex flex-col overflow-y-auto bg-surface-1">
+	<div class="h-full p-3 flex flex-col overflow-y-auto scroll-stable bg-surface-1">
 		<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase mb-3">Selection</h2>
 
 		<div v-if="!selectedAnnotation" class="flex flex-col items-center justify-center gap-2 py-10 text-center">

@@ -68,7 +68,7 @@ async function handleRefresh() {
 			placeholder="Filter sheets..."
 			autocomplete="off"
 		/>
-		<div class="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0">
+		<div class="flex flex-col gap-1 flex-1 overflow-y-auto min-h-0 scroll-stable pr-1">
 			<button
 				v-for="sheet in filteredSheets"
 				:key="sheet.file"

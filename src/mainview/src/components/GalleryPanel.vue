@@ -275,14 +275,15 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 				:key="group.key"
 				type="button"
 				class="inline-flex flex-col border rounded-sm text-left transition-all cursor-pointer active:translate-y-px overflow-hidden"
-			:class="[
-				previewScale >= 3 ? 'gap-1.5 p-2' : 'gap-0 p-1',
-				group.inCurrentSheet
-					? 'bg-copper-glow border-copper/30'
-					: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
-			]"
+				:class="[
+					previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
+					group.inCurrentSheet
+						? 'bg-copper-glow border-copper/30'
+						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
+				]"
+				:style="previewScale >= 3 ? { maxWidth: (group.frames[0]?.annotation.width ?? 16) * previewScale + 16 + 'px' } : undefined"
 				@click="handleClick(group)"
-			@contextmenu.stop="onGroupContextMenu($event, group)"
+				@contextmenu.stop="onGroupContextMenu($event, group)"
 			>
 				<canvas
 					:ref="(el: any) => setCanvasRef(group.key, el)"

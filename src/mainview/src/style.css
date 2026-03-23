@@ -244,9 +244,10 @@ textarea {
 
 .canvas-stage {
 	position: relative;
-	margin: 24px;
-	width: 1px;
-	height: 1px;
+	/* Overscan: pad with 100% of the viewport so any corner
+	   of the image can be scrolled to the center of the view */
+	padding: 100%;
+	width: fit-content;
 	image-rendering: pixelated;
 }
 

@@ -1,6 +1,7 @@
 # Ignore node modules and build artifacts
 node_modules/
 dist/
+dist-web/
 build/
 
 # Ignore IDE and editor specific files

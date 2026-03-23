@@ -35,8 +35,12 @@ const labelClass = "flex flex-col gap-1 text-[11px] font-medium text-text-dim up
 	<div class="h-full p-3 flex flex-col overflow-y-auto bg-surface-1">
 		<h2 class="text-xs font-semibold tracking-wide text-text-dim uppercase mb-3">Selection</h2>
 
-		<div v-if="!selectedAnnotation" class="text-text-faint text-xs py-8 text-center">
-			Select a sprite on the sheet.
+		<div v-if="!selectedAnnotation" class="flex flex-col items-center justify-center gap-2 py-10 text-center">
+			<svg class="w-8 h-8 text-text-faint/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+				<rect x="3" y="3" width="18" height="18" rx="1" stroke-dasharray="4 2" />
+				<path d="M9 12h6M12 9v6" stroke-linecap="round" />
+			</svg>
+			<span class="text-xs text-text-faint">Select a sprite on the sheet</span>
 		</div>
 
 		<form v-else class="grid grid-cols-2 gap-2" @submit.prevent>

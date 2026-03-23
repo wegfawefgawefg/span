@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { DockviewVue } from "dockview-vue";
 import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
 import {
+	dirty,
 	statusText,
 	loadProjectData,
 	duplicateSelected,
@@ -13,6 +14,15 @@ import { api, setResetLayoutHandler } from "./rpc";
 
 let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+const statusFlash = ref(false);
+
+// Flash the status bar briefly on save (dirty goes true → false)
+watch(dirty, (now, was) => {
+	if (was && !now) {
+		statusFlash.value = true;
+		setTimeout(() => { statusFlash.value = false; }, 600);
+	}
+});
 
 function debouncedSaveLayout() {
 	if (saveTimeout) clearTimeout(saveTimeout);
@@ -142,7 +152,14 @@ onUnmounted(() => {
 		<div class="dockview-theme-dark dockview-container">
 			<DockviewVue @ready="onReady" />
 		</div>
-		<div class="px-3 py-1 border-t border-border bg-surface-1 text-text-faint text-[11px] font-mono truncate">
+		<div
+			class="px-3 py-1 border-t text-[11px] font-mono truncate transition-all duration-300 ease-out"
+			:class="
+				statusFlash
+					? 'border-copper/40 bg-copper-glow text-copper-bright'
+					: 'border-border bg-surface-1 text-text-faint'
+			"
+		>
 			{{ statusText }}
 		</div>
 	</div>

@@ -235,7 +235,7 @@ async function handleClick(group: SpriteGroup) {
 				:class="
 					group.inCurrentSheet
 						? 'bg-copper-glow border-copper/30'
-						: 'bg-surface-2 border-border hover:border-border-strong'
+						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
 				"
 				@click="handleClick(group)"
 			>

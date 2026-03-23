@@ -77,7 +77,7 @@ async function handleRefresh() {
 				:class="
 					currentSheet?.file === sheet.file
 						? 'bg-copper-glow border-copper'
-						: 'bg-surface-2 border-border hover:border-border-strong'
+						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
 				"
 				@click="handleOpen(sheet.file)"
 			>

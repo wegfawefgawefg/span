@@ -97,9 +97,13 @@ async function getMainViewUrl(): Promise<string> {
 		for (let port = DEV_SERVER_PORT_START; port <= DEV_SERVER_PORT_END; port++) {
 			try {
 				const url = `http://localhost:${port}`;
-				await fetch(url, { method: "HEAD" });
-				console.log(`HMR: Using Vite at ${url}`);
-				return url;
+				const res = await fetch(url, { method: "GET" });
+				const text = await res.text();
+				// Verify it's actually Vite (serves HTML with /src/main.ts)
+				if (text.includes("/main.ts") || text.includes("vite")) {
+					console.log(`HMR: Using Vite at ${url}`);
+					return url;
+				}
 			} catch {
 				// try next port
 			}

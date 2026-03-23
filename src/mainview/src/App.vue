@@ -10,7 +10,9 @@ import {
 	deleteSelected,
 	saveCurrentAnnotations,
 } from "./state";
-import { api, setResetLayoutHandler, setAddPanelHandler } from "./platform/adapter";
+import { api, setResetLayoutHandler, setAddPanelHandler, projectOpen, platform, getRawAdapter } from "./platform/adapter";
+import type { WebPlatformAdapter } from "./platform/web";
+import LandingScreen from "./components/LandingScreen.vue";
 
 const PANELS: Record<string, { component: string; title: string }> = {
 	sheets: { component: "sheets", title: "Sheets" },
@@ -43,6 +45,43 @@ function debouncedSaveLayout() {
 			console.error("Failed to save layout", e);
 		}
 	}, 500);
+}
+
+const hasDirectoryPicker = "showDirectoryPicker" in window;
+
+async function handlePickDirectory() {
+	try {
+		await api.pickProjectDirectory();
+		if (projectOpen.value) {
+			await loadProjectData();
+		}
+	} catch (e: any) {
+		if (e?.message === "no-sheets" || e?.message === "no-png") {
+			statusText.value = "No spritesheet files found in this folder";
+		}
+	}
+}
+
+async function handleOpenHandle(handle: FileSystemDirectoryHandle) {
+	if (platform.value !== "web") return;
+	const webAdapter = getRawAdapter<WebPlatformAdapter>();
+	const result = await webAdapter.openWithHandle(handle);
+	if (!result.ok) {
+		statusText.value = result.error ?? "Invalid project folder";
+		return;
+	}
+	await loadProjectData();
+}
+
+async function handleSelectFiles(files: FileList) {
+	if (platform.value !== "web") return;
+	const webAdapter = getRawAdapter<WebPlatformAdapter>();
+	const result = webAdapter.setFallbackFiles(files);
+	if (!result.ok) {
+		statusText.value = result.error ?? "Failed to open folder";
+		return;
+	}
+	await loadProjectData();
 }
 
 function applyDefaultLayout(dv: DockviewApi) {
@@ -165,11 +204,13 @@ function onKeydown(event: KeyboardEvent) {
 
 onMounted(async () => {
 	window.addEventListener("keydown", onKeydown);
-	try {
-		await loadProjectData();
-	} catch (e) {
-		console.error(e);
-		statusText.value = "Failed to load project";
+	if (projectOpen.value) {
+		try {
+			await loadProjectData();
+		} catch (e) {
+			console.error(e);
+			statusText.value = "Failed to load project";
+		}
 	}
 });
 
@@ -181,18 +222,32 @@ onUnmounted(() => {
 
 <template>
 	<div class="app-shell" @contextmenu.prevent>
-		<div class="dockview-theme-dark dockview-container">
-			<DockviewVue @ready="onReady" />
-		</div>
-		<div
-			class="px-3 py-1 border-t text-[11px] font-mono truncate transition-all duration-300 ease-out"
-			:class="
-				statusFlash
-					? 'border-copper/40 bg-copper-glow text-copper-bright'
-					: 'border-border bg-surface-1 text-text-faint'
-			"
-		>
-			{{ statusText }}
-		</div>
+		<template v-if="projectOpen">
+			<div class="dockview-theme-dark dockview-container">
+				<DockviewVue @ready="onReady" />
+			</div>
+			<div
+				class="px-3 py-1 border-t text-[11px] font-mono truncate transition-all duration-300 ease-out"
+				:class="
+					statusFlash
+						? 'border-copper/40 bg-copper-glow text-copper-bright'
+						: 'border-border bg-surface-1 text-text-faint'
+				"
+			>
+				{{ statusText }}
+				<template v-if="platform === 'web'">
+					<span class="ml-2 opacity-60">
+						{{ api.canSave.value ? '· Direct Save' : '· Download Mode' }}
+					</span>
+				</template>
+			</div>
+		</template>
+		<LandingScreen
+			v-else
+			:has-directory-picker="hasDirectoryPicker"
+			@pick-directory="handlePickDirectory"
+			@open-handle="handleOpenHandle"
+			@select-files="handleSelectFiles"
+		/>
 	</div>
 </template>

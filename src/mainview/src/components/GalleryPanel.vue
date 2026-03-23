@@ -226,7 +226,7 @@ async function handleClick(group: SpriteGroup) {
 				{{ groups.length }}
 			</span>
 		</div>
-		<div class="flex-1 overflow-y-auto min-h-0 scroll-stable pr-1 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 auto-rows-max content-start">
+		<div class="flex-1 overflow-y-auto min-h-0 pr-1 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 auto-rows-max content-start">
 			<button
 				v-for="group in groups"
 				:key="group.key"

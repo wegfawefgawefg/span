@@ -100,10 +100,6 @@ body {
 	background: transparent;
 }
 
-/* Reserve scrollbar space so content doesn't shift */
-.scroll-stable {
-	scrollbar-gutter: stable;
-}
 
 /* --- Base form elements --- */
 

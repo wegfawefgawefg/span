@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import type { Annotation } from "../types";
 import {
 	zoom,
@@ -31,6 +31,65 @@ const sampleCtx = sampleCanvas.getContext("2d", {
 	willReadFrequently: true,
 })!;
 
+// --- Panning state ---
+const isPanning = ref(false);
+const spaceHeld = ref(false);
+let panStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
+
+function onKeyDown(e: KeyboardEvent) {
+	if (e.code === "Space" && !spaceHeld.value) {
+		const tag = (document.activeElement?.tagName ?? "").toUpperCase();
+		if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+		e.preventDefault();
+		spaceHeld.value = true;
+	}
+}
+
+function onKeyUp(e: KeyboardEvent) {
+	if (e.code === "Space") {
+		spaceHeld.value = false;
+		if (isPanning.value) {
+			isPanning.value = false;
+		}
+	}
+}
+
+function handleScrollerPointerDown(event: PointerEvent) {
+	// MMB (button 1) always pans
+	// Space+LMB pans
+	const isMMB = event.button === 1;
+	const isSpaceLMB = spaceHeld.value && event.button === 0;
+
+	if (!isMMB && !isSpaceLMB) return;
+
+	event.preventDefault();
+	event.stopPropagation();
+	isPanning.value = true;
+
+	const el = scroller.value!;
+	panStart = {
+		x: event.clientX,
+		y: event.clientY,
+		scrollLeft: el.scrollLeft,
+		scrollTop: el.scrollTop,
+	};
+
+	el.setPointerCapture(event.pointerId);
+}
+
+function handleScrollerPointerMove(event: PointerEvent) {
+	if (!isPanning.value) return;
+	const el = scroller.value!;
+	el.scrollLeft = panStart.scrollLeft - (event.clientX - panStart.x);
+	el.scrollTop = panStart.scrollTop - (event.clientY - panStart.y);
+}
+
+function handleScrollerPointerUp(event: PointerEvent) {
+	if (!isPanning.value) return;
+	isPanning.value = false;
+	scroller.value?.releasePointerCapture(event.pointerId);
+}
+
 onMounted(() => {
 	registerViewportCenterFn(() => {
 		const el = scroller.value;
@@ -39,6 +98,14 @@ onMounted(() => {
 		const y = (el.scrollTop + el.clientHeight / 2) / zoom.value;
 		return { x, y };
 	});
+
+	window.addEventListener("keydown", onKeyDown);
+	window.addEventListener("keyup", onKeyUp);
+});
+
+onUnmounted(() => {
+	window.removeEventListener("keydown", onKeyDown);
+	window.removeEventListener("keyup", onKeyUp);
 });
 
 function onImageLoad() {
@@ -74,6 +141,7 @@ function handleZoomOut() {
 }
 
 function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {
+	if (isPanning.value || spaceHeld.value) return;
 	event.preventDefault();
 	event.stopPropagation();
 
@@ -102,6 +170,7 @@ function handleBoxPointerUp(event: PointerEvent) {
 }
 
 function handleLayerPointerDown(event: PointerEvent) {
+	if (isPanning.value || spaceHeld.value) return;
 	if (!colorPickArmed.value) return;
 	event.preventDefault();
 	event.stopPropagation();
@@ -143,13 +212,21 @@ function boxStyle(annotation: Annotation, index: number) {
 			<button type="button"
 				class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
 				@click="handleZoomOut">-</button>
-			<span class="min-w-10.5 text-center text-[10px] font-mono text-text-faint select-none">{{ zoomLabel
-				}}</span>
+			<span class="min-w-10.5 text-center text-[10px] font-mono text-text-faint select-none">{{ zoomLabel }}</span>
 			<button type="button"
 				class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
 				@click="handleZoomIn">+</button>
 		</div>
-		<div ref="scroller" class="canvas-scroller" @wheel.prevent="handleWheel">
+		<div
+			ref="scroller"
+			class="canvas-scroller"
+			:class="{ 'cursor-grab': spaceHeld && !isPanning, 'cursor-grabbing': isPanning }"
+			@wheel.prevent="handleWheel"
+			@pointerdown="handleScrollerPointerDown"
+			@pointermove="handleScrollerPointerMove"
+			@pointerup="handleScrollerPointerUp"
+			@pointercancel="handleScrollerPointerUp"
+		>
 			<div ref="stage" class="canvas-stage" :style="{ width: stageWidth + 'px', height: stageHeight + 'px' }">
 				<img ref="sheetImg" class="sheet-image" :src="currentSheetImageSrc" alt="" :style="{
 					width: stageWidth + 'px',

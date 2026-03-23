@@ -12,7 +12,7 @@ const app = createApp(App);
 
 // Register components globally so Dockview can find them by name
 app.component("sheets", SheetSidebar);
-app.component("canvas", CanvasView);
+app.component("sprite-canvas", CanvasView);
 app.component("inspector", Inspector);
 app.component("annotations", AnnotationList);
 app.component("gallery", GalleryPanel);

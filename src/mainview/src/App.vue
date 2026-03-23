@@ -45,8 +45,8 @@ function applyDefaultLayout(dv: DockviewApi) {
 	});
 
 	const canvasPanel = dv.addPanel({
-		id: "canvas",
-		component: "canvas",
+		id: "sprite-canvas",
+		component: "sprite-canvas",
 		title: "Canvas",
 		position: { referencePanel: sheetsPanel, direction: "right" },
 	});

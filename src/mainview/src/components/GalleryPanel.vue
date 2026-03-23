@@ -269,10 +269,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 			/>
 			<span class="text-[10px] font-mono text-text-faint border border-border rounded-sm px-1">{{ groups.length }}</span>
 		</div>
-		<div
-			class="flex-1 overflow-y-auto min-h-0 px-2 py-2 grid gap-2 auto-rows-max content-start"
-			:style="{ gridTemplateColumns: `repeat(auto-fill, minmax(${60 + previewScale * 20}px, 1fr))` }"
-		>
+		<div class="flex-1 overflow-y-auto min-h-0 px-2 py-2 flex flex-wrap gap-2 content-start items-start">
 			<button
 				v-for="group in groups"
 				:key="group.key"

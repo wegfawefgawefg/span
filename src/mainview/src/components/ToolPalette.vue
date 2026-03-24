@@ -1,33 +1,53 @@
 <script setup lang="ts">
 import { activeSpec, activeTool } from "../state";
+import { getShapesForEntity } from "../spec/types";
 </script>
 
 <template>
   <div class="tool-palette">
+    <!-- Select tool — always visible -->
     <button
-      v-for="(entity, name) in activeSpec?.entities"
-      :key="name"
       type="button"
       class="tool-button"
-      :class="{ active: activeTool === name }"
-      :title="name"
-      @click="activeTool = name"
+      :class="{ active: activeTool === '' }"
+      title="Select"
+      @click="activeTool = ''"
     >
-      <svg v-if="entity.shape.type === 'rect'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="3" y="5" width="14" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.5" />
+      <svg viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M5 3l10 7.5-6 1-3 5.5z" fill="currentColor" />
       </svg>
-      <svg v-else-if="entity.shape.type === 'point'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="10" r="2" fill="currentColor" />
-        <path d="M10 4v4M10 12v4M4 10h4M12 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
-      </svg>
-      <svg v-else-if="entity.shape.type === 'circle'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.5" />
-      </svg>
-      <svg v-else-if="entity.shape.type === 'polygon'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="10,3 17,8 15,16 5,16 3,8" fill="none" stroke="currentColor" stroke-width="1.5" />
-      </svg>
-      <span class="tool-label">{{ name }}</span>
+      <span class="tool-label">Select</span>
     </button>
+
+    <!-- Entity tools — only when spec is loaded -->
+    <template v-if="activeSpec">
+      <button
+        v-for="entity in activeSpec.entities"
+        :key="entity.label"
+        type="button"
+        class="tool-button"
+        :class="{ active: activeTool === entity.label }"
+        :title="entity.label"
+        @click="activeTool = entity.label"
+      >
+        <template v-if="getShapesForEntity(entity).length > 0">
+          <svg v-if="getShapesForEntity(entity)[0].shapeType === 'rect'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="3" y="5" width="14" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+          <svg v-else-if="getShapesForEntity(entity)[0].shapeType === 'point'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="10" cy="10" r="2" fill="currentColor" />
+            <path d="M10 4v4M10 12v4M4 10h4M12 10h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+          </svg>
+          <svg v-else-if="getShapesForEntity(entity)[0].shapeType === 'circle'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="10" cy="10" r="7" fill="none" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+          <svg v-else-if="getShapesForEntity(entity)[0].shapeType === 'polygon'" viewBox="0 0 20 20" class="w-4 h-4" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="10,3 17,8 15,16 5,16 3,8" fill="none" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </template>
+        <span class="tool-label">{{ entity.label }}</span>
+      </button>
+    </template>
   </div>
 </template>
 

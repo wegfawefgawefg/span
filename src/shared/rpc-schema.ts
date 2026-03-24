@@ -65,6 +65,14 @@ export type SpanRPC = {
 				params: {};
 				response: void;
 			};
+			triggerSaveAs: {
+				params: {};
+				response: void;
+			};
+			triggerOpen: {
+				params: {};
+				response: void;
+			};
 			resetLayout: {
 				params: {};
 				response: void;

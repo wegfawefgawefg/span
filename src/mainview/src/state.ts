@@ -20,7 +20,7 @@ import {
 	resetWorkspace,
 } from "./workspace";
 import type { WorkspaceSheet } from "./workspace";
-import { serializeWorkspace, debouncedSave } from "./persistence";
+import { serializeWorkspace, deserializeWorkspace, debouncedSave } from "./persistence";
 import { exportToString } from "./export";
 
 // Re-export workspace state for consumers
@@ -313,4 +313,109 @@ export async function exportWorkspace() {
 		console.error("Export failed:", e);
 		statusText.value = "Export failed";
 	}
+}
+
+// --- Save / Save As / Open ---
+
+export async function saveWorkspace() {
+	if (!spanFilePath.value) {
+		return saveWorkspaceAs();
+	}
+	performSave();
+}
+
+export async function saveWorkspaceAs() {
+	const path = await api.showSaveDialog("workspace.span", [
+		{ name: "Span files", extensions: ["span"] },
+	]);
+	if (!path) return;
+
+	const savePath = path.endsWith(".span") ? path : path + ".span";
+	spanFilePath.value = savePath;
+	performSave();
+}
+
+export async function openWorkspace() {
+	const path = await api.showOpenDialog([
+		{ name: "Span files", extensions: ["span"] },
+	]);
+	if (!path) return;
+	await loadWorkspaceFromPath(path);
+}
+
+export async function loadWorkspaceFromPath(path: string) {
+	try {
+		const raw = await api.readFile(path);
+		await restoreWorkspace(raw, path);
+	} catch (e) {
+		console.error("Failed to open .span file:", e);
+		statusText.value = "Failed to open .span file";
+	}
+}
+
+export async function restoreWorkspace(raw: string, filePath?: string) {
+	const data = deserializeWorkspace(raw);
+
+	// Resolve spec path relative to .span file directory
+	let specPath = data.spec;
+	if (filePath && specPath && !specPath.startsWith("/")) {
+		const dir = filePath.replace(/\/[^/]+$/, "");
+		specPath = dir + "/" + specPath;
+	}
+
+	// Load spec
+	try {
+		const specRaw = await api.readFile(specPath);
+		const format = specPath.endsWith(".json") ? "json" : "yaml" as const;
+		loadSpec(specRaw, format);
+		specFilePath.value = specPath;
+	} catch (e) {
+		console.error("Failed to load spec from .span file:", e);
+		statusText.value = "Failed to load spec referenced by .span file";
+		return;
+	}
+
+	// Reset and load sheets
+	resetWorkspace();
+	if (filePath) {
+		spanFilePath.value = filePath;
+	}
+
+	const dir = filePath ? filePath.replace(/\/[^/]+$/, "") : "";
+
+	for (const sheet of data.sheets) {
+		// Resolve sheet path relative to .span file
+		let imgPath = sheet.path;
+		if (dir && !imgPath.startsWith("/")) {
+			imgPath = dir + "/" + imgPath;
+		}
+
+		try {
+			const dataUrl = await api.readImageAsDataUrl(imgPath);
+			// Get image dimensions
+			const dims = await new Promise<{ width: number; height: number }>((resolve) => {
+				const img = new Image();
+				img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+				img.onerror = () => resolve({ width: 0, height: 0 });
+				img.src = dataUrl;
+			});
+
+			addSheet({
+				path: sheet.path,
+				absolutePath: imgPath,
+				annotations: sheet.annotations,
+				status: "loaded",
+				imageUrl: dataUrl,
+				width: dims.width,
+				height: dims.height,
+			});
+		} catch (e) {
+			console.error(`Failed to load sheet image: ${imgPath}`, e);
+		}
+	}
+
+	markDirty(false);
+	statusText.value = filePath
+		? `Opened ${filePath.split("/").pop()}`
+		: "Workspace restored";
 }

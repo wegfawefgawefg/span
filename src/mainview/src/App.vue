@@ -11,6 +11,7 @@ import {
 	addSheet,
 	loadSpec,
 	exportWorkspace,
+	restoreWorkspace,
 } from "./state";
 import { parseSpec } from "./spec/parse";
 import { api, setResetLayoutHandler, setAddPanelHandler } from "./platform/adapter";
@@ -77,12 +78,9 @@ async function handleDroppedFiles(files: File[]) {
 		const name = file.name;
 
 		if (SPAN_EXT.test(name)) {
-			// .span workspace file — read and restore
 			try {
 				const text = await file.text();
-				// TODO: restoreWorkspace(text) — for now just log
-				console.log("Dropped .span file:", name, text.length, "bytes");
-				statusText.value = `.span restore not yet wired`;
+				await restoreWorkspace(text);
 			} catch (e) {
 				console.error("Failed to read .span file:", e);
 				statusText.value = "Failed to read .span file";

@@ -14,6 +14,8 @@ let addSpriteHandler: () => void = () => {};
 let duplicateSpriteHandler: () => void = () => {};
 let deleteSpriteHandler: () => void = () => {};
 let triggerSaveHandler: () => void = () => {};
+let triggerSaveAsHandler: () => void = () => {};
+let triggerOpenHandler: () => void = () => {};
 
 const rpc = Electroview.defineRPC<SpanRPC>({
 	handlers: {
@@ -23,6 +25,8 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			duplicateSprite: () => duplicateSpriteHandler(),
 			deleteSprite: () => deleteSpriteHandler(),
 			triggerSave: () => triggerSaveHandler(),
+			triggerSaveAs: () => triggerSaveAsHandler(),
+			triggerOpen: () => triggerOpenHandler(),
 			resetLayout: () => getResetLayoutHandler()(),
 			addPanel: ({ panelId }) => getAddPanelHandler()(panelId),
 		},
@@ -63,10 +67,14 @@ export function wireDesktopMenuHandlers(handlers: {
 	duplicateSprite: () => void;
 	deleteSprite: () => void;
 	triggerSave: () => void;
+	triggerSaveAs: () => void;
+	triggerOpen: () => void;
 }) {
 	canCloseHandler = handlers.canClose;
 	addSpriteHandler = handlers.addSprite;
 	duplicateSpriteHandler = handlers.duplicateSprite;
 	deleteSpriteHandler = handlers.deleteSprite;
 	triggerSaveHandler = handlers.triggerSave;
+	triggerSaveAsHandler = handlers.triggerSaveAs;
+	triggerOpenHandler = handlers.triggerOpen;
 }

@@ -17,7 +17,9 @@ import {
 	addAnnotationAtViewportCenter,
 	duplicateSelected,
 	deleteSelected,
-	markDirty,
+	saveWorkspace,
+	saveWorkspaceAs,
+	openWorkspace,
 } from "./src/state";
 
 // Initialize platform
@@ -33,7 +35,9 @@ wireDesktopMenuHandlers({
 	addSprite: () => addAnnotationAtViewportCenter(),
 	duplicateSprite: () => duplicateSelected(),
 	deleteSprite: () => deleteSelected(),
-	triggerSave: () => markDirty(true),
+	triggerSave: () => saveWorkspace(),
+	triggerSaveAs: () => saveWorkspaceAs(),
+	triggerOpen: () => openWorkspace(),
 });
 
 const app = createApp(App);

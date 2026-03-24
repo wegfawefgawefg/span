@@ -22,15 +22,38 @@ function layoutPath(): string {
 const rpc = BrowserView.defineRPC<SpanRPC>({
 	handlers: {
 		requests: {
-			// TODO: Electrobun does not yet expose a native save dialog API.
-			// Return null until the API is available.
-			showSaveDialog: async (_params) => {
-				return null;
+			showSaveDialog: async ({ defaultName, filters }) => {
+				const exts = filters.flatMap(f => f.extensions).map(e => `"${e}"`).join(", ");
+				const script = `
+					set f to POSIX path of (choose file name with prompt "Save As" default name "${defaultName}")
+					return f
+				`;
+				try {
+					const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+					const out = await new Response(proc.stdout).text();
+					const code = await proc.exited;
+					if (code !== 0) return null;
+					return out.trim() || null;
+				} catch {
+					return null;
+				}
 			},
-			// TODO: Electrobun does not yet expose a native open dialog API.
-			// Return null until the API is available.
-			showOpenDialog: async (_params) => {
-				return null;
+			showOpenDialog: async ({ filters }) => {
+				const types = filters.flatMap(f => f.extensions);
+				const typeList = types.map(t => `"${t}"`).join(", ");
+				const script = `
+					set f to POSIX path of (choose file of type {${typeList}} with prompt "Open")
+					return f
+				`;
+				try {
+					const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+					const out = await new Response(proc.stdout).text();
+					const code = await proc.exited;
+					if (code !== 0) return null;
+					return out.trim() || null;
+				} catch {
+					return null;
+				}
 			},
 			readFile: async ({ path }) => {
 				const file = Bun.file(path);
@@ -130,9 +153,20 @@ ApplicationMenu.setApplicationMenu([
 		label: "File",
 		submenu: [
 			{
+				label: "Open...",
+				accelerator: "CommandOrControl+O",
+				action: "triggerOpen",
+			},
+			{ type: "separator" as const },
+			{
 				label: "Save",
 				accelerator: "CommandOrControl+S",
 				action: "triggerSave",
+			},
+			{
+				label: "Save As...",
+				accelerator: "CommandOrControl+Shift+S",
+				action: "triggerSaveAs",
 			},
 		],
 	},
@@ -206,6 +240,12 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 	switch (action) {
 		case "triggerSave":
 			mainWindow.webview.rpc.request.triggerSave({});
+			break;
+		case "triggerSaveAs":
+			mainWindow.webview.rpc.request.triggerSaveAs({});
+			break;
+		case "triggerOpen":
+			mainWindow.webview.rpc.request.triggerOpen({});
 			break;
 		case "addSprite":
 			mainWindow.webview.rpc.request.addSprite({});

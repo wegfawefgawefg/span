@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
+import consoleForward from "./vite-plugin-console-forward";
 import { resolve } from "path";
 
 /** Redirect / to /index-web.html so the dev server serves the web entry instead of the desktop index.html */
@@ -19,7 +20,7 @@ function serveWebEntry(): Plugin {
 }
 
 export default defineConfig({
-	plugins: [serveWebEntry(), vue(), tailwindcss()],
+	plugins: [serveWebEntry(), vue(), tailwindcss(), consoleForward()],
 	root: "src/mainview",
 	build: {
 		outDir: "../../dist-web",

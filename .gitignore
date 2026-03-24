@@ -8,3 +8,6 @@ build/
 .vscode/
 .claude/
 .worktrees/
+
+# MacOS specific files
+.DS_Store

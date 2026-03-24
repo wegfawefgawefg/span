@@ -1,0 +1,62 @@
+version: 0.1.0
+sprites:
+  - name: 'link_idle'
+    path: './link.png'
+    frame: 0
+    direction: down
+    slice:
+      x: 0
+      y: 0
+      width: 16
+      height: 16
+    collision:
+      x: 0
+      y: 0
+      width: 16
+      height: 16
+    origin:
+      x: 8
+      y: 8
+    tags: ['player', 'idle']
+    variant: 'default'
+  - name: 'link_walk'
+    path: './link.png'
+    frame: 0
+    direction: down
+    slice:
+      x: 0
+      y: 0
+      width: 16
+      height: 16
+    collision:
+      x: 0
+      y: 0
+      width: 16
+      height: 16
+    origin:
+      x: 8
+      y: 8
+    tags: ['player', 'walk']
+    variant: 'default'
+
+tiles:
+  - name: 'grass'
+    path: '/full/path/to/resources/tiles.png'
+    solid: false
+    layer: background
+    tags: ['nature']
+    slice:
+      x: 0
+      y: 0
+      width: 16
+      height: 16
+  - name: 'stone_wall'
+    path: '/full/path/to/resources/tiles.png'
+    solid: true
+    layer: foreground
+    tags: ['structure']
+    slice:
+      x: 16
+      y: 0
+      width: 16
+      height: 16

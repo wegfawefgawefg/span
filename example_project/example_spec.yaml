@@ -1,0 +1,57 @@
+---
+__properties:
+  version: 0.1.0
+---
+- label: Sprite
+  group: sprites
+  properties:
+    name: string
+    path: RelativePath
+    slice:
+      __shape: rect
+      x: integer
+      y: integer
+      width: integer
+      height: integer
+    collision:
+      __shape: rect
+      __reference: slice
+      x: integer
+      y: integer
+      width: integer
+      height: integer
+    origin:
+      __shape: point
+      __reference: slice
+      x: integer
+      y: integer
+    frame: integer
+    direction: { enum: [up, down, left, right] }
+    variant: string
+    tags: string[]
+
+- label: Tile
+  group: tiles
+  properties:
+    name: string
+    path: RelativePath
+    slice:
+      __shape: rect
+      x: integer
+      y: integer
+      width: integer
+      height: integer
+    solid: boolean
+    layer: { enum: [background, foreground, overlay] }
+    tags: string[]
+
+- label: Waypoint
+  group: waypoints
+  properties:
+    name: string
+    point:
+      __shape: point
+      x: integer
+      y: integer
+    order: integer
+    type: { enum: [spawn, entrance, exit, warp] }

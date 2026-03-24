@@ -151,14 +151,14 @@ export function parseSpec(
 
 function buildShapeField(name: string, obj: Record<string, unknown>): ShapeSpecField {
 	const shapeType = obj.__shape as ShapeType;
+	const reference = typeof obj.__reference === "string" ? obj.__reference : null;
 
-	// Extract shape fields (everything except __shape)
+	// Extract shape fields (everything except __shape and __reference)
 	const shapeFields: ShapeField[] = [];
 	for (const [fieldName, fieldType] of Object.entries(obj)) {
-		if (fieldName === "__shape") continue;
+		if (fieldName === "__shape" || fieldName === "__reference") continue;
 
 		if (shapeType === "polygon" && typeof fieldType === "object") {
-			// Polygon points field — special case
 			shapeFields.push({ name: fieldName, valueType: "integer" });
 		} else {
 			shapeFields.push({
@@ -176,6 +176,7 @@ function buildShapeField(name: string, obj: Record<string, unknown>): ShapeSpecF
 		shapeType,
 		shapeFields,
 		mapping: inference.mapping,
+		reference,
 		warnings: inference.warnings,
 	};
 }

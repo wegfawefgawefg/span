@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import type { Annotation } from "../types";
+import type { Annotation } from "../annotation";
 import {
 	annotations,
 	selectedId,
 	selectAnnotation,
 	duplicateSelected,
 	deleteSelected,
+	activeSpec,
 } from "../state";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
@@ -14,37 +15,60 @@ import type { MenuEntry } from "./ContextMenu.vue";
 const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 const collapsed = ref<Set<string>>(new Set());
 
-interface SpriteGroup {
+interface AnnotationGroup {
 	key: string;
 	name: string;
-	frames: Annotation[];
+	entityType: string;
+	items: Annotation[];
+}
+
+function getDisplayName(ann: Annotation): string {
+	if (!activeSpec.value) return ann.id;
+	const entity = activeSpec.value.entities[ann.entityType];
+	if (!entity) return ann.id;
+	const firstString = entity.properties.find(p => p.type === "string");
+	if (firstString) {
+		const val = ann.propertyData[firstString.name];
+		return typeof val === "string" && val ? val : ann.entityType;
+	}
+	return ann.entityType;
 }
 
 function groupKey(a: Annotation): string {
-	return [
-		a.type ?? "sprite",
-		a.name?.trim() ?? "",
-		a.direction?.trim() ?? "",
-		a.variant?.trim() ?? "",
-	].join("|");
+	if (!activeSpec.value) return a.entityType;
+	const entity = activeSpec.value.entities[a.entityType];
+	if (!entity) return a.entityType;
+	const firstString = entity.properties.find(p => p.type === "string");
+	const nameVal = firstString ? (a.propertyData[firstString.name] ?? "") : "";
+	return `${a.entityType}|${nameVal}`;
 }
 
-const groups = computed<SpriteGroup[]>(() => {
-	const map = new Map<string, SpriteGroup>();
+function isUnknownEntityType(ann: Annotation): boolean {
+	if (!activeSpec.value) return false;
+	return !(ann.entityType in activeSpec.value.entities);
+}
+
+const groups = computed<AnnotationGroup[]>(() => {
+	const map = new Map<string, AnnotationGroup>();
 	for (const ann of annotations.value) {
 		const key = groupKey(ann);
 		let group = map.get(key);
 		if (!group) {
-			group = { key, name: ann.name?.trim() || "unnamed", frames: [] };
+			group = {
+				key,
+				name: getDisplayName(ann),
+				entityType: ann.entityType,
+				items: [],
+			};
 			map.set(key, group);
 		}
-		group.frames.push(ann);
+		group.items.push(ann);
 	}
 	const result = Array.from(map.values());
-	for (const g of result) {
-		g.frames.sort((a, b) => a.frame - b.frame);
-	}
-	result.sort((a, b) => a.name.localeCompare(b.name));
+	result.sort((a, b) => {
+		const byType = a.entityType.localeCompare(b.entityType);
+		return byType !== 0 ? byType : a.name.localeCompare(b.name);
+	});
 	return result;
 });
 
@@ -54,14 +78,6 @@ function toggleGroup(key: string) {
 	} else {
 		collapsed.value.add(key);
 	}
-}
-
-function groupMeta(group: SpriteGroup): string {
-	const first = group.frames[0];
-	const parts = [first.type];
-	if (first.direction) parts.push(first.direction);
-	if (first.variant) parts.push(first.variant);
-	return parts.join(" · ");
 }
 
 function onContextMenu(event: MouseEvent, annotationId: string) {
@@ -87,16 +103,17 @@ function onContextMenu(event: MouseEvent, annotationId: string) {
 						class="text-[10px] text-text-faint transition-transform"
 						:class="collapsed.has(group.key) ? '-rotate-90' : ''"
 					>&#9660;</span>
-					<span class="text-xs font-medium truncate" :class="group.frames.some(a => a.id === selectedId) ? 'text-copper-bright' : 'text-text-dim'">
+					<span class="text-xs font-medium truncate" :class="group.items.some(a => a.id === selectedId) ? 'text-copper-bright' : 'text-text-dim'">
 						{{ group.name }}
 					</span>
+					<span class="text-[9px] text-text-faint bg-surface-0 px-1 rounded shrink-0">{{ group.entityType }}</span>
 					<span class="text-[10px] font-mono text-text-faint ml-auto shrink-0">
-						{{ group.frames.length }}f
+						{{ group.items.length }}
 					</span>
 				</button>
 				<div v-if="!collapsed.has(group.key)" class="flex flex-col gap-0.5 pl-4 mt-0.5">
 					<button
-						v-for="ann in group.frames"
+						v-for="ann in group.items"
 						:key="ann.id"
 						type="button"
 						class="w-full text-left px-2 py-1 border rounded-sm transition-colors cursor-pointer active:translate-y-px"
@@ -108,8 +125,16 @@ function onContextMenu(event: MouseEvent, annotationId: string) {
 						@click="selectAnnotation(ann.id)"
 						@contextmenu="onContextMenu($event, ann.id)"
 					>
-						<div class="font-mono text-[10px]" :class="ann.id === selectedId ? 'text-copper-bright' : 'text-text-dim'">
-							f{{ ann.frame }} &middot; {{ ann.x }},{{ ann.y }} &middot; {{ ann.width }}&times;{{ ann.height }}
+						<div class="flex items-center gap-1">
+							<span
+								v-if="isUnknownEntityType(ann)"
+								class="text-[9px] text-danger font-bold shrink-0"
+								title="Unknown entity type"
+							>!</span>
+							<span class="font-mono text-[10px] truncate" :class="ann.id === selectedId ? 'text-copper-bright' : 'text-text-dim'">
+								{{ ann.id.slice(0, 8) }}
+							</span>
+							<span class="text-[9px] text-text-faint bg-surface-0 px-1 rounded shrink-0 ml-auto">{{ ann.entityType }}</span>
 						</div>
 					</button>
 				</div>

@@ -14,7 +14,8 @@ const DEV_SERVER_PORT_END = 5183;
 
 // --- Layout persistence helpers ---
 function layoutPath(): string {
-	return join(Utils.paths.userData(), "layout.json");
+	const dir = typeof Utils.paths.userData === "function" ? Utils.paths.userData() : Utils.paths.userData;
+	return join(dir, "layout.json");
 }
 
 // --- RPC ---

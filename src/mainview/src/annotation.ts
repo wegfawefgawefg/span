@@ -37,8 +37,15 @@ export function createAnnotation(
 	for (let i = 0; i < shapeFields.length; i++) {
 		const sf = shapeFields[i];
 		const isPrimary = i === 0;
-		const offset = isPrimary ? 0 : i * 4;
-		const pos = { x: position.x + offset, y: position.y + offset };
+
+		let pos: { x: number; y: number };
+		if (sf.reference) {
+			// Referenced shapes store relative offsets — default to 0,0
+			pos = { x: 0, y: 0 };
+		} else {
+			const offset = isPrimary ? 0 : i * 4;
+			pos = { x: position.x + offset, y: position.y + offset };
+		}
 
 		shapes[sf.name] = buildShapeDefaults(sf, pos);
 	}

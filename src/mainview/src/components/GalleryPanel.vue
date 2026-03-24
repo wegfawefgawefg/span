@@ -7,7 +7,9 @@ import {
 	annotations as currentAnnotations,
 	openSheet,
 	selectAnnotation,
+	activeSpec,
 } from "../state";
+import { getShapeRect } from "../annotation";
 import { api } from "../platform/adapter";
 import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
 import ContextMenu from "./ContextMenu.vue";
@@ -21,10 +23,8 @@ interface GalleryFrame {
 
 interface SpriteGroup {
 	key: string;
-	type: string;
 	name: string;
-	direction: string;
-	variant: string;
+	frameCount: number;
 	inCurrentSheet: boolean;
 	frames: GalleryFrame[];
 }
@@ -40,13 +40,47 @@ let galleryTick = 0;
 let galleryTimer: number | null = null;
 const canvasRefs = ref<Map<string, HTMLCanvasElement>>(new Map());
 
-function groupKey(a: Annotation): string {
-	return [
-		a.type ?? "sprite",
-		a.name?.trim() ?? "",
-		a.direction?.trim() ?? "",
-		a.variant?.trim() ?? "",
-	].join("|");
+const isRectEntity = (ann: Annotation): boolean => {
+	if (!activeSpec.value) return false;
+	const entity = activeSpec.value.entities[ann.entityType];
+	return entity?.shape.type === "rect";
+};
+
+function getAnnotationName(ann: Annotation): string {
+	if (!activeSpec.value) return "";
+	const entity = activeSpec.value.entities[ann.entityType];
+	if (!entity) return "";
+	const firstString = entity.properties.find(p => p.type === "string");
+	return firstString ? (ann.propertyData[firstString.name] as string ?? "") : "";
+}
+
+function getFrameValue(ann: Annotation): number {
+	if (!activeSpec.value) return 0;
+	const entity = activeSpec.value.entities[ann.entityType];
+	if (!entity) return 0;
+	const frameProp = entity.properties.find(p => p.name === "frame" && (p.type === "integer" || p.type === "number"))
+		?? entity.properties.find(p => p.type === "integer" || p.type === "number");
+	return frameProp ? (ann.propertyData[frameProp.name] as number ?? 0) : 0;
+}
+
+function getChromaKey(ann: Annotation): string | undefined {
+	if (!activeSpec.value) return undefined;
+	const entity = activeSpec.value.entities[ann.entityType];
+	if (!entity) return undefined;
+	const chromaProp = entity.properties.find(p => p.name === "chroma_key");
+	if (!chromaProp) return undefined;
+	return ann.propertyData["chroma_key"] as string | undefined;
+}
+
+function groupKey(ann: Annotation): string {
+	const name = getAnnotationName(ann).trim();
+	// Build extra grouping fields: all string properties except the first (name)
+	if (!activeSpec.value) return [ann.entityType, name].join("|");
+	const entity = activeSpec.value.entities[ann.entityType];
+	if (!entity) return [ann.entityType, name].join("|");
+	const stringProps = entity.properties.filter(p => p.type === "string");
+	const extraFields = stringProps.slice(1).map(p => (ann.propertyData[p.name] as string ?? "").trim());
+	return [ann.entityType, name, ...extraFields].join("|");
 }
 
 const groups = computed<SpriteGroup[]>(() => {
@@ -61,17 +95,18 @@ const groups = computed<SpriteGroup[]>(() => {
 		const anns =
 			sheet.file === currentFile ? liveAnnotations : (sheet.annotations ?? []);
 		for (const ann of anns) {
-			const name = ann.name?.trim() ?? "";
+			// Only show rect-shape entities in the gallery
+			if (!isRectEntity(ann)) continue;
+
+			const name = getAnnotationName(ann).trim();
 			if (!name) continue;
 			const key = groupKey(ann);
 			let group = map.get(key);
 			if (!group) {
 				group = {
 					key,
-					type: ann.type ?? "sprite",
 					name,
-					direction: ann.direction?.trim() ?? "",
-					variant: ann.variant?.trim() ?? "",
+					frameCount: 0,
 					inCurrentSheet: false,
 					frames: [],
 				};
@@ -89,14 +124,19 @@ const groups = computed<SpriteGroup[]>(() => {
 	const result = Array.from(map.values());
 	for (const g of result) {
 		g.frames.sort((a, b) => {
-			const fd = (a.annotation.frame ?? 0) - (b.annotation.frame ?? 0);
+			const fd = getFrameValue(a.annotation) - getFrameValue(b.annotation);
 			if (fd !== 0) return fd;
 			if (a.sheetFile !== b.sheetFile)
 				return a.sheetFile.localeCompare(b.sheetFile);
-			if (a.annotation.y !== b.annotation.y)
-				return a.annotation.y - b.annotation.y;
-			return a.annotation.x - b.annotation.x;
+			const ra = getShapeRect(a.annotation, activeSpec.value!);
+			const rb = getShapeRect(b.annotation, activeSpec.value!);
+			if (ra && rb) {
+				if (ra.y !== rb.y) return ra.y - rb.y;
+				return ra.x - rb.x;
+			}
+			return 0;
 		});
+		g.frameCount = g.frames.length;
 	}
 
 	result.sort((a, b) => {
@@ -107,6 +147,12 @@ const groups = computed<SpriteGroup[]>(() => {
 
 	return result;
 });
+
+function getFirstFrameRect(group: SpriteGroup): { width: number; height: number } | null {
+	const first = group.frames[0];
+	if (!first || !activeSpec.value) return null;
+	return getShapeRect(first.annotation, activeSpec.value);
+}
 
 function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 	const cached = imageCache.get(sheetFile);
@@ -124,8 +170,12 @@ function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 }
 
 function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
-	const w = Math.max(1, frame.annotation.width);
-	const h = Math.max(1, frame.annotation.height);
+	if (!activeSpec.value) return;
+	const rect = getShapeRect(frame.annotation, activeSpec.value);
+	if (!rect) return;
+
+	const w = Math.max(1, rect.width);
+	const h = Math.max(1, rect.height);
 	canvas.width = w * previewScale.value;
 	canvas.height = h * previewScale.value;
 
@@ -136,8 +186,8 @@ function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 			sourceCtx.clearRect(0, 0, w, h);
 			sourceCtx.drawImage(
 				img,
-				frame.annotation.x,
-				frame.annotation.y,
+				rect.x,
+				rect.y,
 				w,
 				h,
 				0,
@@ -146,7 +196,8 @@ function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 				h,
 			);
 
-			const chroma = parseHexColor(frame.annotation.chroma_key);
+			const chromaValue = getChromaKey(frame.annotation);
+			const chroma = parseHexColor(chromaValue);
 			if (chroma) {
 				const id = sourceCtx.getImageData(0, 0, w, h);
 				applyChromaKey(id, chroma);
@@ -281,21 +332,21 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 						? 'bg-copper-glow border-copper/30'
 						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
 				]"
-				:style="previewScale >= 3 ? { maxWidth: (group.frames[0]?.annotation.width ?? 16) * previewScale + 16 + 'px' } : undefined"
+				:style="previewScale >= 3 ? { maxWidth: (getFirstFrameRect(group)?.width ?? 16) * previewScale + 16 + 'px' } : undefined"
 				@click="handleClick(group)"
 				@contextmenu.stop="onGroupContextMenu($event, group)"
 			>
 				<canvas
 					:ref="(el: any) => setCanvasRef(group.key, el)"
 					class="gallery-preview"
-					:title="`${group.name} — ${group.frames.length}f${group.direction ? ' · ' + group.direction : ''}${group.variant ? ' · ' + group.variant : ''}`"
+					:title="`${group.name} — ${group.frameCount}f`"
 				></canvas>
 				<template v-if="previewScale >= 3">
 					<div class="text-xs font-medium truncate max-w-full" :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'">
 						{{ group.name }}
 					</div>
 					<div class="font-mono text-[10px] text-text-faint truncate max-w-full">
-						{{ group.frames.length }}f<template v-if="group.direction"> &middot; {{ group.direction }}</template><template v-if="group.variant"> &middot; {{ group.variant }}</template>
+						{{ group.frameCount }}f
 					</div>
 				</template>
 			</button>

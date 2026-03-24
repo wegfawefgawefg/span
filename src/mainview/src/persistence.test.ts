@@ -13,7 +13,7 @@ function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation {
 	return {
 		id: "ann-1",
 		entityType: "Sprite",
-		shapeData: { x: 10, y: 20, width: 32, height: 32 },
+		shapes: { slice: { x: 10, y: 20, width: 32, height: 32 } },
 		propertyData: { label: "hero" },
 		...overrides,
 	};
@@ -43,11 +43,8 @@ describe("serializeWorkspace", () => {
 		expect(parsed.sheets[0].annotations).toHaveLength(1);
 		expect(parsed.sheets[0].annotations[0].id).toBe("ann-1");
 		expect(parsed.sheets[0].annotations[0].entityType).toBe("Sprite");
-		expect(parsed.sheets[0].annotations[0].shapeData).toEqual({
-			x: 10,
-			y: 20,
-			width: 32,
-			height: 32,
+		expect(parsed.sheets[0].annotations[0].shapes).toEqual({
+			slice: { x: 10, y: 20, width: 32, height: 32 },
 		});
 		expect(parsed.sheets[0].annotations[0].propertyData).toEqual({
 			label: "hero",
@@ -144,6 +141,24 @@ describe("serializeWorkspace", () => {
 		expect(parsed.sheets).toHaveLength(2);
 		expect(parsed.sheets[1].annotations).toHaveLength(2);
 	});
+
+	it("serializes multiple named shapes per annotation", () => {
+		const ann = makeAnnotation({
+			shapes: {
+				slice: { x: 0, y: 0, width: 32, height: 32 },
+				collision: { x: 4, y: 4, width: 24, height: 24 },
+				origin: { x: 16, y: 16 },
+			},
+		});
+		const sheets = [makeSheet("sprite.png", [ann])];
+		const json = serializeWorkspace(sheets, "", "");
+		const parsed = JSON.parse(json);
+		expect(parsed.sheets[0].annotations[0].shapes).toEqual({
+			slice: { x: 0, y: 0, width: 32, height: 32 },
+			collision: { x: 4, y: 4, width: 24, height: 24 },
+			origin: { x: 16, y: 16 },
+		});
+	});
 });
 
 describe("deserializeWorkspace", () => {
@@ -159,7 +174,7 @@ describe("deserializeWorkspace", () => {
 						{
 							id: "ann-1",
 							entityType: "Sprite",
-							shapeData: { x: 10, y: 20, width: 32, height: 32 },
+							shapes: { slice: { x: 10, y: 20, width: 32, height: 32 } },
 							propertyData: { label: "hero" },
 						},
 					],
@@ -175,11 +190,8 @@ describe("deserializeWorkspace", () => {
 		expect(result.sheets).toHaveLength(1);
 		expect(result.sheets[0].path).toBe("images/hero.png");
 		expect(result.sheets[0].annotations[0].id).toBe("ann-1");
-		expect(result.sheets[0].annotations[0].shapeData).toEqual({
-			x: 10,
-			y: 20,
-			width: 32,
-			height: 32,
+		expect(result.sheets[0].annotations[0].shapes).toEqual({
+			slice: { x: 10, y: 20, width: 32, height: 32 },
 		});
 	});
 
@@ -216,7 +228,7 @@ describe("deserializeWorkspace", () => {
 		const ann = result.sheets[0].annotations[0];
 		expect(ann.id).toBe("");
 		expect(ann.entityType).toBe("");
-		expect(ann.shapeData).toEqual({});
+		expect(ann.shapes).toEqual({});
 		expect(ann.propertyData).toEqual({});
 	});
 
@@ -243,7 +255,7 @@ describe("deserializeWorkspace", () => {
 						{
 							id: "x",
 							entityType: "T",
-							shapeData: {},
+							shapes: {},
 							propertyData: {},
 							_stash: { legacy: 42 },
 						},
@@ -267,7 +279,7 @@ describe("deserializeWorkspace", () => {
 						{
 							id: "x",
 							entityType: "T",
-							shapeData: {},
+							shapes: {},
 							propertyData: {},
 						},
 					],
@@ -277,12 +289,37 @@ describe("deserializeWorkspace", () => {
 		const result = deserializeWorkspace(raw);
 		expect(result.sheets[0].annotations[0]._stash).toBeUndefined();
 	});
+
+	it("falls back to wrapping legacy shapeData under 'default' key", () => {
+		const raw = JSON.stringify({
+			version: 1,
+			spec: "",
+			root: "",
+			sheets: [
+				{
+					path: "a.png",
+					annotations: [
+						{
+							id: "x",
+							entityType: "T",
+							shapeData: { x: 1, y: 2, width: 10, height: 10 },
+							propertyData: {},
+						},
+					],
+				},
+			],
+		});
+		const result = deserializeWorkspace(raw);
+		expect(result.sheets[0].annotations[0].shapes).toEqual({
+			default: { x: 1, y: 2, width: 10, height: 10 },
+		});
+	});
 });
 
 describe("round-trip", () => {
 	it("serialize → deserialize → data matches", () => {
 		const ann = makeAnnotation({
-			shapeData: { x: 5, y: 15, width: 64, height: 48 },
+			shapes: { slice: { x: 5, y: 15, width: 64, height: 48 } },
 			propertyData: { label: "enemy", count: 3 },
 		});
 		const sheets = [makeSheet("levels/stage1.png", [ann])];
@@ -297,7 +334,7 @@ describe("round-trip", () => {
 		const resultAnn = result.sheets[0].annotations[0];
 		expect(resultAnn.id).toBe("ann-1");
 		expect(resultAnn.entityType).toBe("Sprite");
-		expect(resultAnn.shapeData).toEqual({ x: 5, y: 15, width: 64, height: 48 });
+		expect(resultAnn.shapes).toEqual({ slice: { x: 5, y: 15, width: 64, height: 48 } });
 		expect(resultAnn.propertyData).toEqual({ label: "enemy", count: 3 });
 	});
 
@@ -348,5 +385,23 @@ describe("round-trip", () => {
 		// Deserialize back
 		const result = deserializeWorkspace(json);
 		expect(result.spec).toBe("spec.yaml");
+	});
+
+	it("multi-shape annotation survives round-trip", () => {
+		const ann = makeAnnotation({
+			shapes: {
+				slice: { x: 0, y: 0, width: 32, height: 32 },
+				collision: { x: 4, y: 4, width: 24, height: 24 },
+				origin: { x: 16, y: 16 },
+			},
+		});
+		const sheets = [makeSheet("sprite.png", [ann])];
+		const json = serializeWorkspace(sheets, "spec.yaml", "/project");
+		const result = deserializeWorkspace(json);
+		expect(result.sheets[0].annotations[0].shapes).toEqual({
+			slice: { x: 0, y: 0, width: 32, height: 32 },
+			collision: { x: 4, y: 4, width: 24, height: 24 },
+			origin: { x: 16, y: 16 },
+		});
 	});
 });

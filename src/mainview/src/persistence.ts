@@ -43,7 +43,9 @@ export function serializeWorkspace(
 			annotations: s.annotations.map((a) => ({
 				id: a.id,
 				entityType: a.entityType,
-				shapeData: { ...a.shapeData },
+				shapes: Object.fromEntries(
+					Object.entries(a.shapes).map(([name, data]) => [name, { ...data }]),
+				),
 				propertyData: { ...a.propertyData },
 				...(a._stash && Object.keys(a._stash).length > 0
 					? { _stash: { ...a._stash } }
@@ -76,7 +78,7 @@ export function deserializeWorkspace(raw: string): SpanFile {
 			annotations: (s.annotations ?? []).map((a: any) => ({
 				id: a.id ?? "",
 				entityType: a.entityType ?? "",
-				shapeData: a.shapeData ?? {},
+				shapes: a.shapes ?? (a.shapeData !== undefined ? { default: a.shapeData } : {}),
 				propertyData: a.propertyData ?? {},
 				...(a._stash ? { _stash: a._stash } : {}),
 			})),

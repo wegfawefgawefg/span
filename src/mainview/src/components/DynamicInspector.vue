@@ -16,7 +16,9 @@ import {
 	markDirty,
 	getPreviewShapeName,
 	setPreviewShape,
+	currentSheetImageSrc,
 } from "../state";
+import ShapeCanvas from "./ShapeCanvas.vue";
 import { triggerRef } from "vue";
 
 const props = defineProps<{
@@ -151,6 +153,16 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 						{{ collapsedShapes.has(shape.name) ? "▶" : "▼" }}
 					</span>
 				</button>
+
+				<!-- Mini-canvas for shape editing -->
+				<ShapeCanvas
+					v-if="!collapsedShapes.has(shape.name) && currentSheetImageSrc"
+					:annotation="annotation"
+					:spec="spec"
+					:shape-name="shape.name"
+					:sheet-image-src="currentSheetImageSrc"
+					:shape-color="SHAPE_COLORS[shapeIndex] ?? SHAPE_COLORS[SHAPE_COLORS.length - 1]"
+				/>
 
 				<!-- Shape fields -->
 				<div

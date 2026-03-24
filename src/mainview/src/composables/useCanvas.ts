@@ -1,5 +1,6 @@
 import { ref, triggerRef } from "vue";
 import type { Annotation } from "../annotation";
+import { resolveAbsolutePosition } from "../annotation";
 import { zoom, annotations, markDirty, activeSpec } from "../state";
 import { ZOOM_MIN, ZOOM_MAX } from "../state";
 import {
@@ -150,6 +151,23 @@ export function useCanvas() {
 		}
 	}
 
+	function applyMoveDeltaUnclamped(
+		shapeData: Record<string, number>,
+		startData: Record<string, number>,
+		mapping: ShapeMapping,
+		deltaX: number,
+		deltaY: number,
+	) {
+		switch (mapping.type) {
+			case "rect":
+			case "point":
+			case "circle":
+				shapeData[mapping.x] = Math.round(startData[mapping.x] + deltaX);
+				shapeData[mapping.y] = Math.round(startData[mapping.y] + deltaY);
+				break;
+		}
+	}
+
 	function onPointerMove(
 		event: PointerEvent,
 		imageWidth: number,
@@ -176,8 +194,10 @@ export function useCanvas() {
 
 		if (d.mode === "move") {
 			if (isPrimaryDrag) {
-				// Group move: apply delta to ALL shapes
+				// Group move: apply delta to non-referenced shapes only
+				// Referenced shapes follow their reference automatically
 				for (const sf of shapeFields) {
+					if (sf.reference) continue;
 					const mapping = sf.mapping;
 					if (!mapping) continue;
 					const shapeData = ann.shapes[sf.name];
@@ -192,10 +212,13 @@ export function useCanvas() {
 				const shapeData = ann.shapes[d.shapeName];
 				const startData = d.startShapeData[d.shapeName];
 				if (!shapeData || !startData) return;
-				applyMoveDelta(shapeData, startData, sf.mapping, deltaX, deltaY, imageWidth, imageHeight);
+				if (sf.reference) {
+					applyMoveDeltaUnclamped(shapeData, startData, sf.mapping, deltaX, deltaY);
+				} else {
+					applyMoveDelta(shapeData, startData, sf.mapping, deltaX, deltaY, imageWidth, imageHeight);
+				}
 			}
 		} else if (d.mode === "resize") {
-			// Resize only applies to the specific shape being dragged
 			const sf = shapeFields.find((s) => s.name === d.shapeName);
 			if (!sf?.mapping || sf.mapping.type !== "rect") return;
 			const mapping = sf.mapping;
@@ -203,20 +226,25 @@ export function useCanvas() {
 			const startData = d.startShapeData[d.shapeName];
 			if (!shapeData || !startData) return;
 
-			const x = shapeData[mapping.x] as number;
-			const y = shapeData[mapping.y] as number;
-			shapeData[mapping.width] = clamp(
-				Math.round(startData[mapping.width] + deltaX),
-				1,
-				imageWidth - x,
-			);
-			shapeData[mapping.height] = clamp(
-				Math.round(startData[mapping.height] + deltaY),
-				1,
-				imageHeight - y,
-			);
+			if (sf.reference) {
+				// Referenced shape: no clamping on resize
+				shapeData[mapping.width] = Math.max(1, Math.round(startData[mapping.width] + deltaX));
+				shapeData[mapping.height] = Math.max(1, Math.round(startData[mapping.height] + deltaY));
+			} else {
+				const x = shapeData[mapping.x] as number;
+				const y = shapeData[mapping.y] as number;
+				shapeData[mapping.width] = clamp(
+					Math.round(startData[mapping.width] + deltaX),
+					1,
+					imageWidth - x,
+				);
+				shapeData[mapping.height] = clamp(
+					Math.round(startData[mapping.height] + deltaY),
+					1,
+					imageHeight - y,
+				);
+			}
 		} else if (d.mode === "radius") {
-			// Radius drag only applies to the specific shape
 			const sf = shapeFields.find((s) => s.name === d.shapeName);
 			if (!sf?.mapping || sf.mapping.type !== "circle") return;
 			const mapping = sf.mapping;
@@ -224,8 +252,17 @@ export function useCanvas() {
 			const shapeData = ann.shapes[d.shapeName];
 			if (!shapeData || !startData) return;
 
-			const cx = startData[mapping.x];
-			const cy = startData[mapping.y];
+			// Resolve absolute center for distance computation
+			let cx = startData[mapping.x];
+			let cy = startData[mapping.y];
+			if (sf.reference && spec) {
+				const refPos = resolveAbsolutePosition(ann, spec, sf.reference);
+				if (refPos) {
+					cx = refPos.x + startData[mapping.x];
+					cy = refPos.y + startData[mapping.y];
+				}
+			}
+
 			const stageEl = event.currentTarget as HTMLElement;
 			const rect = stageEl.getBoundingClientRect();
 			const pointerX = (event.clientX - rect.left) / zoom.value;

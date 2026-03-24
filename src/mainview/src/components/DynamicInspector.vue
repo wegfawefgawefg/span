@@ -135,6 +135,9 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 						:style="{ backgroundColor: SHAPE_COLORS[shapeIndex] ?? SHAPE_COLORS[SHAPE_COLORS.length - 1] }"
 					/>
 					{{ shape.name }} ({{ shape.shapeType }})
+					<span v-if="shape.reference" class="normal-case tracking-normal text-text-faint">
+						relative to {{ shape.reference }}
+					</span>
 					<span class="ml-auto text-text-faint">
 						{{ collapsedShapes.has(shape.name) ? "▶" : "▼" }}
 					</span>

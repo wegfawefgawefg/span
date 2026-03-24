@@ -7,7 +7,7 @@ import Inspector from "./src/components/Inspector.vue";
 import AnnotationList from "./src/components/AnnotationList.vue";
 import GalleryPanel from "./src/components/GalleryPanel.vue";
 import { createApp } from "vue";
-import { setAdapter, projectOpen } from "./src/platform/adapter";
+import { setAdapter } from "./src/platform/adapter";
 import {
 	createElectrobunAdapter,
 	wireDesktopMenuHandlers,
@@ -17,14 +17,12 @@ import {
 	addAnnotationAtViewportCenter,
 	duplicateSelected,
 	deleteSelected,
-	saveCurrentAnnotations,
-	statusText,
+	markDirty,
 } from "./src/state";
 
 // Initialize platform
 const adapter = createElectrobunAdapter();
 setAdapter(adapter, "desktop");
-projectOpen.value = true; // Desktop always has a project loaded via CLI
 
 // Wire desktop-only menu handlers
 wireDesktopMenuHandlers({
@@ -35,12 +33,7 @@ wireDesktopMenuHandlers({
 	addSprite: () => addAnnotationAtViewportCenter(),
 	duplicateSprite: () => duplicateSelected(),
 	deleteSprite: () => deleteSelected(),
-	triggerSave: () => {
-		saveCurrentAnnotations().catch((e) => {
-			console.error(e);
-			statusText.value = "Save failed — check disk permissions";
-		});
-	},
+	triggerSave: () => markDirty(true),
 });
 
 const app = createApp(App);

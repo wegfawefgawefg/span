@@ -1,53 +1,35 @@
 import type { RPCSchema } from "electrobun/bun";
 
-export interface Annotation {
-	id: string;
+export interface FileFilter {
 	name: string;
-	type: "sprite" | "tile";
-	frame: number;
-	x: number;
-	y: number;
-	width: number;
-	height: number;
-	direction: string;
-	variant: string;
-	chroma_key: string;
-	tags: string;
-	notes: string;
-}
-
-export interface Sheet {
-	file: string;
-	name: string;
-	imageUrl: string;
-	annotationFile: string;
-}
-
-export interface SheetWithAnnotations extends Sheet {
-	annotations: Annotation[];
+	extensions: string[];
 }
 
 export type SpanRPC = {
 	bun: RPCSchema<{
 		requests: {
-			getProjectAnnotations: {
-				params: {};
-				response: SheetWithAnnotations[];
-			};
-			saveAnnotations: {
-				params: { sheet: string; annotations: Annotation[] };
-				response: { ok: boolean };
-			};
-			getSheetImage: {
-				params: { sheet: string };
-				response: string;
-			};
-			pickProjectDirectory: {
-				params: {};
+			showSaveDialog: {
+				params: { defaultName: string; filters: FileFilter[] };
 				response: string | null;
 			};
-			revealSheet: {
-				params: { sheet: string };
+			showOpenDialog: {
+				params: { filters: FileFilter[] };
+				response: string | null;
+			};
+			readFile: {
+				params: { path: string };
+				response: string;
+			};
+			writeFile: {
+				params: { path: string; contents: string };
+				response: { ok: boolean };
+			};
+			readImageAsDataUrl: {
+				params: { path: string };
+				response: string;
+			};
+			revealFile: {
+				params: { path: string };
 				response: void;
 			};
 			saveLayout: {
@@ -92,8 +74,6 @@ export type SpanRPC = {
 				response: void;
 			};
 		};
-		messages: {
-			projectLoaded: { projectPath: string };
-		};
+		messages: {};
 	}>;
 };

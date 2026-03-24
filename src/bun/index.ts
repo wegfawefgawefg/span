@@ -6,42 +6,11 @@ import Electrobun, {
 	Utils,
 } from "electrobun/bun";
 import type { SpanRPC } from "../shared/rpc-schema";
-import { Project } from "./project";
 import { join } from "path";
 import { writeFile, unlink } from "fs/promises";
 
 const DEV_SERVER_PORT_START = 5173;
 const DEV_SERVER_PORT_END = 5183;
-
-// --- CLI args ---
-const args = process.argv.slice(2);
-let projectPath: string | null = null;
-for (let i = 0; i < args.length; i++) {
-	if (args[i] === "--project" && args[i + 1]) {
-		projectPath = args[i + 1];
-		break;
-	}
-}
-
-// --- Resolve project directory ---
-async function resolveProjectPath(): Promise<string> {
-	if (projectPath) return projectPath;
-
-	const channel = await Updater.localInfo.channel();
-	if (channel === "dev") {
-		const { resolve } = await import("path");
-		const resourcesDir = new URL(".", import.meta.url).pathname;
-		const repoRoot = resolve(resourcesDir, "../../../../../../..");
-		return join(repoRoot, "example_project");
-	}
-
-	return "resources://example_project";
-}
-
-const resolvedPath = await resolveProjectPath();
-const project = new Project(resolvedPath);
-await project.ensureAnnotationsDir();
-console.log(`Project: ${resolvedPath}`);
 
 // --- Layout persistence helpers ---
 function layoutPath(): string {
@@ -52,18 +21,37 @@ function layoutPath(): string {
 const rpc = BrowserView.defineRPC<SpanRPC>({
 	handlers: {
 		requests: {
-			getProjectAnnotations: async () => {
-				return await project.loadProjectAnnotations();
+			// TODO: Electrobun does not yet expose a native save dialog API.
+			// Return null until the API is available.
+			showSaveDialog: async (_params) => {
+				return null;
 			},
-			saveAnnotations: async ({ sheet, annotations }) => {
-				await project.saveAnnotations(sheet, annotations);
+			// TODO: Electrobun does not yet expose a native open dialog API.
+			// Return null until the API is available.
+			showOpenDialog: async (_params) => {
+				return null;
+			},
+			readFile: async ({ path }) => {
+				const file = Bun.file(path);
+				return await file.text();
+			},
+			writeFile: async ({ path, contents }) => {
+				await Bun.write(path, contents);
 				return { ok: true };
 			},
-			getSheetImage: async ({ sheet }) => {
-				return await project.getSheetImageBase64(sheet);
+			readImageAsDataUrl: async ({ path }) => {
+				const file = Bun.file(path);
+				const buffer = await file.arrayBuffer();
+				const base64 = Buffer.from(buffer).toString("base64");
+				const mimeType = path.toLowerCase().endsWith(".jpg") || path.toLowerCase().endsWith(".jpeg")
+					? "image/jpeg"
+					: "image/png";
+				return `data:${mimeType};base64,${base64}`;
 			},
-			pickProjectDirectory: async () => {
-				return null;
+			// TODO: Verify the correct Electrobun API for revealing files in Finder.
+			// Utils.showItemInFolder may be the right call — confirm against Electrobun docs.
+			revealFile: ({ path }) => {
+				Utils.showItemInFolder(path);
 			},
 			saveLayout: async ({ layout }) => {
 				await writeFile(
@@ -80,10 +68,6 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 				} catch {
 					return null;
 				}
-			},
-			revealSheet: ({ sheet }) => {
-				const path = join(project.sheetsDir, sheet);
-				Utils.showItemInFolder(path);
 			},
 		},
 		messages: {},
@@ -149,8 +133,6 @@ ApplicationMenu.setApplicationMenu([
 				accelerator: "CommandOrControl+S",
 				action: "triggerSave",
 			},
-			{ type: "separator" as const },
-			{ label: "Refresh Sheets", action: "refreshSheets" },
 		],
 	},
 	{
@@ -223,10 +205,6 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 	switch (action) {
 		case "triggerSave":
 			mainWindow.webview.rpc.request.triggerSave({});
-			break;
-		case "refreshSheets":
-			mainWindow.webview.rpc.request.triggerSave({});
-			// TODO: add a dedicated refreshSheets RPC
 			break;
 		case "addSprite":
 			mainWindow.webview.rpc.request.addSprite({});

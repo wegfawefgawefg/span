@@ -138,9 +138,10 @@ function performSave() {
 	if (platform.value === "desktop" && spanFilePath.value) {
 		api.writeFile(spanFilePath.value, data).then(() => {
 			markDirty(false);
+			console.log("Saved to", spanFilePath.value);
 		}).catch((e) => {
-			console.error("Autosave failed:", e);
-			statusText.value = "Autosave failed";
+			console.error("Save failed:", e);
+			statusText.value = "Save failed";
 		});
 	} else if (platform.value === "web") {
 		try {
@@ -328,11 +329,31 @@ export async function saveWorkspaceAs() {
 	const path = await api.showSaveDialog("workspace.span", [
 		{ name: "Span files", extensions: ["span"] },
 	]);
-	if (!path) return;
+	if (!path) {
+		console.log("Save As: cancelled");
+		return;
+	}
 
 	const savePath = path.endsWith(".span") ? path : path + ".span";
 	spanFilePath.value = savePath;
+
+	const spec = activeSpec.value;
+	if (!spec) {
+		// No spec — write a minimal .span file with just sheets
+		const data = serializeWorkspace(sheets.value, specFilePath.value, effectiveRoot.value, savePath.replace(/\/[^/]+$/, ""));
+		try {
+			await api.writeFile(savePath, data);
+			markDirty(false);
+			statusText.value = `Saved to ${savePath.split("/").pop()}`;
+		} catch (e) {
+			console.error("Save As failed:", e);
+			statusText.value = "Save failed";
+		}
+		return;
+	}
+
 	performSave();
+	statusText.value = `Saved to ${savePath.split("/").pop()}`;
 }
 
 export async function openWorkspace() {

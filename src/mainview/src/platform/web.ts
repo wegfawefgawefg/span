@@ -1,259 +1,89 @@
 import { ref } from "vue";
-import type { PlatformAdapter } from "./types";
-import type { SheetWithAnnotations } from "../types";
-import type { Annotation } from "../annotation";
-import { projectPath, projectOpen } from "./adapter";
+import type { PlatformAdapter, FileFilter } from "./types";
 
 const LAYOUT_KEY = "span-layout";
+const WORKSPACE_KEY = "span-workspace";
 
 export interface WebPlatformAdapter extends PlatformAdapter {
-	/** Set files from a file input (fallback mode). Call loadProjectData after. */
-	setFallbackFiles(files: FileList): { ok: boolean; error?: string };
-	/** Open project from a pre-obtained directory handle (from drag-and-drop). Call loadProjectData after. */
-	openWithHandle(handle: FileSystemDirectoryHandle): Promise<{ ok: boolean; error?: string }>;
+	/** Register a dropped/selected File for later readFile/readImageAsDataUrl access */
+	registerFile(name: string, file: File): void;
+	/** Save workspace JSON to localStorage */
+	saveWorkspaceToLocalStorage(data: string): void;
+	/** Load workspace JSON from localStorage */
+	loadWorkspaceFromLocalStorage(): string | null;
 }
 
 export function createWebAdapter(): WebPlatformAdapter {
-	let dirHandle: FileSystemDirectoryHandle | null = null;
-	let fallbackFiles: Map<string, File> | null = null;
-	let lastBlobUrl: string | null = null;
-	const canSave = ref(false);
-
-	async function readSubDir(
-		name: string,
-	): Promise<FileSystemDirectoryHandle | null> {
-		if (!dirHandle) return null;
-		try {
-			return await dirHandle.getDirectoryHandle(name);
-		} catch {
-			return null;
-		}
-	}
-
-	async function readJsonFile(
-		dir: FileSystemDirectoryHandle,
-		name: string,
-	): Promise<unknown | null> {
-		try {
-			const fh = await dir.getFileHandle(name);
-			const file = await fh.getFile();
-			return JSON.parse(await file.text());
-		} catch {
-			return null;
-		}
-	}
-
-	async function loadManifest(): Promise<Map<string, Record<string, unknown>>> {
-		const result = new Map<string, Record<string, unknown>>();
-		if (!dirHandle) return result;
-		try {
-			const data = (await readJsonFile(dirHandle, "manifest.json")) as any;
-			for (const asset of data?.assets ?? []) {
-				if (typeof asset.file === "string") result.set(asset.file, asset);
-			}
-		} catch {}
-		return result;
-	}
-
-	async function loadFromHandle(): Promise<SheetWithAnnotations[]> {
-		const sheetsDir = await readSubDir("sheets");
-		if (!sheetsDir) return [];
-		const annDir = await readSubDir("annotations");
-		const manifest = await loadManifest();
-
-		const pngs: string[] = [];
-		for await (const e of sheetsDir.values()) {
-			if (e.kind === "file" && e.name.toLowerCase().endsWith(".png"))
-				pngs.push(e.name);
-		}
-		pngs.sort();
-
-		const sheets: SheetWithAnnotations[] = [];
-		for (const file of pngs) {
-			const stem = file.replace(/\.png$/i, "");
-			const annFile = `${stem}.annotations.json`;
-			let annotations: Annotation[] = [];
-			if (annDir) {
-				const data = (await readJsonFile(annDir, annFile)) as any;
-				if (Array.isArray(data?.annotations)) {
-					annotations = data.annotations.map(
-						(a: unknown) => a as Annotation,
-					);
-				}
-			}
-			const asset = manifest.get(file) ?? {};
-			sheets.push({
-				file,
-				name: (asset.name as string) ?? stem,
-				imageUrl: "",
-				annotationFile: `annotations/${annFile}`,
-				annotations,
-			});
-		}
-		return sheets;
-	}
-
-	async function loadFromFallback(): Promise<SheetWithAnnotations[]> {
-		if (!fallbackFiles) return [];
-		const pngs: string[] = [];
-		const annFiles = new Map<string, File>();
-
-		for (const [path, file] of fallbackFiles) {
-			if (path.startsWith("sheets/") && path.toLowerCase().endsWith(".png"))
-				pngs.push(path.replace("sheets/", ""));
-			else if (
-				path.startsWith("annotations/") &&
-				path.endsWith(".annotations.json")
-			)
-				annFiles.set(path.replace("annotations/", ""), file);
-		}
-		pngs.sort();
-
-		const sheets: SheetWithAnnotations[] = [];
-		for (const file of pngs) {
-			const stem = file.replace(/\.png$/i, "");
-			const annFile = `${stem}.annotations.json`;
-			let annotations: Annotation[] = [];
-			const af = annFiles.get(annFile);
-			if (af) {
-				try {
-					const data = JSON.parse(await af.text());
-					if (Array.isArray(data?.annotations)) {
-						annotations = data.annotations.map(
-							(a: unknown) => a as Annotation,
-						);
-					}
-				} catch {}
-			}
-			sheets.push({
-				file,
-				name: stem,
-				imageUrl: "",
-				annotationFile: `annotations/${annFile}`,
-				annotations,
-			});
-		}
-		return sheets;
-	}
+	const canSave = ref(false); // Web can't save to arbitrary paths
+	const fileRegistry = new Map<string, File>();
 
 	return {
 		canSave,
 
-		async getProjectAnnotations() {
-			if (dirHandle) return loadFromHandle();
-			if (fallbackFiles) return loadFromFallback();
-			return [];
+		registerFile(name: string, file: File) {
+			fileRegistry.set(name, file);
 		},
 
-		async saveAnnotations(sheet, annotations) {
-			const stem = sheet.replace(/\.png$/i, "");
-			const filename = `${stem}.annotations.json`;
-			const payload =
-				JSON.stringify({ image: sheet, annotations }, null, 2) + "\n";
+		async showSaveDialog(): Promise<string | null> {
+			return null; // Web uses downloads instead
+		},
 
-			if (dirHandle && canSave.value) {
-				try {
-					const annDir = await dirHandle.getDirectoryHandle(
-						"annotations",
-						{ create: true },
-					);
-					const fh = await annDir.getFileHandle(filename, {
-						create: true,
-					});
-					const w = await fh.createWritable();
-					await w.write(payload);
-					await w.close();
-					return { ok: true };
-				} catch {
-					canSave.value = false;
+		async showOpenDialog(filters: FileFilter[]): Promise<string | null> {
+			// Create a temporary file input
+			return new Promise((resolve) => {
+				const input = document.createElement("input");
+				input.type = "file";
+				const exts = filters.flatMap(f => f.extensions);
+				if (exts.length > 0) {
+					input.accept = exts.map(e => `.${e}`).join(",");
 				}
-			}
+				input.onchange = () => {
+					const file = input.files?.[0];
+					if (file) {
+						fileRegistry.set(file.name, file);
+						resolve(file.name);
+					} else {
+						resolve(null);
+					}
+				};
+				input.click();
+			});
+		},
 
-			// Download fallback
-			const blob = new Blob([payload], { type: "application/json" });
+		async readFile(path: string): Promise<string> {
+			const file = fileRegistry.get(path);
+			if (!file) throw new Error(`File not found: ${path}`);
+			return await file.text();
+		},
+
+		async writeFile(_path: string, contents: string): Promise<{ ok: boolean }> {
+			// Trigger download
+			const blob = new Blob([contents], { type: "application/octet-stream" });
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement("a");
 			a.href = url;
-			a.download = filename;
+			a.download = _path.split("/").pop() ?? "export";
 			a.click();
 			URL.revokeObjectURL(url);
 			return { ok: true };
 		},
 
-		async getSheetImage(sheet) {
-			if (lastBlobUrl) {
-				URL.revokeObjectURL(lastBlobUrl);
-				lastBlobUrl = null;
-			}
-
-			if (dirHandle) {
-				const sheetsDir = await readSubDir("sheets");
-				if (sheetsDir) {
-					const fh = await sheetsDir.getFileHandle(sheet);
-					const file = await fh.getFile();
-					const url = URL.createObjectURL(file);
-					lastBlobUrl = url;
-					return url;
-				}
-			}
-
-			if (fallbackFiles) {
-				const file = fallbackFiles.get(`sheets/${sheet}`);
-				if (file) {
-					const url = URL.createObjectURL(file);
-					lastBlobUrl = url;
-					return url;
-				}
-			}
-
-			return "";
+		async readImageAsDataUrl(path: string): Promise<string> {
+			const file = fileRegistry.get(path);
+			if (!file) return "";
+			return new Promise((resolve) => {
+				const reader = new FileReader();
+				reader.onload = () => resolve(reader.result as string);
+				reader.onerror = () => resolve("");
+				reader.readAsDataURL(file);
+			});
 		},
 
-		async pickProjectDirectory() {
-			if (!("showDirectoryPicker" in window)) return null;
-
-			try {
-				dirHandle = await (window as any).showDirectoryPicker({
-					mode: "readwrite",
-				});
-				if (!dirHandle) return null;
-
-				const sheetsDir = await readSubDir("sheets");
-				if (!sheetsDir) {
-					dirHandle = null;
-					throw new Error("no-sheets");
-				}
-
-				let hasPng = false;
-				for await (const e of sheetsDir.values()) {
-					if (
-						e.kind === "file" &&
-						e.name.toLowerCase().endsWith(".png")
-					) {
-						hasPng = true;
-						break;
-					}
-				}
-				if (!hasPng) {
-					dirHandle = null;
-					throw new Error("no-png");
-				}
-
-				canSave.value = true;
-				projectPath.value = dirHandle.name;
-				projectOpen.value = true;
-				return dirHandle.name;
-			} catch (e: any) {
-				if (e?.message === "no-sheets" || e?.message === "no-png")
-					throw e;
-				if (e?.name === "AbortError") return null;
-				throw e;
-			}
+		async revealFile(): Promise<void> {
+			// No-op on web
 		},
 
-		async revealSheet() {},
-
-		async saveLayout(layout) {
+		async saveLayout(layout: object): Promise<{ ok: boolean }> {
 			try {
 				localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout));
 				return { ok: true };
@@ -262,7 +92,7 @@ export function createWebAdapter(): WebPlatformAdapter {
 			}
 		},
 
-		async loadLayout() {
+		async loadLayout(): Promise<object | null> {
 			try {
 				const raw = localStorage.getItem(LAYOUT_KEY);
 				return raw ? JSON.parse(raw) : null;
@@ -271,64 +101,20 @@ export function createWebAdapter(): WebPlatformAdapter {
 			}
 		},
 
-		setFallbackFiles(files: FileList) {
-			const fileMap = new Map<string, File>();
-			for (const file of files) {
-				const parts = file.webkitRelativePath.split("/");
-				if (parts.length < 2) continue;
-				fileMap.set(parts.slice(1).join("/"), file);
+		saveWorkspaceToLocalStorage(data: string) {
+			try {
+				localStorage.setItem(WORKSPACE_KEY, data);
+			} catch {
+				console.error("Failed to save workspace to localStorage");
 			}
-
-			let hasPng = false;
-			for (const path of fileMap.keys()) {
-				if (
-					path.startsWith("sheets/") &&
-					path.toLowerCase().endsWith(".png")
-				) {
-					hasPng = true;
-					break;
-				}
-			}
-			if (!hasPng) {
-				return {
-					ok: false,
-					error: "No spritesheet files found in this folder",
-				};
-			}
-
-			fallbackFiles = fileMap;
-			canSave.value = false;
-			projectPath.value =
-				files[0]?.webkitRelativePath.split("/")[0] ?? "project";
-			projectOpen.value = true;
-			return { ok: true };
 		},
 
-		async openWithHandle(handle: FileSystemDirectoryHandle) {
-			dirHandle = handle;
-
-			const sheetsDir = await readSubDir("sheets");
-			if (!sheetsDir) {
-				dirHandle = null;
-				return { ok: false, error: "No sheets/ directory found" };
+		loadWorkspaceFromLocalStorage(): string | null {
+			try {
+				return localStorage.getItem(WORKSPACE_KEY);
+			} catch {
+				return null;
 			}
-
-			let hasPng = false;
-			for await (const e of sheetsDir.values()) {
-				if (e.kind === "file" && e.name.toLowerCase().endsWith(".png")) {
-					hasPng = true;
-					break;
-				}
-			}
-			if (!hasPng) {
-				dirHandle = null;
-				return { ok: false, error: "No spritesheet files found in this folder" };
-			}
-
-			canSave.value = true;
-			projectPath.value = handle.name;
-			projectOpen.value = true;
-			return { ok: true };
 		},
 	};
 }

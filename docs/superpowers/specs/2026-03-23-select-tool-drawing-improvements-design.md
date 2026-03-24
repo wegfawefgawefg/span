@@ -12,9 +12,9 @@ A dedicated select mode is added as the default tool.
 
 **Behavior:**
 - `activeTool === ""` (empty string) represents select mode
-- `activeTool` defaults to `""` on app start — loading a spec does NOT auto-switch to an entity tool
+- `activeTool` defaults to `""` on app start — loading a spec does NOT auto-switch to an entity tool (the existing `activeTool.value = result.entities[0].label` in `loadSpec()` must be removed)
 - In select mode:
-  - Click on empty canvas: deselects current annotation
+  - Click on empty canvas: sets `selectedId` to `null` (deselects). This requires a new code path in `handleLayerPointerDown` — when `activeTool === ""`, call `selectAnnotation(null)` and return early instead of the existing early-return that checks `!activeTool.value`.
   - Click/drag on existing annotations: selects and moves (same as current behavior)
 - In entity draw mode:
   - Click on an existing annotation: selects it (does NOT create a new one on top)
@@ -31,19 +31,23 @@ Drawing is refactored from immediate-creation to deferred-creation with live pre
 
 **Flow for rects and circles:**
 1. **Mousedown on empty canvas** (in entity draw mode): Record origin point `(x, y)`, enter "drawing" state. No annotation is created yet.
-2. **Pointermove while drawing**: Render a ghost preview overlay — dashed border, semi-transparent, showing the shape from origin to current pointer position. For rects: origin is top-left corner, pointer sets width/height. For circles: origin is center, distance to pointer sets radius.
-3. **Mouseup**: If the drawn size exceeds the minimum threshold (4px for rect width or height, 4px for circle radius), create the annotation with the drawn dimensions and select it. If below threshold, discard — no annotation created.
+2. **Pointermove while drawing**: Render a ghost preview overlay — dashed border, semi-transparent, showing the shape from origin to current pointer position. For rects: the preview computes `x = min(originX, currentX)`, `y = min(originY, currentY)`, `width = abs(currentX - originX)`, `height = abs(currentY - originY)` to handle drags in any direction. For circles: origin is center, distance to pointer sets radius.
+3. **Mouseup**: Compute final dimensions using the same min/abs logic. If the drawn size exceeds the minimum threshold (4 image-space pixels for rect width or height, 4 image-space pixels for circle radius), create the annotation with the drawn dimensions and select it. If below threshold, discard — no annotation created. The annotation's position is set to the computed top-left (not necessarily the origin point).
 
 **Points:** Unchanged — single click on empty canvas in point-entity draw mode creates a point annotation at that location (points have no size to drag).
 
-**Minimum threshold:** 4 CSS pixels (not zoomed — measured in image-space coordinates).
+**Polygons:** Polygon entities in draw mode are a no-op — no preview, no creation. (Polygon drawing is not implemented in this iteration.)
+
+**Minimum threshold:** 4 image-space pixels (independent of zoom level).
+
+**Cursors:** In select mode, the canvas uses the default pointer cursor. In entity draw mode, the canvas shows a crosshair cursor to indicate draw-readiness. Panning cursors (grab/grabbing) override these as they do currently.
 
 ### 3. App Startup & Spec Gating
 
 The app starts with the full panel layout visible but no spec loaded.
 
 **Changes:**
-- `workspaceReady` starts as `true` (or the landing screen gate is removed/restructured so panels are always shown)
+- Remove the `v-if="workspaceReady"` gate on the Dockview container in `App.vue` so the panel layout is always shown. `workspaceReady` (currently a computed: `sheets.value.length > 0`) can remain as-is for other uses but no longer gates the UI. The `LandingScreen` component is removed — file drops are handled by the existing global drag-and-drop handlers already on `App.vue`.
 - Without a spec loaded:
   - ToolPalette shows only the select tool (no entity buttons)
   - Drawing is disabled (no `activeTool` to draw with)

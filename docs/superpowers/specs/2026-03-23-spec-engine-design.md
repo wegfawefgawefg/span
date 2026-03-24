@@ -49,6 +49,16 @@ entities:
       name: string
       order: integer
 
+  HitCircle:
+    shape:
+      type: circle
+      cx: integer
+      cy: integer
+      radius: integer
+    properties:
+      name: string
+      damage: number
+
   Region:
     shape:
       type: polygon
@@ -76,14 +86,29 @@ entities:
 
 ### Shape Field Naming
 
-Shape fields define both the geometry and the output field names. The user chooses the names; the app infers the role:
+Shape fields define both the geometry and the output field names. The user chooses the names; the app infers the role using a fixed alias list:
 
-- `rect` — looks for x/y/width/height-like names (also recognizes `left`/`top`/`right`/`bottom`, `w`/`h`)
-- `point` — looks for x/y-like names
-- `circle` — looks for center x/y + radius-like names (e.g., `cx`/`cy`/`r`, `x`/`y`/`radius`)
-- `polygon` — looks for a points/vertices array field
+**`rect`** (requires exactly 4 fields):
+- x-role: `x`, `left`, `col`
+- y-role: `y`, `top`, `row`
+- width-role: `width`, `w`, `right` (if `right` is present with `left`, treated as LTRB bounds model — converted to XYWH internally)
+- height-role: `height`, `h`, `bottom` (if `bottom` is present with `top`, treated as LTRB bounds model)
 
-If inference fails, the app warns and the entity type is unusable until the user fixes the spec.
+**`point`** (requires exactly 2 fields):
+- x-role: `x`, `col`
+- y-role: `y`, `row`
+
+**`circle`** (requires exactly 3 fields):
+- x-role: `x`, `cx`
+- y-role: `y`, `cy`
+- radius-role: `radius`, `r`
+
+**`polygon`** (requires exactly 1 field):
+- points-role: `points`, `vertices`, `verts`
+
+If any field name is not in the alias list for its shape type, the engine produces a warning. If the required number of fields is wrong or no valid mapping can be inferred, it produces an error and the entity type is unusable until fixed.
+
+**LTRB model:** When a rect uses `left`/`top`/`right`/`bottom`, the engine stores the mapping with those names but the canvas internally converts to XYWH for rendering. Export outputs the user's original field names and values.
 
 ### Input Format Dictates Output Format
 
@@ -99,13 +124,12 @@ The spec engine takes a raw JSON/YAML string and produces a typed, validated spe
 ```typescript
 interface SpanSpec {
   format: "json" | "yaml";
-  entities: Map<string, EntityDef>;
+  entities: Record<string, EntityDef>;  // keyed by entity name
 }
 
 interface EntityDef {
-  name: string;
   shape: ShapeDef;
-  properties: PropertyDef[];
+  properties: PropertyDef[];  // order preserved from spec file
 }
 
 interface ShapeDef {
@@ -115,22 +139,68 @@ interface ShapeDef {
   warnings: string[];         // inference warnings
 }
 
+interface ShapeField {
+  name: string;               // user-chosen output name (e.g., "x", "left", "cx")
+  valueType: "integer" | "number";  // shape fields are always numeric
+}
+
+// Discriminated union — each shape type has its own mapping
+type ShapeMapping =
+  | { type: "rect"; x: string; y: string; width: string; height: string }
+  | { type: "point"; x: string; y: string }
+  | { type: "circle"; x: string; y: string; radius: string }
+  | { type: "polygon"; points: string };
+
 interface PropertyDef {
   name: string;
   type: "string" | "integer" | "number" | "boolean" | "string[]" | "enum";
   enumValues?: string[];      // for enum type
 }
+
+interface SpecError {
+  path: string;               // e.g., "entities.Sprite.shape.type"
+  severity: "error" | "warning";
+  message: string;
+}
 ```
+
+**Notes:**
+- `entities` uses `Record` (not `Map`) for JSON serialization compatibility and Vue reactivity.
+- Entity name is the key, not duplicated as a field.
+- Shape field `valueType` is always numeric — shape geometry doesn't use strings/booleans.
+- `ShapeMapping` is a discriminated union so consumers know exactly which fields are available per shape type.
+- Property field order is preserved from the spec file (JS object key insertion order) and respected in the export output.
 
 ### Validation Rules
 
 - Must have at least one entity
-- Entity names must be unique
-- Each entity must have a `shape` with a recognized `type`
+- Entity names must be unique and valid identifiers (alphanumeric + underscore, no spaces)
+- Each entity must have a `shape` with a recognized `type` (case-sensitive, lowercase only)
+- Shape must have the correct number of fields for its type
 - Shape fields must have recognized value types (`integer`, `number`)
 - Properties must have recognized types
 - No name collisions between shape fields and property fields within an entity
+- No duplicate property names within an entity
+- Enum types must have at least 2 values
 - Warn (not error) on unrecognized shape field names
+- Empty `properties` section is valid (entity with shape only, no metadata)
+- Empty or missing `entities` section is an error
+
+### Default Values
+
+The engine assigns implicit defaults by property type when creating new annotations:
+- `string` → `""`
+- `integer` → `0`
+- `number` → `0`
+- `boolean` → `false`
+- `string[]` → `[]`
+- `enum` → first value in the enum list
+
+Shape fields default to `0`.
+
+### Polygon Shape Fields
+
+The polygon `points` field uses a special nested type: `{ type: array, items: { x: integer, y: integer } }`. This is a one-off structure specific to polygon shapes — the general property system does not support arrays of objects. The field names within `items` follow the same inference rules as point shapes.
 
 ## Spec Change Diffing
 
@@ -146,9 +216,16 @@ When the user loads a new spec mid-session, the engine compares old and new to d
 ```typescript
 interface SpecDiff {
   safe: boolean;              // true if no destructive changes
-  added: string[];            // "Added entity: Waypoint", "Added Sprite.layer"
-  removed: string[];          // "Removed entity: Region", "Removed Sprite.tags"
-  changed: string[];          // "Sprite shape changed from rect to circle"
+  changes: SpecChange[];
+}
+
+interface SpecChange {
+  entity: string;
+  field?: string;             // absent for entity-level changes
+  kind: "entity_added" | "entity_removed" | "property_added" | "property_removed"
+      | "property_type_changed" | "shape_type_changed";
+  destructive: boolean;
+  description: string;        // human-readable summary for the confirmation dialog
 }
 ```
 

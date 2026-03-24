@@ -10,14 +10,16 @@
 		"hmr": "vite --port 5173",
 		"build:canary": "vite build && electrobun build --env=canary",
 		"build:web": "vite build --config vite.config.web.ts && mv dist-web/index-web.html dist-web/index.html",
-		"dev:web": "vite --config vite.config.web.ts"
+		"dev:web": "vite --config vite.config.web.ts",
+		"test": "bun test"
 	},
 	"dependencies": {
 		"@tailwindcss/vite": "^4.2.2",
 		"dockview-core": "^5.1.0",
 		"dockview-vue": "^5.1.0",
 		"electrobun": "1.16.0",
-		"tailwindcss": "^4.2.2"
+		"tailwindcss": "^4.2.2",
+		"yaml": "^2.8.3"
 	},
 	"devDependencies": {
 		"@types/bun": "latest",

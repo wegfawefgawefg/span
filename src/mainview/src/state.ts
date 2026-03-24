@@ -158,6 +158,18 @@ export function selectAnnotation(id: string | null) {
 	selectedId.value = id;
 }
 
+export function reorderAnnotation(fromId: string, toId: string) {
+	const sheet = currentSheet.value;
+	if (!sheet) return;
+	const arr = sheet.annotations;
+	const fromIdx = arr.findIndex(a => a.id === fromId);
+	const toIdx = arr.findIndex(a => a.id === toId);
+	if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+	const [item] = arr.splice(fromIdx, 1);
+	arr.splice(toIdx, 0, item);
+	markDirty(true);
+}
+
 export function markDirty(isDirty: boolean) {
 	dirty.value = isDirty;
 	const sheet = currentSheet.value;

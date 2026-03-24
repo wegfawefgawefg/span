@@ -8,9 +8,9 @@ import {
 	duplicateSelected,
 	deleteSelected,
 	activeSpec,
+	reorderAnnotation,
 } from "../state";
 import { getEntityByLabel } from "../spec/types";
-import { getPrimaryShapeName, getShapePosition } from "../annotation";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
 
@@ -71,24 +71,8 @@ const groups = computed<AnnotationGroup[]>(() => {
 		const byType = a.entityType.localeCompare(b.entityType);
 		return byType !== 0 ? byType : a.name.localeCompare(b.name);
 	});
-	// Sort items within each group by primary shape position (top-to-bottom, left-to-right)
-	if (activeSpec.value) {
-		const spec = activeSpec.value;
-		for (const group of result) {
-			const primaryName = getPrimaryShapeName(spec, group.entityType);
-			if (primaryName) {
-				group.items.sort((a, b) => {
-					const pa = getShapePosition(a, spec, primaryName);
-					const pb = getShapePosition(b, spec, primaryName);
-					if (pa && pb) {
-						if (pa.y !== pb.y) return pa.y - pb.y;
-						return pa.x - pb.x;
-					}
-					return 0;
-				});
-			}
-		}
-	}
+	// Items within each group preserve their order from the annotations array
+	// (user can reorder via drag-and-drop)
 	return result;
 });
 
@@ -98,6 +82,40 @@ function toggleGroup(key: string) {
 	} else {
 		collapsed.value.add(key);
 	}
+}
+
+const dragId = ref<string | null>(null);
+const dragOverId = ref<string | null>(null);
+
+function onDragStart(event: DragEvent, id: string) {
+	dragId.value = id;
+	event.dataTransfer!.effectAllowed = "move";
+	event.dataTransfer!.setData("text/plain", id);
+}
+
+function onDragOver(event: DragEvent, id: string) {
+	if (!dragId.value || dragId.value === id) return;
+	event.preventDefault();
+	event.dataTransfer!.dropEffect = "move";
+	dragOverId.value = id;
+}
+
+function onDragLeave(_event: DragEvent, id: string) {
+	if (dragOverId.value === id) dragOverId.value = null;
+}
+
+function onDrop(event: DragEvent, id: string) {
+	event.preventDefault();
+	if (dragId.value && dragId.value !== id) {
+		reorderAnnotation(dragId.value, id);
+	}
+	dragId.value = null;
+	dragOverId.value = null;
+}
+
+function onDragEnd() {
+	dragId.value = null;
+	dragOverId.value = null;
 }
 
 function onContextMenu(event: MouseEvent, annotationId: string) {
@@ -136,14 +154,22 @@ function onContextMenu(event: MouseEvent, annotationId: string) {
 						v-for="ann in group.items"
 						:key="ann.id"
 						type="button"
-						class="w-full text-left px-2 py-1 border rounded-sm transition-colors cursor-pointer active:translate-y-px"
-						:class="
+						draggable="true"
+						class="w-full text-left px-2 py-1 border rounded-sm transition-colors cursor-grab active:cursor-grabbing"
+						:class="[
 							ann.id === selectedId
 								? 'bg-copper-glow border-copper'
-								: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
-						"
+								: 'bg-surface-2 border-border hover:border-border-strong',
+							dragOverId === ann.id ? 'border-copper border-t-2' : '',
+							dragId === ann.id ? 'opacity-40' : '',
+						]"
 						@click="selectAnnotation(ann.id)"
 						@contextmenu="onContextMenu($event, ann.id)"
+						@dragstart="onDragStart($event, ann.id)"
+						@dragover="onDragOver($event, ann.id)"
+						@dragleave="onDragLeave($event, ann.id)"
+						@drop="onDrop($event, ann.id)"
+						@dragend="onDragEnd"
 					>
 						<div class="flex items-center gap-1">
 							<span

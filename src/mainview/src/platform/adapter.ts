@@ -2,8 +2,6 @@ import { ref } from "vue";
 import type { PlatformAdapter } from "./types";
 
 export const platform = ref<"desktop" | "web">("desktop");
-export const projectPath = ref<string>("");
-export const projectOpen = ref(false);
 
 // --- Layout handler slots (used by App.vue on both platforms) ---
 
@@ -49,12 +47,13 @@ export function getRawAdapter<T extends PlatformAdapter = PlatformAdapter>(): T 
 }
 
 export const api: PlatformAdapter = {
-	getProjectAnnotations: () => getAdapter().getProjectAnnotations(),
-	saveAnnotations: (sheet, annotations) =>
-		getAdapter().saveAnnotations(sheet, annotations),
-	getSheetImage: (sheet) => getAdapter().getSheetImage(sheet),
-	pickProjectDirectory: () => getAdapter().pickProjectDirectory(),
-	revealSheet: (sheet) => getAdapter().revealSheet(sheet),
+	showSaveDialog: (defaultName, filters) =>
+		getAdapter().showSaveDialog(defaultName, filters),
+	showOpenDialog: (filters) => getAdapter().showOpenDialog(filters),
+	readFile: (path) => getAdapter().readFile(path),
+	writeFile: (path, contents) => getAdapter().writeFile(path, contents),
+	readImageAsDataUrl: (path) => getAdapter().readImageAsDataUrl(path),
+	revealFile: (path) => getAdapter().revealFile(path),
 	saveLayout: (layout) => getAdapter().saveLayout(layout),
 	loadLayout: () => getAdapter().loadLayout(),
 	get canSave() {

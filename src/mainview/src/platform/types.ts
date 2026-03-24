@@ -1,17 +1,27 @@
 import type { Ref } from "vue";
-import type { Annotation, SheetWithAnnotations } from "../types";
+
+export interface FileFilter {
+	name: string;
+	extensions: string[];
+}
 
 export interface PlatformAdapter {
-	getProjectAnnotations(): Promise<SheetWithAnnotations[]>;
-	saveAnnotations(
-		sheet: string,
-		annotations: Annotation[],
-	): Promise<{ ok: boolean }>;
-	getSheetImage(sheet: string): Promise<string>;
-	pickProjectDirectory(): Promise<string | null>;
-	revealSheet(sheet: string): Promise<void>;
+	// File dialogs
+	showSaveDialog(defaultName: string, filters: FileFilter[]): Promise<string | null>;
+	showOpenDialog(filters: FileFilter[]): Promise<string | null>;
+
+	// File I/O
+	readFile(path: string): Promise<string>;
+	writeFile(path: string, contents: string): Promise<{ ok: boolean }>;
+	readImageAsDataUrl(path: string): Promise<string>;
+
+	// OS integration
+	revealFile(path: string): Promise<void>;
+
+	// Layout persistence
 	saveLayout(layout: object): Promise<{ ok: boolean }>;
 	loadLayout(): Promise<object | null>;
-	/** Whether direct save-back to disk is available */
+
+	// Capabilities
 	canSave: Ref<boolean>;
 }

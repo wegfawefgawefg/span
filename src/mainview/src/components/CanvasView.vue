@@ -54,7 +54,7 @@ const layerCursorClass = computed(() => {
 	if (spaceHeld.value && !isPanning.value) return '';
 	if (isPanning.value) return '';
 	if (activeTool.value) return 'cursor-crosshair';
-	return '';
+	return 'cursor-default';
 });
 
 // Chroma sampling canvas

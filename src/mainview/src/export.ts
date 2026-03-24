@@ -3,7 +3,7 @@ import YAML from "yaml";
 import type { SpanSpec } from "./spec/types";
 import { getEntityByLabel } from "./spec/types";
 import type { Annotation } from "./annotation";
-import * as path from "node:path";
+import { relativePath } from "./workspace";
 
 export function buildExportData(
 	annotations: Annotation[],
@@ -44,7 +44,7 @@ export function buildExportData(
 				const rawPath = ann.propertyData[field.name];
 				if (field.pathType === "RelativePath" && typeof rawPath === "string" && rawPath !== "") {
 					// Make relative to workspace root
-					flat[field.name] = "./" + path.relative(workspaceRoot, rawPath);
+					flat[field.name] = "./" + relativePath(rawPath, workspaceRoot);
 				} else {
 					// Path — emit as-is (absolute)
 					flat[field.name] = rawPath ?? "";

@@ -335,7 +335,8 @@ function handleLayerPointerDown(event: PointerEvent) {
 			entityType: activeTool.value,
 			shapeType,
 		};
-		stageEl.setPointerCapture(event.pointerId);
+		const layerEl = event.currentTarget as HTMLElement;
+		layerEl.setPointerCapture(event.pointerId);
 	}
 	// polygon: no-op
 }

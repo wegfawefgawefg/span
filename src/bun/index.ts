@@ -7,7 +7,7 @@ import Electrobun, {
 } from "electrobun/bun";
 import type { SpanRPC } from "../shared/rpc-schema";
 import { join } from "path";
-import { writeFile, unlink } from "fs/promises";
+import { writeFile, unlink, mkdir } from "fs/promises";
 
 const DEV_SERVER_PORT_START = 5173;
 const DEV_SERVER_PORT_END = 5183;
@@ -55,10 +55,10 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 				Utils.showItemInFolder(path);
 			},
 			saveLayout: async ({ layout }) => {
-				await writeFile(
-					layoutPath(),
-					JSON.stringify(layout, null, 2),
-				);
+				const path = layoutPath();
+				const dir = path.replace(/\/[^/]+$/, "");
+				await mkdir(dir, { recursive: true });
+				await writeFile(path, JSON.stringify(layout, null, 2));
 				return { ok: true };
 			},
 			loadLayout: async () => {

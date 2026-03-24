@@ -1,10 +1,8 @@
 import { ref } from "vue";
 import { Electroview } from "electrobun/view";
 import type { SpanRPC } from "../../../shared/rpc-schema";
-import type { PlatformAdapter } from "./types";
-import type { Annotation } from "../types";
+import type { FileFilter, PlatformAdapter } from "./types";
 import {
-	projectPath,
 	getResetLayoutHandler,
 	getAddPanelHandler,
 } from "./adapter";
@@ -28,12 +26,7 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			resetLayout: () => getResetLayoutHandler()(),
 			addPanel: ({ panelId }) => getAddPanelHandler()(panelId),
 		},
-		messages: {
-			projectLoaded: ({ projectPath: path }) => {
-				projectPath.value = path;
-				console.log("Project loaded:", path);
-			},
-		},
+		messages: {},
 	},
 });
 
@@ -41,16 +34,18 @@ const electroview = new Electroview({ rpc });
 
 export function createElectrobunAdapter(): PlatformAdapter {
 	return {
-		getProjectAnnotations: () =>
-			electroview.rpc.request.getProjectAnnotations({}),
-		saveAnnotations: (sheet: string, annotations: Annotation[]) =>
-			electroview.rpc.request.saveAnnotations({ sheet, annotations }),
-		getSheetImage: (sheet: string) =>
-			electroview.rpc.request.getSheetImage({ sheet }),
-		pickProjectDirectory: () =>
-			electroview.rpc.request.pickProjectDirectory({}),
-		revealSheet: (sheet: string) =>
-			electroview.rpc.request.revealSheet({ sheet }),
+		showSaveDialog: (defaultName: string, filters: FileFilter[]) =>
+			electroview.rpc.request.showSaveDialog({ defaultName, filters }),
+		showOpenDialog: (filters: FileFilter[]) =>
+			electroview.rpc.request.showOpenDialog({ filters }),
+		readFile: (path: string) =>
+			electroview.rpc.request.readFile({ path }),
+		writeFile: (path: string, contents: string) =>
+			electroview.rpc.request.writeFile({ path, contents }),
+		readImageAsDataUrl: (path: string) =>
+			electroview.rpc.request.readImageAsDataUrl({ path }),
+		revealFile: (path: string) =>
+			electroview.rpc.request.revealFile({ path }),
 		saveLayout: (layout: object) =>
 			electroview.rpc.request.saveLayout({ layout }),
 		loadLayout: () => electroview.rpc.request.loadLayout({}),

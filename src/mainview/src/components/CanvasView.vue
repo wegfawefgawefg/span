@@ -19,6 +19,7 @@ import {
 	imageHeight,
 	registerViewportCenterFn,
 	addAnnotation,
+	addAnnotationWithSize,
 	duplicateSelected,
 	deleteSelected,
 	selectedAnnotation,
@@ -34,9 +35,27 @@ const stage = ref<HTMLElement | null>(null);
 const sheetImg = ref<HTMLImageElement | null>(null);
 const { zoomTo, startDrag, onPointerMove, endDrag } = useCanvas();
 
+interface DrawingState {
+	originX: number;
+	originY: number;
+	currentX: number;
+	currentY: number;
+	entityType: string;
+	shapeType: "rect" | "circle";
+}
+
+const drawing = ref<DrawingState | null>(null);
+
 const stageWidth = computed(() => Math.round(imageWidth.value * zoom.value));
 const stageHeight = computed(() => Math.round(imageHeight.value * zoom.value));
 const zoomLabel = computed(() => `${Math.round(zoom.value * 100)}%`);
+
+const layerCursorClass = computed(() => {
+	if (spaceHeld.value && !isPanning.value) return '';
+	if (isPanning.value) return '';
+	if (activeTool.value) return 'cursor-crosshair';
+	return '';
+});
 
 // Chroma sampling canvas
 const sampleCanvas = document.createElement("canvas");
@@ -277,8 +296,14 @@ function handleBoxPointerUp(event: PointerEvent) {
 function handleLayerPointerDown(event: PointerEvent) {
 	if (isPanning.value || spaceHeld.value) return;
 
-	// Click-to-create: guard behind activeSpec and activeTool
-	if (!activeSpec.value || !activeTool.value) return;
+	// Select mode: click empty canvas to deselect
+	if (!activeTool.value) {
+		selectAnnotation(null);
+		return;
+	}
+
+	// Draw mode: guard behind activeSpec
+	if (!activeSpec.value) return;
 
 	const entity = getEntityByLabel(activeSpec.value, activeTool.value);
 	if (!entity) return;
@@ -296,32 +321,72 @@ function handleLayerPointerDown(event: PointerEvent) {
 	const shapeType = primaryShape.shapeType;
 
 	if (shapeType === "point") {
-		// Single click creates point annotation
 		event.preventDefault();
 		event.stopPropagation();
 		addAnnotation(x, y);
 	} else if (shapeType === "rect" || shapeType === "circle") {
-		// Click-drag creates rect or circle
 		event.preventDefault();
 		event.stopPropagation();
-		addAnnotation(x, y);
-		const ann = selectedAnnotation.value;
-		if (ann) {
-			startDrag(event, ann, primaryShape.name, shapeType === "rect" ? "resize" : "radius");
-			stageEl.setPointerCapture(event.pointerId);
-		}
+		drawing.value = {
+			originX: x,
+			originY: y,
+			currentX: x,
+			currentY: y,
+			entityType: activeTool.value,
+			shapeType,
+		};
+		stageEl.setPointerCapture(event.pointerId);
 	}
-	// polygon: skip for now
+	// polygon: no-op
 }
 
 function handleLayerPointerMove(event: PointerEvent) {
+	// Drawing preview takes priority
+	if (drawing.value) {
+		const stageEl = stage.value;
+		if (!stageEl) return;
+		const rect = stageEl.getBoundingClientRect();
+		drawing.value.currentX = Math.round((event.clientX - rect.left) / zoom.value);
+		drawing.value.currentY = Math.round((event.clientY - rect.top) / zoom.value);
+		return;
+	}
 	onPointerMove(event, imageWidth.value, imageHeight.value);
 }
 
 function handleLayerPointerUp(event: PointerEvent) {
 	const el = event.currentTarget as HTMLElement;
 	el.releasePointerCapture(event.pointerId);
+
+	if (drawing.value) {
+		commitDrawing();
+		return;
+	}
 	endDrag();
+}
+
+const DRAW_MIN_THRESHOLD = 4; // image-space pixels
+
+function commitDrawing() {
+	const d = drawing.value;
+	drawing.value = null;
+	if (!d) return;
+
+	if (d.shapeType === "rect") {
+		const w = Math.abs(d.currentX - d.originX);
+		const h = Math.abs(d.currentY - d.originY);
+		if (w < DRAW_MIN_THRESHOLD || h < DRAW_MIN_THRESHOLD) return;
+
+		const x = Math.min(d.originX, d.currentX);
+		const y = Math.min(d.originY, d.currentY);
+		addAnnotationWithSize(d.entityType, x, y, w, h);
+	} else if (d.shapeType === "circle") {
+		const r = Math.round(Math.sqrt(
+			(d.currentX - d.originX) ** 2 + (d.currentY - d.originY) ** 2,
+		));
+		if (r < DRAW_MIN_THRESHOLD) return;
+
+		addAnnotationWithSize(d.entityType, d.originX, d.originY, r);
+	}
 }
 
 // --- Style helpers ---
@@ -435,7 +500,7 @@ function onCanvasContextMenu(event: MouseEvent) {
 						width: stageWidth + 'px',
 						height: stageHeight + 'px',
 					}" draggable="false" @load="onImageLoad" />
-					<div class="annotation-layer" :style="{
+					<div class="annotation-layer" :class="layerCursorClass" :style="{
 						width: stageWidth + 'px',
 						height: stageHeight + 'px',
 					}"

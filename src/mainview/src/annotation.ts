@@ -127,6 +127,49 @@ export function createAnnotationWithSize(
 	return annotation;
 }
 
+/**
+ * Resolve the absolute position of a shape, following __reference chains.
+ * Returns the absolute x/y by adding stored offsets to the reference shape's resolved position.
+ */
+export function resolveAbsolutePosition(
+	annotation: Annotation,
+	spec: SpanSpec,
+	shapeName: string,
+): { x: number; y: number } | null {
+	const entity = getEntityByLabel(spec, annotation.entityType);
+	if (!entity) return null;
+
+	const sf = getShapesForEntity(entity).find((s) => s.name === shapeName);
+	if (!sf?.mapping) return null;
+
+	const shapeData = annotation.shapes[shapeName];
+	if (!shapeData) return null;
+
+	let x: number;
+	let y: number;
+
+	switch (sf.mapping.type) {
+		case "rect":
+		case "point":
+		case "circle":
+			x = shapeData[sf.mapping.x];
+			y = shapeData[sf.mapping.y];
+			break;
+		default:
+			return null;
+	}
+
+	if (sf.reference) {
+		const refPos = resolveAbsolutePosition(annotation, spec, sf.reference);
+		if (refPos) {
+			x += refPos.x;
+			y += refPos.y;
+		}
+	}
+
+	return { x, y };
+}
+
 export function getShapeRect(
 	annotation: Annotation,
 	spec: SpanSpec,
@@ -146,9 +189,12 @@ export function getShapeRect(
 	const shapeData = annotation.shapes[shapeName];
 	if (!shapeData) return null;
 
+	const pos = resolveAbsolutePosition(annotation, spec, shapeName);
+	if (!pos) return null;
+
 	return {
-		x: shapeData[mapping.x],
-		y: shapeData[mapping.y],
+		x: pos.x,
+		y: pos.y,
 		width: shapeData[mapping.width],
 		height: shapeData[mapping.height],
 	};
@@ -159,31 +205,7 @@ export function getShapePosition(
 	spec: SpanSpec,
 	shapeName: string,
 ): { x: number; y: number } | null {
-	const entity = getEntityByLabel(spec, annotation.entityType);
-	if (!entity) return null;
-
-	const shapeField = getShapesForEntity(entity).find(
-		(s) => s.name === shapeName,
-	);
-	if (!shapeField) return null;
-
-	const mapping = shapeField.mapping;
-	if (!mapping) return null;
-
-	const shapeData = annotation.shapes[shapeName];
-	if (!shapeData) return null;
-
-	switch (mapping.type) {
-		case "rect":
-		case "point":
-		case "circle":
-			return {
-				x: shapeData[mapping.x],
-				y: shapeData[mapping.y],
-			};
-		case "polygon":
-			return null;
-	}
+	return resolveAbsolutePosition(annotation, spec, shapeName);
 }
 
 export function getPrimaryShapeName(

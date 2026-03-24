@@ -249,6 +249,7 @@ export function loadSpec(raw: string, format: "json" | "yaml") {
 		return;
 	}
 	activeSpec.value = result;
+	activeTool.value = "";
 	statusText.value = "Spec loaded";
 }
 

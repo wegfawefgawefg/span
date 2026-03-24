@@ -346,8 +346,8 @@ function handleLayerPointerMove(event: PointerEvent) {
 		const stageEl = stage.value;
 		if (!stageEl) return;
 		const rect = stageEl.getBoundingClientRect();
-		drawing.value.currentX = Math.round((event.clientX - rect.left) / zoom.value);
-		drawing.value.currentY = Math.round((event.clientY - rect.top) / zoom.value);
+		drawing.value.currentX = Math.max(0, Math.min(Math.round((event.clientX - rect.left) / zoom.value), imageWidth.value));
+		drawing.value.currentY = Math.max(0, Math.min(Math.round((event.clientY - rect.top) / zoom.value), imageHeight.value));
 		return;
 	}
 	onPointerMove(event, imageWidth.value, imageHeight.value);
@@ -361,6 +361,11 @@ function handleLayerPointerUp(event: PointerEvent) {
 		commitDrawing();
 		return;
 	}
+	endDrag();
+}
+
+function handleLayerPointerCancel() {
+	drawing.value = null;
 	endDrag();
 }
 
@@ -542,7 +547,7 @@ function onCanvasContextMenu(event: MouseEvent) {
 					@pointerdown="handleLayerPointerDown"
 					@pointermove="handleLayerPointerMove"
 					@pointerup="handleLayerPointerUp"
-					@pointercancel="handleLayerPointerUp">
+					@pointercancel="handleLayerPointerCancel">
 						<template v-for="(annotation, annIndex) in annotations" :key="annotation.id">
 							<template v-for="shape in getShapesForAnnotation(annotation)" :key="`${annotation.id}-${shape.shapeName}`">
 								<!-- Rect shape -->

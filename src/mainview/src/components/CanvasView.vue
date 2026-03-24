@@ -391,6 +391,41 @@ function commitDrawing() {
 
 // --- Style helpers ---
 
+const drawPreviewStyle = computed(() => {
+	const d = drawing.value;
+	if (!d) return {};
+
+	if (d.shapeType === "rect") {
+		const x = Math.min(d.originX, d.currentX);
+		const y = Math.min(d.originY, d.currentY);
+		const w = Math.abs(d.currentX - d.originX);
+		const h = Math.abs(d.currentY - d.originY);
+		return {
+			left: `${x * zoom.value}px`,
+			top: `${y * zoom.value}px`,
+			width: `${w * zoom.value}px`,
+			height: `${h * zoom.value}px`,
+			borderRadius: '0px',
+		};
+	}
+
+	if (d.shapeType === "circle") {
+		const r = Math.sqrt(
+			(d.currentX - d.originX) ** 2 + (d.currentY - d.originY) ** 2,
+		);
+		const diameter = r * 2 * zoom.value;
+		return {
+			left: `${(d.originX - r) * zoom.value}px`,
+			top: `${(d.originY - r) * zoom.value}px`,
+			width: `${diameter}px`,
+			height: `${diameter}px`,
+			borderRadius: '50%',
+		};
+	}
+
+	return {};
+});
+
 function boxStyle(annotation: Annotation, shapeName: string, annIndex: number) {
 	const isSelected = annotation.id === selectedId.value;
 	const rect = getShapeRectForShape(annotation, shapeName);
@@ -572,6 +607,12 @@ function onCanvasContextMenu(event: MouseEvent) {
 								<!-- Polygon shape: placeholder -->
 							</template>
 						</template>
+						<!-- Drawing preview -->
+						<div
+							v-if="drawing"
+							class="draw-preview"
+							:style="drawPreviewStyle"
+						></div>
 					</div>
 				</div>
 			</div>

@@ -137,10 +137,22 @@ function loadSheetImage() {
 	img.src = props.sheetImageSrc;
 }
 
+function drawCheckerboard(ctx: CanvasRenderingContext2D, w: number, h: number) {
+	const size = 4;
+	for (let y = 0; y < h; y += size) {
+		for (let x = 0; x < w; x += size) {
+			ctx.fillStyle = (Math.floor(x / size) + Math.floor(y / size)) % 2 === 0
+				? "#1a1a2e" : "#16162a";
+			ctx.fillRect(x, y, size, size);
+		}
+	}
+}
+
 function drawBackground() {
 	const canvas = bgCanvas.value;
 	const vp = viewport.value;
-	if (!canvas || !vp || !sheetImage) return;
+	const pr = previewRect.value;
+	if (!canvas || !vp || !pr || !sheetImage) return;
 
 	const dpr = window.devicePixelRatio || 1;
 	const w = containerWidth.value;
@@ -153,12 +165,30 @@ function drawBackground() {
 	const ctx = canvas.getContext("2d")!;
 	ctx.scale(dpr, dpr);
 	ctx.clearRect(0, 0, w, h);
-	ctx.imageSmoothingEnabled = false;
-	ctx.drawImage(
-		sheetImage,
-		vp.x, vp.y, vp.width, vp.height,
-		0, 0, w, h,
-	);
+
+	if (isPreviewShape.value) {
+		// Preview shape: draw the full padded spritesheet region
+		ctx.imageSmoothingEnabled = false;
+		ctx.drawImage(
+			sheetImage,
+			vp.x, vp.y, vp.width, vp.height,
+			0, 0, w, h,
+		);
+	} else {
+		// Non-preview shape: checkerboard background, then only the preview rect cropped image centered
+		drawCheckerboard(ctx, w, h);
+		const s = scale.value;
+		const destX = (pr.x - vp.x) * s;
+		const destY = (pr.y - vp.y) * s;
+		const destW = pr.width * s;
+		const destH = pr.height * s;
+		ctx.imageSmoothingEnabled = false;
+		ctx.drawImage(
+			sheetImage,
+			pr.x, pr.y, pr.width, pr.height,
+			destX, destY, destW, destH,
+		);
+	}
 }
 
 // --- Resize observer ---

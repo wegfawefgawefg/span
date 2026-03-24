@@ -12,7 +12,7 @@ import {
 } from "../state";
 import { getShapeRect } from "../annotation";
 import { getEntityByLabel } from "../spec/types";
-import { api } from "../platform/adapter";
+
 import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
@@ -162,13 +162,13 @@ function getFirstFrameRect(group: SpriteGroup): { width: number; height: number 
 function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 	const cached = imageCache.get(sheetFile);
 	if (cached) return cached;
-	const p = api.getSheetImage(sheetFile).then((dataUrl) => {
-		return new Promise<HTMLImageElement>((resolve, reject) => {
-			const img = new Image();
-			img.onload = () => resolve(img);
-			img.onerror = reject;
-			img.src = dataUrl;
-		});
+	const sheet = sheets.value.find(s => s.path === sheetFile);
+	if (!sheet) return Promise.reject(new Error(`Sheet not found: ${sheetFile}`));
+	const p = new Promise<HTMLImageElement>((resolve, reject) => {
+		const img = new Image();
+		img.onload = () => resolve(img);
+		img.onerror = reject;
+		img.src = sheet.imageUrl;
 	});
 	imageCache.set(sheetFile, p);
 	return p;

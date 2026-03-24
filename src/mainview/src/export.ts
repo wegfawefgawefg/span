@@ -1,68 +1,76 @@
 // src/mainview/src/export.ts
 import YAML from "yaml";
 import type { SpanSpec } from "./spec/types";
+import { getEntityByLabel } from "./spec/types";
 import type { Annotation } from "./annotation";
-
-// Use the WorkspaceSheet interface inline since workspace.ts isn't created yet
-interface WorkspaceSheetLike {
-	path: string;
-	annotations: Annotation[];
-}
-
-export interface ExportSheet {
-	file: string;
-	[entityType: string]: unknown; // entity type → annotation array
-}
+import * as path from "node:path";
 
 export function buildExportData(
-	sheets: WorkspaceSheetLike[],
+	annotations: Annotation[],
 	spec: SpanSpec,
-	root: string,
-): { sheets: ExportSheet[] } {
-	const result: ExportSheet[] = [];
+	workspaceRoot: string,
+): Record<string, unknown> {
+	// Start output with frontmatter values
+	const output: Record<string, unknown> = { ...spec.frontmatter };
 
-	for (const sheet of sheets) {
-		// Group annotations by entity type
-		const groups = new Map<string, Record<string, unknown>[]>();
+	// Group annotations by their entity's group key
+	const groups = new Map<string, { group: string; items: Record<string, unknown>[] }>();
 
-		for (const ann of sheet.annotations) {
-			const entityDef = spec.entities[ann.entityType];
-			if (!entityDef) continue; // skip orphaned annotations
+	for (const ann of annotations) {
+		const entityDef = getEntityByLabel(spec, ann.entityType);
+		if (!entityDef) continue; // skip orphaned annotations
 
-			// Build flattened object: shape fields first (spec order), then properties (spec order)
-			const flat: Record<string, unknown> = {};
+		const groupKey = entityDef.group;
 
-			for (const field of entityDef.shape.fields) {
-				flat[field.name] = ann.shapeData[field.name] ?? 0;
-			}
-			for (const prop of entityDef.properties) {
-				flat[prop.name] = ann.propertyData[prop.name] ?? null;
-			}
-
-			if (!groups.has(ann.entityType)) {
-				groups.set(ann.entityType, []);
-			}
-			groups.get(ann.entityType)!.push(flat);
+		if (!groups.has(groupKey)) {
+			groups.set(groupKey, { group: groupKey, items: [] });
 		}
 
-		if (groups.size === 0) continue; // skip sheets with no valid annotations
+		// Build the flat annotation object in spec field order
+		const flat: Record<string, unknown> = {};
 
-		const exportSheet: ExportSheet = { file: sheet.path };
-		for (const [entityType, annotations] of groups) {
-			exportSheet[entityType] = annotations;
+		for (const field of entityDef.fields) {
+			if (field.kind === "shape") {
+				// Nest shape fields under the shape name
+				const shapeData = ann.shapes[field.name] ?? {};
+				const nested: Record<string, unknown> = {};
+				for (const shapeField of field.shapeFields) {
+					nested[shapeField.name] = shapeData[shapeField.name] ?? 0;
+				}
+				flat[field.name] = nested;
+			} else if (field.kind === "scalar") {
+				flat[field.name] = ann.propertyData[field.name] ?? null;
+			} else if (field.kind === "path") {
+				const rawPath = ann.propertyData[field.name];
+				if (field.pathType === "RelativePath" && typeof rawPath === "string" && rawPath !== "") {
+					// Make relative to workspace root
+					flat[field.name] = "./" + path.relative(workspaceRoot, rawPath);
+				} else {
+					// Path — emit as-is (absolute)
+					flat[field.name] = rawPath ?? "";
+				}
+			}
 		}
-		result.push(exportSheet);
+
+		groups.get(groupKey)!.items.push(flat);
 	}
 
-	return { sheets: result };
+	// Write non-empty groups to output
+	for (const [groupKey, { items }] of groups) {
+		if (items.length > 0) {
+			output[groupKey] = items;
+		}
+	}
+
+	return output;
 }
 
 export function exportToString(
-	sheets: WorkspaceSheetLike[],
+	annotations: Annotation[],
 	spec: SpanSpec,
-	root: string,
+	workspaceRoot: string,
 ): string {
-	const data = buildExportData(sheets, spec, root);
+	const data = buildExportData(annotations, spec, workspaceRoot);
 
 	if (spec.format === "yaml") {
 		return YAML.stringify(data, {

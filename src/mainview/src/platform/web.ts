@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import type { PlatformAdapter } from "./types";
-import type { Annotation, SheetWithAnnotations } from "../types";
-import { normalizeAnnotation } from "../types";
+import type { SheetWithAnnotations } from "../types";
+import type { Annotation } from "../annotation";
 import { projectPath, projectOpen } from "./adapter";
 
 const LAYOUT_KEY = "span-layout";
@@ -77,7 +77,7 @@ export function createWebAdapter(): WebPlatformAdapter {
 				const data = (await readJsonFile(annDir, annFile)) as any;
 				if (Array.isArray(data?.annotations)) {
 					annotations = data.annotations.map(
-						(a: Record<string, unknown>) => normalizeAnnotation(a),
+						(a: unknown) => a as Annotation,
 					);
 				}
 			}
@@ -120,7 +120,7 @@ export function createWebAdapter(): WebPlatformAdapter {
 					const data = JSON.parse(await af.text());
 					if (Array.isArray(data?.annotations)) {
 						annotations = data.annotations.map(
-							(a: Record<string, unknown>) => normalizeAnnotation(a),
+							(a: unknown) => a as Annotation,
 						);
 					}
 				} catch {}

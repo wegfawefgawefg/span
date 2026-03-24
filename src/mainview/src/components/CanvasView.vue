@@ -347,8 +347,9 @@ function handleLayerPointerMove(event: PointerEvent) {
 		const stageEl = stage.value;
 		if (!stageEl) return;
 		const rect = stageEl.getBoundingClientRect();
-		drawing.value.currentX = Math.max(0, Math.min(Math.round((event.clientX - rect.left) / zoom.value), imageWidth.value));
-		drawing.value.currentY = Math.max(0, Math.min(Math.round((event.clientY - rect.top) / zoom.value), imageHeight.value));
+		const newX = Math.max(0, Math.min(Math.round((event.clientX - rect.left) / zoom.value), imageWidth.value));
+		const newY = Math.max(0, Math.min(Math.round((event.clientY - rect.top) / zoom.value), imageHeight.value));
+		drawing.value = { ...drawing.value, currentX: newX, currentY: newY };
 		return;
 	}
 	onPointerMove(event, imageWidth.value, imageHeight.value);

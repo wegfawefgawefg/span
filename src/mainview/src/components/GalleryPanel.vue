@@ -2,10 +2,10 @@
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import type { Annotation } from "../types";
 import {
-	projectSheets,
+	sheets,
 	currentSheet,
 	annotations as currentAnnotations,
-	openSheet,
+	openSheetByPath,
 	selectAnnotation,
 	activeSpec,
 } from "../state";
@@ -86,14 +86,13 @@ function groupKey(ann: Annotation): string {
 const groups = computed<SpriteGroup[]>(() => {
 	// Depend on currentAnnotations so we react to live edits (drag, inspector)
 	const liveAnnotations = currentAnnotations.value;
-	const currentFile = currentSheet.value?.file;
+	const currentFile = currentSheet.value?.path;
 
 	const map = new Map<string, SpriteGroup>();
-	for (const sheet of projectSheets.value) {
-		// For the active sheet, use live annotations instead of the
-		// stale projectSheets copy (which only syncs on commit actions)
+	for (const sheet of sheets.value) {
+		// For the active sheet, use live annotations for real-time updates
 		const anns =
-			sheet.file === currentFile ? liveAnnotations : (sheet.annotations ?? []);
+			sheet.path === currentFile ? liveAnnotations : (sheet.annotations ?? []);
 		for (const ann of anns) {
 			// Only show rect-shape entities in the gallery
 			if (!isRectEntity(ann)) continue;
@@ -112,11 +111,11 @@ const groups = computed<SpriteGroup[]>(() => {
 				};
 				map.set(key, group);
 			}
-			group.inCurrentSheet ||= sheet.file === currentFile;
+			group.inCurrentSheet ||= sheet.path === currentFile;
 			group.frames.push({
 				annotation: ann,
 				annotationId: ann.id,
-				sheetFile: sheet.file,
+				sheetFile: sheet.path,
 			});
 		}
 	}
@@ -275,11 +274,11 @@ const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 
 async function handleClick(group: SpriteGroup) {
 	const target =
-		group.frames.find((f) => f.sheetFile === currentSheet.value?.file) ??
+		group.frames.find((f) => f.sheetFile === currentSheet.value?.path) ??
 		group.frames[0];
 	if (!target) return;
-	if (currentSheet.value?.file !== target.sheetFile) {
-		await openSheet(target.sheetFile, target.annotationId);
+	if (currentSheet.value?.path !== target.sheetFile) {
+		await openSheetByPath(target.sheetFile);
 	} else {
 		selectAnnotation(target.annotationId);
 	}
@@ -287,7 +286,7 @@ async function handleClick(group: SpriteGroup) {
 
 function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 	const target =
-		group.frames.find((f) => f.sheetFile === currentSheet.value?.file) ??
+		group.frames.find((f) => f.sheetFile === currentSheet.value?.path) ??
 		group.frames[0];
 	const entries: MenuEntry[] = [
 		{
@@ -295,10 +294,10 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 			action: () => { if (target) handleClick(group); },
 		},
 	];
-	if (target && target.sheetFile !== currentSheet.value?.file) {
+	if (target && target.sheetFile !== currentSheet.value?.path) {
 		entries.unshift({
 			label: `Open ${target.sheetFile}`,
-			action: () => openSheet(target.sheetFile, target.annotationId),
+			action: () => openSheetByPath(target.sheetFile),
 		});
 	}
 	ctxMenu.value?.show(event, entries);

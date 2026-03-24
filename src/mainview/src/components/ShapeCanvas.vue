@@ -43,15 +43,12 @@ const previewRect = computed(() => {
 const viewport = computed(() => {
 	const pr = previewRect.value;
 	if (!pr) return null;
-	if (isPreviewShape.value) {
-		return {
-			x: pr.x - PADDING,
-			y: pr.y - PADDING,
-			width: pr.width + PADDING * 2,
-			height: pr.height + PADDING * 2,
-		};
-	}
-	return { x: pr.x, y: pr.y, width: pr.width, height: pr.height };
+	return {
+		x: pr.x - PADDING,
+		y: pr.y - PADDING,
+		width: pr.width + PADDING * 2,
+		height: pr.height + PADDING * 2,
+	};
 });
 
 // --- Scale and canvas dimensions ---

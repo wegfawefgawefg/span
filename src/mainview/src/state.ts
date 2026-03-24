@@ -222,10 +222,6 @@ export function loadSpec(raw: string, format: "json" | "yaml") {
 		return;
 	}
 	activeSpec.value = result;
-	// Set first entity as active tool
-	if (result.entities.length > 0) {
-		activeTool.value = result.entities[0].label;
-	}
 	statusText.value = "Spec loaded";
 }
 

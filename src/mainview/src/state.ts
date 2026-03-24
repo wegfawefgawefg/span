@@ -1,10 +1,39 @@
-import { computed, ref, triggerRef } from "vue";
-import type { Sheet, SheetWithAnnotations } from "./types";
+import { computed, ref, watch } from "vue";
 import type { Annotation } from "./annotation";
-import { createAnnotation, duplicateAnnotation, clampToImage, getShapePosition } from "./annotation";
+import { createAnnotation, duplicateAnnotation, clampToImage } from "./annotation";
 import type { SpanSpec } from "./spec/types";
-import { makeId } from "./types";
-import { api } from "./platform/adapter";
+import { parseSpec } from "./spec/parse";
+import { api, platform } from "./platform/adapter";
+import {
+	sheets,
+	currentSheet,
+	workspaceReady,
+	effectiveRoot,
+	root,
+	rootOverride,
+	spanFilePath,
+	specFilePath,
+	openSheetByPath,
+	removeSheet,
+	addSheet,
+	resetWorkspace,
+} from "./workspace";
+import type { WorkspaceSheet } from "./workspace";
+import { serializeWorkspace, debouncedSave } from "./persistence";
+import { exportToString } from "./export";
+
+// Re-export workspace state for consumers
+export {
+	sheets,
+	currentSheet,
+	workspaceReady,
+	effectiveRoot,
+	openSheetByPath,
+	removeSheet,
+	addSheet,
+	resetWorkspace,
+};
+export type { WorkspaceSheet };
 
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 32;
@@ -12,16 +41,10 @@ export const ZOOM_STEP = 0.1;
 
 // --- Core state ---
 
-export const projectSheets = ref<SheetWithAnnotations[]>([]);
-export const sheets = computed<Sheet[]>(() =>
-	projectSheets.value.map(({ annotations, ...sheet }) => sheet),
-);
-export const currentSheet = ref<SheetWithAnnotations | null>(null);
-export const annotations = ref<Annotation[]>([]);
 export const selectedId = ref<string | null>(null);
 export const zoom = ref(2);
 export const dirty = ref(false);
-export const statusText = ref("Loading sheets\u2026");
+export const statusText = ref("Ready");
 export const currentSheetImageSrc = ref<string>("");
 export const imageWidth = ref(0);
 export const imageHeight = ref(0);
@@ -31,9 +54,33 @@ export const activeTool = ref<string>("");
 
 // --- Derived ---
 
+/** Annotations for the current sheet (read-only computed). Mutate via currentSheet.value.annotations directly. */
+export const annotations = computed<Annotation[]>(
+	() => currentSheet.value?.annotations ?? [],
+);
+
 export const selectedAnnotation = computed<Annotation | null>(
 	() => annotations.value.find((a) => a.id === selectedId.value) ?? null,
 );
+
+// --- Watch currentSheet to load image ---
+
+watch(currentSheet, async (sheet) => {
+	if (!sheet) {
+		currentSheetImageSrc.value = "";
+		imageWidth.value = 0;
+		imageHeight.value = 0;
+		return;
+	}
+
+	// Use the sheet's imageUrl (already a data URL or blob URL)
+	currentSheetImageSrc.value = sheet.imageUrl;
+	imageWidth.value = sheet.width;
+	imageHeight.value = sheet.height;
+
+	// Update status
+	markDirty(false);
+});
 
 // --- Viewport center callback (set by CanvasView on mount) ---
 
@@ -54,6 +101,36 @@ export function addAnnotationAtViewportCenter() {
 	addAnnotation(center.x, center.y);
 }
 
+// --- Autosave wiring ---
+
+function performSave() {
+	const spec = activeSpec.value;
+	if (!spec) return;
+
+	const data = serializeWorkspace(
+		sheets.value,
+		specFilePath.value,
+		effectiveRoot.value,
+		spanFilePath.value ? spanFilePath.value.replace(/\/[^/]+$/, "") : undefined,
+	);
+
+	if (platform.value === "desktop" && spanFilePath.value) {
+		api.writeFile(spanFilePath.value, data).then(() => {
+			markDirty(false);
+		}).catch((e) => {
+			console.error("Autosave failed:", e);
+			statusText.value = "Autosave failed";
+		});
+	} else if (platform.value === "web") {
+		try {
+			localStorage.setItem("span-workspace", data);
+			markDirty(false);
+		} catch (e) {
+			console.error("localStorage save failed:", e);
+		}
+	}
+}
+
 // --- Actions ---
 
 export function selectAnnotation(id: string | null) {
@@ -62,92 +139,49 @@ export function selectAnnotation(id: string | null) {
 
 export function markDirty(isDirty: boolean) {
 	dirty.value = isDirty;
-	if (!currentSheet.value) {
-		statusText.value = isDirty ? "Unsaved changes" : "No changes";
+	const sheet = currentSheet.value;
+	if (!sheet) {
+		statusText.value = isDirty ? "Unsaved changes" : "Ready";
 		return;
 	}
-	statusText.value = `${currentSheet.value.file} \u2022 ${isDirty ? "Unsaved changes" : "Saved"}`;
-}
+	statusText.value = `${sheet.path} \u2022 ${isDirty ? "Unsaved changes" : "Saved"}`;
 
-function syncCurrentSheetIntoProject() {
-	const sheet = currentSheet.value;
-	if (!sheet) return;
-	const record = projectSheets.value.find((s) => s.file === sheet.file);
-	if (!record) return;
-	record.annotations = [...annotations.value];
-	// Force Vue to notice the deep mutation so gallery recomputes
-	triggerRef(projectSheets);
-}
-
-export async function loadProjectData() {
-	statusText.value = "Loading sheets\u2026";
-	const prevFile = currentSheet.value?.file ?? null;
-	const prevSelection = selectedId.value;
-	const result = await api.getProjectAnnotations();
-	projectSheets.value = result.map((s) => ({ ...s }));
-
-	if (prevFile && projectSheets.value.some((s) => s.file === prevFile)) {
-		await openSheet(prevFile, prevSelection);
-	} else if (projectSheets.value.length > 0) {
-		await openSheet(projectSheets.value[0].file);
+	if (isDirty) {
+		debouncedSave(performSave);
 	}
-}
-
-export async function openSheet(
-	file: string,
-	selectId: string | null = null,
-) {
-	if (currentSheet.value?.file !== file && dirty.value) {
-		if (!window.confirm("Discard unsaved changes to this sheet?")) {
-			return;
-		}
-	}
-
-	const record = projectSheets.value.find((s) => s.file === file);
-	if (!record) return;
-
-	currentSheet.value = record;
-	annotations.value = [...record.annotations];
-	selectedId.value =
-		selectId && annotations.value.some((a) => a.id === selectId)
-			? selectId
-			: (annotations.value[0]?.id ?? null);
-	markDirty(false);
-
-	currentSheetImageSrc.value = await api.getSheetImage(file);
 }
 
 export function addAnnotation(x: number = 0, y: number = 0) {
 	const spec = activeSpec.value;
 	const tool = activeTool.value;
-	if (!spec || !tool || !spec.entities[tool]) return;
+	const sheet = currentSheet.value;
+	if (!spec || !tool || !spec.entities[tool] || !sheet) return;
 
 	const annotation = createAnnotation(spec, tool, { x, y });
-	annotations.value.push(annotation);
+	sheet.annotations.push(annotation);
 	selectedId.value = annotation.id;
 	markDirty(true);
-	syncCurrentSheetIntoProject();
 }
 
 export function duplicateSelected() {
 	const ann = selectedAnnotation.value;
 	const spec = activeSpec.value;
-	if (!ann || !spec) return;
+	const sheet = currentSheet.value;
+	if (!ann || !spec || !sheet) return;
 	const copy = duplicateAnnotation(ann, spec);
-	annotations.value.push(copy);
+	sheet.annotations.push(copy);
 	selectedId.value = copy.id;
 	markDirty(true);
-	syncCurrentSheetIntoProject();
 }
 
 export function deleteSelected() {
-	if (!selectedId.value) return;
-	annotations.value = annotations.value.filter(
+	const sheet = currentSheet.value;
+	if (!selectedId.value || !sheet) return;
+	sheet.annotations = sheet.annotations.filter(
 		(a) => a.id !== selectedId.value,
 	);
-	selectedId.value = annotations.value[0]?.id ?? null;
+	selectedId.value = sheet.annotations[0]?.id ?? null;
 	markDirty(true);
-	syncCurrentSheetIntoProject();
 }
 
 export function updateShapeData(patch: Record<string, number>) {
@@ -155,8 +189,6 @@ export function updateShapeData(patch: Record<string, number>) {
 	if (!ann) return;
 	Object.assign(ann.shapeData, patch);
 	markDirty(true);
-	triggerRef(annotations);
-	syncCurrentSheetIntoProject();
 }
 
 export function updatePropertyData(patch: Record<string, unknown>) {
@@ -164,20 +196,6 @@ export function updatePropertyData(patch: Record<string, unknown>) {
 	if (!ann) return;
 	Object.assign(ann.propertyData, patch);
 	markDirty(true);
-	triggerRef(annotations);
-	syncCurrentSheetIntoProject();
-}
-
-export async function saveCurrentAnnotations() {
-	const sheet = currentSheet.value;
-	if (!sheet) return;
-	statusText.value = `Saving ${sheet.file}\u2026`;
-	await api.saveAnnotations(
-		sheet.file,
-		annotations.value.map((a) => ({ ...a })),
-	);
-	syncCurrentSheetIntoProject();
-	markDirty(false);
 }
 
 export function clampAnnotationToImage(
@@ -188,4 +206,52 @@ export function clampAnnotationToImage(
 	const spec = activeSpec.value;
 	if (!spec) return;
 	clampToImage(annotation, spec, imgW, imgH);
+}
+
+// --- Spec loading ---
+
+export function loadSpec(raw: string, format: "json" | "yaml") {
+	const result = parseSpec(raw, format);
+	if (Array.isArray(result)) {
+		// Errors
+		console.error("Spec parse errors:", result);
+		statusText.value = `Spec errors: ${result.map((e) => e.message).join("; ")}`;
+		return;
+	}
+	activeSpec.value = result;
+	// Set first entity as active tool
+	const entityNames = Object.keys(result.entities);
+	if (entityNames.length > 0) {
+		activeTool.value = entityNames[0];
+	}
+	statusText.value = "Spec loaded";
+}
+
+// --- Export ---
+
+export async function exportWorkspace() {
+	const spec = activeSpec.value;
+	if (!spec) {
+		statusText.value = "No spec loaded — cannot export";
+		return;
+	}
+
+	const output = exportToString(sheets.value, spec, effectiveRoot.value);
+
+	const ext = spec.format === "yaml" ? "yaml" : "json";
+	const defaultName = `annotations.${ext}`;
+
+	const path = await api.showSaveDialog(defaultName, [
+		{ name: `${ext.toUpperCase()} files`, extensions: [ext] },
+	]);
+
+	if (!path) return; // user cancelled
+
+	try {
+		await api.writeFile(path, output);
+		statusText.value = `Exported to ${path}`;
+	} catch (e) {
+		console.error("Export failed:", e);
+		statusText.value = "Export failed";
+	}
 }

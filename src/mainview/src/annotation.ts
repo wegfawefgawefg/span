@@ -1,20 +1,26 @@
 // src/mainview/src/annotation.ts
-import type { SpanSpec, ShapeMapping } from "./spec/types";
-import { defaultForProperty, defaultForShapeField } from "./spec/types";
+import type {
+	SpanSpec,
+	EntityDef,
+	ShapeSpecField,
+} from "./spec/types";
+import {
+	getEntityByLabel,
+	getShapesForEntity,
+	getScalarsForEntity,
+	getPathFieldForEntity,
+	getPrimaryShapeName as getPrimaryShapeNameFromEntity,
+	defaultForScalar,
+	defaultForShapeField,
+} from "./spec/types";
 import { makeId } from "./types";
-
-export type PolygonVertices = Array<Record<string, number>>;
 
 export interface Annotation {
 	id: string;
-	entityType: string;
-	shapeData: Record<string, number | PolygonVertices>;
-	propertyData: Record<string, unknown>;
+	entityType: string; // matches entity's label
+	shapes: Record<string, Record<string, number>>; // shapeName → { fieldName: value }
+	propertyData: Record<string, unknown>; // scalar + Path properties
 	_stash?: Record<string, unknown>;
-}
-
-function getMapping(spec: SpanSpec, entityType: string): ShapeMapping | null {
-	return spec.entities[entityType]?.shape.mapping ?? null;
 }
 
 export function createAnnotation(
@@ -22,48 +28,188 @@ export function createAnnotation(
 	entityType: string,
 	position: { x: number; y: number },
 ): Annotation {
-	const entity = spec.entities[entityType];
+	const entity = getEntityByLabel(spec, entityType);
 	if (!entity) throw new Error(`Unknown entity type: ${entityType}`);
 
-	const mapping = entity.shape.mapping;
-	const shapeData: Record<string, number> = {};
+	const shapeFields = getShapesForEntity(entity);
+	const shapes: Record<string, Record<string, number>> = {};
 
-	// Set defaults for all shape fields
-	for (const field of entity.shape.fields) {
-		shapeData[field.name] = defaultForShapeField();
+	for (let i = 0; i < shapeFields.length; i++) {
+		const sf = shapeFields[i];
+		const isPrimary = i === 0;
+		const offset = isPrimary ? 0 : i * 4;
+		const pos = { x: position.x + offset, y: position.y + offset };
+
+		shapes[sf.name] = buildShapeDefaults(sf, pos);
 	}
 
-	// Apply position and sensible defaults based on shape type
+	// Set property defaults (scalars + paths)
+	const propertyData: Record<string, unknown> = {};
+	for (const field of entity.fields) {
+		if (field.kind === "scalar") {
+			propertyData[field.name] = defaultForScalar(field);
+		} else if (field.kind === "path") {
+			propertyData[field.name] = "";
+		}
+	}
+
+	return { id: makeId(), entityType, shapes, propertyData };
+}
+
+function buildShapeDefaults(
+	sf: ShapeSpecField,
+	position: { x: number; y: number },
+): Record<string, number> {
+	const data: Record<string, number> = {};
+
+	// Initialize all fields to 0
+	for (const field of sf.shapeFields) {
+		data[field.name] = defaultForShapeField();
+	}
+
+	// Apply position and sensible defaults based on mapping
+	const mapping = sf.mapping;
 	if (mapping) {
 		switch (mapping.type) {
 			case "rect":
-				shapeData[mapping.x] = position.x;
-				shapeData[mapping.y] = position.y;
-				shapeData[mapping.width] = 16;
-				shapeData[mapping.height] = 16;
+				data[mapping.x] = position.x;
+				data[mapping.y] = position.y;
+				data[mapping.width] = 16;
+				data[mapping.height] = 16;
 				break;
 			case "point":
-				shapeData[mapping.x] = position.x;
-				shapeData[mapping.y] = position.y;
+				data[mapping.x] = position.x;
+				data[mapping.y] = position.y;
 				break;
 			case "circle":
-				shapeData[mapping.x] = position.x;
-				shapeData[mapping.y] = position.y;
-				shapeData[mapping.radius] = 8;
+				data[mapping.x] = position.x;
+				data[mapping.y] = position.y;
+				data[mapping.radius] = 8;
 				break;
 			case "polygon":
-				// Polygons start empty — user adds vertices by clicking
+				// Polygons start empty
 				break;
 		}
 	}
 
-	// Set property defaults
-	const propertyData: Record<string, unknown> = {};
-	for (const prop of entity.properties) {
-		propertyData[prop.name] = defaultForProperty(prop);
+	return data;
+}
+
+export function getShapeRect(
+	annotation: Annotation,
+	spec: SpanSpec,
+	shapeName: string,
+): { x: number; y: number; width: number; height: number } | null {
+	const entity = getEntityByLabel(spec, annotation.entityType);
+	if (!entity) return null;
+
+	const shapeField = getShapesForEntity(entity).find(
+		(s) => s.name === shapeName,
+	);
+	if (!shapeField) return null;
+
+	const mapping = shapeField.mapping;
+	if (!mapping || mapping.type !== "rect") return null;
+
+	const shapeData = annotation.shapes[shapeName];
+	if (!shapeData) return null;
+
+	return {
+		x: shapeData[mapping.x],
+		y: shapeData[mapping.y],
+		width: shapeData[mapping.width],
+		height: shapeData[mapping.height],
+	};
+}
+
+export function getShapePosition(
+	annotation: Annotation,
+	spec: SpanSpec,
+	shapeName: string,
+): { x: number; y: number } | null {
+	const entity = getEntityByLabel(spec, annotation.entityType);
+	if (!entity) return null;
+
+	const shapeField = getShapesForEntity(entity).find(
+		(s) => s.name === shapeName,
+	);
+	if (!shapeField) return null;
+
+	const mapping = shapeField.mapping;
+	if (!mapping) return null;
+
+	const shapeData = annotation.shapes[shapeName];
+	if (!shapeData) return null;
+
+	switch (mapping.type) {
+		case "rect":
+		case "point":
+		case "circle":
+			return {
+				x: shapeData[mapping.x],
+				y: shapeData[mapping.y],
+			};
+		case "polygon":
+			return null;
+	}
+}
+
+export function getPrimaryShapeName(
+	spec: SpanSpec,
+	entityType: string,
+): string | null {
+	const entity = getEntityByLabel(spec, entityType);
+	if (!entity) return null;
+	return getPrimaryShapeNameFromEntity(entity);
+}
+
+export function duplicateAnnotation(
+	annotation: Annotation,
+	spec: SpanSpec,
+): Annotation {
+	const entity = getEntityByLabel(spec, annotation.entityType);
+
+	// Deep copy all shapes
+	const newShapes: Record<string, Record<string, number>> = {};
+	for (const [shapeName, shapeData] of Object.entries(annotation.shapes)) {
+		newShapes[shapeName] = { ...shapeData };
 	}
 
-	return { id: makeId(), entityType, shapeData, propertyData };
+	// Offset primary shape position by 4px
+	if (entity) {
+		const primaryName = getPrimaryShapeNameFromEntity(entity);
+		if (primaryName && newShapes[primaryName]) {
+			const primaryField = getShapesForEntity(entity).find(
+				(s) => s.name === primaryName,
+			);
+			if (primaryField?.mapping) {
+				const mapping = primaryField.mapping;
+				switch (mapping.type) {
+					case "rect":
+					case "point":
+						newShapes[primaryName][mapping.x] += 4;
+						newShapes[primaryName][mapping.y] += 4;
+						break;
+					case "circle":
+						newShapes[primaryName][mapping.x] += 4;
+						newShapes[primaryName][mapping.y] += 4;
+						break;
+					case "polygon":
+						break;
+				}
+			}
+		}
+	}
+
+	return {
+		id: makeId(),
+		entityType: annotation.entityType,
+		shapes: newShapes,
+		propertyData: JSON.parse(JSON.stringify(annotation.propertyData)),
+		...(annotation._stash
+			? { _stash: JSON.parse(JSON.stringify(annotation._stash)) }
+			: {}),
+	};
 }
 
 export function migrateEntityType(
@@ -71,120 +217,69 @@ export function migrateEntityType(
 	spec: SpanSpec,
 	newType: string,
 ): Annotation {
-	const newEntity = spec.entities[newType];
+	const newEntity = getEntityByLabel(spec, newType);
 	if (!newEntity) throw new Error(`Unknown entity type: ${newType}`);
 
-	// Build new shape data with defaults
-	const newShapeData: Record<string, number> = {};
-	for (const field of newEntity.shape.fields) {
-		newShapeData[field.name] = defaultForShapeField();
+	// Build new shapes with defaults (all at origin)
+	const shapeFields = getShapesForEntity(newEntity);
+	const newShapes: Record<string, Record<string, number>> = {};
+	for (const sf of shapeFields) {
+		const data: Record<string, number> = {};
+		for (const field of sf.shapeFields) {
+			data[field.name] = defaultForShapeField();
+		}
+		newShapes[sf.name] = data;
 	}
 
-	// Migrate properties — keep shared, stash removed, default new
+	// Migrate scalar properties — keep shared, stash removed, default new
 	const oldProps = { ...annotation.propertyData };
 	const newPropertyData: Record<string, unknown> = {};
 	const stash: Record<string, unknown> = { ...(annotation._stash ?? {}) };
 
-	const newPropNames = new Set(newEntity.properties.map((p) => p.name));
+	// Collect new scalar+path field names
+	const newFieldNames = new Set<string>();
+	for (const field of newEntity.fields) {
+		if (field.kind === "scalar" || field.kind === "path") {
+			newFieldNames.add(field.name);
+		}
+	}
 
 	// Stash old properties not in new type
 	for (const [key, value] of Object.entries(oldProps)) {
-		if (!newPropNames.has(key)) {
+		if (!newFieldNames.has(key)) {
 			stash[key] = value;
 		}
 	}
 
 	// Set new properties — use old value if available, then stash, then default
-	for (const prop of newEntity.properties) {
-		if (prop.name in oldProps) {
-			newPropertyData[prop.name] = oldProps[prop.name];
-		} else if (prop.name in stash) {
-			newPropertyData[prop.name] = stash[prop.name];
-			delete stash[prop.name];
-		} else {
-			newPropertyData[prop.name] = defaultForProperty(prop);
+	for (const field of newEntity.fields) {
+		if (field.kind === "scalar") {
+			if (field.name in oldProps) {
+				newPropertyData[field.name] = oldProps[field.name];
+			} else if (field.name in stash) {
+				newPropertyData[field.name] = stash[field.name];
+				delete stash[field.name];
+			} else {
+				newPropertyData[field.name] = defaultForScalar(field);
+			}
+		} else if (field.kind === "path") {
+			if (field.name in oldProps) {
+				newPropertyData[field.name] = oldProps[field.name];
+			} else if (field.name in stash) {
+				newPropertyData[field.name] = stash[field.name];
+				delete stash[field.name];
+			} else {
+				newPropertyData[field.name] = "";
+			}
 		}
 	}
 
 	return {
 		id: annotation.id,
 		entityType: newType,
-		shapeData: newShapeData,
+		shapes: newShapes,
 		propertyData: newPropertyData,
 		...(Object.keys(stash).length > 0 ? { _stash: stash } : {}),
-	};
-}
-
-export function getShapeRect(
-	annotation: Annotation,
-	spec: SpanSpec,
-): { x: number; y: number; width: number; height: number } | null {
-	const mapping = getMapping(spec, annotation.entityType);
-	if (!mapping || mapping.type !== "rect") return null;
-
-	const x = annotation.shapeData[mapping.x] as number;
-	const y = annotation.shapeData[mapping.y] as number;
-	const w = annotation.shapeData[mapping.width] as number;
-	const h = annotation.shapeData[mapping.height] as number;
-
-	// TODO: LTRB detection — for now assume XYWH
-	return { x, y, width: w, height: h };
-}
-
-export function getShapePosition(
-	annotation: Annotation,
-	spec: SpanSpec,
-): { x: number; y: number } | null {
-	const mapping = getMapping(spec, annotation.entityType);
-	if (!mapping) return null;
-
-	switch (mapping.type) {
-		case "rect":
-		case "point":
-			return {
-				x: annotation.shapeData[mapping.x] as number,
-				y: annotation.shapeData[mapping.y] as number,
-			};
-		case "circle":
-			return {
-				x: annotation.shapeData[mapping.x] as number,
-				y: annotation.shapeData[mapping.y] as number,
-			};
-		case "polygon":
-			return null; // polygons don't have a single position
-	}
-}
-
-export function duplicateAnnotation(
-	annotation: Annotation,
-	spec: SpanSpec,
-): Annotation {
-	const mapping = getMapping(spec, annotation.entityType);
-	const newShapeData = { ...annotation.shapeData };
-
-	// Offset position by 4px via mapping
-	if (mapping) {
-		switch (mapping.type) {
-			case "rect":
-			case "point":
-				(newShapeData[mapping.x] as number) += 4;
-				(newShapeData[mapping.y] as number) += 4;
-				break;
-			case "circle":
-				(newShapeData[mapping.x] as number) += 4;
-				(newShapeData[mapping.y] as number) += 4;
-				break;
-			case "polygon":
-				// TODO: offset all vertices
-				break;
-		}
-	}
-
-	return {
-		id: makeId(),
-		entityType: annotation.entityType,
-		shapeData: newShapeData,
-		propertyData: { ...annotation.propertyData },
 	};
 }
 
@@ -194,35 +289,53 @@ export function clampToImage(
 	imgW: number,
 	imgH: number,
 ): void {
-	const mapping = getMapping(spec, annotation.entityType);
-	if (!mapping) return;
+	const entity = getEntityByLabel(spec, annotation.entityType);
+	if (!entity) return;
 
-	switch (mapping.type) {
-		case "rect": {
-			let x = annotation.shapeData[mapping.x] as number;
-			let y = annotation.shapeData[mapping.y] as number;
-			let w = annotation.shapeData[mapping.width] as number;
-			let h = annotation.shapeData[mapping.height] as number;
-			w = Math.max(1, Math.min(Math.round(w), imgW));
-			h = Math.max(1, Math.min(Math.round(h), imgH));
-			x = Math.max(0, Math.min(Math.round(x), imgW - w));
-			y = Math.max(0, Math.min(Math.round(y), imgH - h));
-			annotation.shapeData[mapping.x] = x;
-			annotation.shapeData[mapping.y] = y;
-			annotation.shapeData[mapping.width] = w;
-			annotation.shapeData[mapping.height] = h;
-			break;
-		}
-		case "point": {
-			annotation.shapeData[mapping.x] = Math.max(0, Math.min(Math.round(annotation.shapeData[mapping.x] as number), imgW));
-			annotation.shapeData[mapping.y] = Math.max(0, Math.min(Math.round(annotation.shapeData[mapping.y] as number), imgH));
-			break;
-		}
-		case "circle": {
-			const r = annotation.shapeData[mapping.radius] as number;
-			annotation.shapeData[mapping.x] = Math.max(r, Math.min(Math.round(annotation.shapeData[mapping.x] as number), imgW - r));
-			annotation.shapeData[mapping.y] = Math.max(r, Math.min(Math.round(annotation.shapeData[mapping.y] as number), imgH - r));
-			break;
+	const shapeFields = getShapesForEntity(entity);
+
+	for (const sf of shapeFields) {
+		const shapeData = annotation.shapes[sf.name];
+		if (!shapeData) continue;
+
+		const mapping = sf.mapping;
+		if (!mapping) continue;
+
+		switch (mapping.type) {
+			case "rect": {
+				let w = Math.max(1, Math.min(Math.round(shapeData[mapping.width]), imgW));
+				let h = Math.max(1, Math.min(Math.round(shapeData[mapping.height]), imgH));
+				let x = Math.max(0, Math.min(Math.round(shapeData[mapping.x]), imgW - w));
+				let y = Math.max(0, Math.min(Math.round(shapeData[mapping.y]), imgH - h));
+				shapeData[mapping.x] = x;
+				shapeData[mapping.y] = y;
+				shapeData[mapping.width] = w;
+				shapeData[mapping.height] = h;
+				break;
+			}
+			case "point": {
+				shapeData[mapping.x] = Math.max(
+					0,
+					Math.min(Math.round(shapeData[mapping.x]), imgW),
+				);
+				shapeData[mapping.y] = Math.max(
+					0,
+					Math.min(Math.round(shapeData[mapping.y]), imgH),
+				);
+				break;
+			}
+			case "circle": {
+				const r = shapeData[mapping.radius];
+				shapeData[mapping.x] = Math.max(
+					r,
+					Math.min(Math.round(shapeData[mapping.x]), imgW - r),
+				);
+				shapeData[mapping.y] = Math.max(
+					r,
+					Math.min(Math.round(shapeData[mapping.y]), imgH - r),
+				);
+				break;
+			}
 		}
 	}
 }

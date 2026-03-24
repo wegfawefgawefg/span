@@ -7,14 +7,13 @@ import {
 	statusText,
 	duplicateSelected,
 	deleteSelected,
-	workspaceReady,
+	activeSpec,
 	addSheet,
 	loadSpec,
 	exportWorkspace,
 } from "./state";
 import { parseSpec } from "./spec/parse";
 import { api, setResetLayoutHandler, setAddPanelHandler } from "./platform/adapter";
-import LandingScreen from "./components/LandingScreen.vue";
 
 const PANELS: Record<string, { component: string; title: string }> = {
 	sheets: { component: "sheets", title: "Sheets" },
@@ -27,7 +26,6 @@ const PANELS: Record<string, { component: string; title: string }> = {
 let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const statusFlash = ref(false);
-const landingError = ref("");
 
 const IMAGE_EXTS = /\.(png|jpg|jpeg|gif|webp)$/i;
 const SPEC_EXTS = /\.(ya?ml|json)$/i;
@@ -75,8 +73,6 @@ async function loadImageDimensions(dataUrl: string): Promise<{ width: number; he
 }
 
 async function handleDroppedFiles(files: File[]) {
-	landingError.value = "";
-
 	for (const file of files) {
 		const name = file.name;
 
@@ -89,7 +85,7 @@ async function handleDroppedFiles(files: File[]) {
 				statusText.value = `.span restore not yet wired`;
 			} catch (e) {
 				console.error("Failed to read .span file:", e);
-				landingError.value = "Failed to read .span file";
+				statusText.value = "Failed to read .span file";
 			}
 			continue;
 		}
@@ -100,13 +96,14 @@ async function handleDroppedFiles(files: File[]) {
 				const format = name.endsWith(".json") ? "json" : "yaml";
 				const result = parseSpec(text, format);
 				if (Array.isArray(result)) {
-					landingError.value = `Spec errors: ${result.map((e) => e.message).join("; ")}`;
+					console.error("Spec parse errors:", result);
+					statusText.value = `Spec errors: ${result.map((e) => e.message).join("; ")}`;
 				} else {
 					loadSpec(text, format);
 				}
 			} catch (e) {
 				console.error("Failed to read spec file:", e);
-				landingError.value = "Failed to read spec file";
+				statusText.value = "Failed to read spec file";
 			}
 			continue;
 		}
@@ -126,17 +123,11 @@ async function handleDroppedFiles(files: File[]) {
 				});
 			} catch (e) {
 				console.error("Failed to load image:", e);
-				landingError.value = "Failed to load image";
+				statusText.value = "Failed to load image";
 			}
 			continue;
 		}
 	}
-}
-
-// --- Landing screen drop handler ---
-
-function onLandingDrop(files: File[]) {
-	handleDroppedFiles(files);
 }
 
 // --- Global drag-and-drop ---
@@ -288,25 +279,21 @@ onUnmounted(() => {
 
 <template>
 	<div class="app-shell" @contextmenu.prevent>
-		<template v-if="workspaceReady">
-			<div class="dockview-theme-dark dockview-container">
-				<DockviewVue @ready="onReady" />
+		<div class="dockview-theme-dark dockview-container">
+			<DockviewVue @ready="onReady" />
+		</div>
+		<div
+			class="px-3 py-1 border-t text-[11px] font-mono truncate transition-all duration-300 ease-out"
+			:class="
+				statusFlash
+					? 'border-copper/40 bg-copper-glow text-copper-bright'
+					: 'border-border bg-surface-1 text-text-faint'
+			"
+		>
+			<div class="flex justify-between">
+				<span class="truncate">{{ statusText }}</span>
+				<span v-if="!activeSpec" class="text-danger shrink-0">No spec file</span>
 			</div>
-			<div
-				class="px-3 py-1 border-t text-[11px] font-mono truncate transition-all duration-300 ease-out"
-				:class="
-					statusFlash
-						? 'border-copper/40 bg-copper-glow text-copper-bright'
-						: 'border-border bg-surface-1 text-text-faint'
-				"
-			>
-				{{ statusText }}
-			</div>
-		</template>
-		<LandingScreen
-			v-else
-			:external-error="landingError"
-			@drop-files="onLandingDrop"
-		/>
+		</div>
 	</div>
 </template>

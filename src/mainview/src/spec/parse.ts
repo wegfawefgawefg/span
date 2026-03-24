@@ -16,7 +16,7 @@ import { validateSpec } from "./validate";
 import { inferShapeMapping } from "./infer";
 
 const SCALAR_TYPES = new Set<string>([
-	"string", "integer", "number", "boolean", "string[]",
+	"string", "integer", "number", "boolean", "string[]", "ColorHEX",
 ]);
 
 export function parseSpec(

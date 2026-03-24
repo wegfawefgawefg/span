@@ -235,6 +235,29 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 						</select>
 					</label>
 
+					<!-- Color picker (ColorHEX) -->
+					<label
+						v-else-if="def.type === 'ColorHEX'"
+						:class="labelClass"
+					>
+						{{ def.name }}
+						<div class="flex items-center gap-1">
+							<input
+								type="color"
+								:value="annotation.propertyData[def.name] || '#000000'"
+								class="w-6 h-6 p-0 border border-border rounded-sm cursor-pointer"
+								@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
+							/>
+							<input
+								type="text"
+								:value="annotation.propertyData[def.name] ?? ''"
+								placeholder="#000000"
+								class="flex-1 min-w-0"
+								@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
+							/>
+						</div>
+					</label>
+
 					<!-- Number input -->
 					<label
 						v-else-if="

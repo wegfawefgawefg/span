@@ -8,7 +8,8 @@ export type ScalarType =
 	| "number"
 	| "boolean"
 	| "string[]"
-	| "enum";
+	| "enum"
+	| "ColorHEX";
 
 export type PathType = "Path" | "RelativePath";
 
@@ -104,7 +105,7 @@ export interface SpecChange {
 export function defaultForScalar(field: ScalarSpecField): unknown {
 	if (field.type === "enum") return field.enumValues?.[0] ?? "";
 	const defaults: Record<ScalarType, unknown> = {
-		string: "", integer: 0, number: 0, boolean: false, "string[]": [], enum: null,
+		string: "", integer: 0, number: 0, boolean: false, "string[]": [], enum: null, ColorHEX: "",
 	};
 	const d = defaults[field.type];
 	return Array.isArray(d) ? [] : d;

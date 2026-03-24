@@ -5,7 +5,7 @@ import { inferShapeMapping } from "./infer";
 const VALID_SHAPE_TYPES = new Set<string>(["rect", "point", "circle", "polygon"]);
 const VALID_SHAPE_VALUE_TYPES = new Set<string>(["integer", "number"]);
 const VALID_SCALAR_TYPES = new Set<string>([
-	"string", "integer", "number", "boolean", "string[]",
+	"string", "integer", "number", "boolean", "string[]", "ColorHEX",
 ]);
 const LABEL_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -140,7 +140,7 @@ export function validateSpec(raw: unknown): SpecError[] {
 					errors.push({
 						path: fPath,
 						severity: "error",
-						message: `Unknown type "${fieldValue}". Must be one of: string, integer, number, boolean, string[], Path, RelativePath`,
+						message: `Unknown type "${fieldValue}". Must be one of: string, integer, number, boolean, string[], ColorHEX, Path, RelativePath`,
 					});
 				}
 			} else {

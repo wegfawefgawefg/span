@@ -14,6 +14,8 @@ import {
 	updateShapeData,
 	updatePropertyData,
 	markDirty,
+	getPreviewShapeName,
+	setPreviewShape,
 } from "../state";
 import { triggerRef } from "vue";
 
@@ -138,6 +140,13 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 					<span v-if="shape.reference" class="normal-case tracking-normal text-text-faint">
 						relative to {{ shape.reference }}
 					</span>
+					<span
+						v-if="shape.shapeType === 'rect'"
+						class="normal-case tracking-normal cursor-pointer transition-colors"
+						:class="getPreviewShapeName(annotation.entityType) === shape.name ? 'text-copper-bright' : 'text-text-faint hover:text-text-dim'"
+						title="Use this shape for gallery preview"
+						@click.stop="setPreviewShape(annotation.entityType, shape.name)"
+					>⊞</span>
 					<span class="ml-auto text-text-faint">
 						{{ collapsedShapes.has(shape.name) ? "▶" : "▼" }}
 					</span>

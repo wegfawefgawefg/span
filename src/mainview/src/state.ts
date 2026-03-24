@@ -53,6 +53,26 @@ export const imageHeight = ref(0);
 export const activeSpec = ref<SpanSpec | null>(null);
 export const activeTool = ref<string>("");
 
+// Per-entity preview shape override (entityLabel → shapeName)
+// Used by GalleryPanel to know which shape to clip for thumbnails
+export const previewShapeOverride = ref<Record<string, string>>({});
+
+/** Get the preview shape name for an entity. Returns override if set, else first rect shape. */
+export function getPreviewShapeName(entityLabel: string): string | null {
+	const override = previewShapeOverride.value[entityLabel];
+	if (override) return override;
+	const spec = activeSpec.value;
+	if (!spec) return null;
+	const entity = getEntityByLabel(spec, entityLabel);
+	if (!entity) return null;
+	const firstRect = getShapesForEntity(entity).find(s => s.shapeType === "rect");
+	return firstRect?.name ?? null;
+}
+
+export function setPreviewShape(entityLabel: string, shapeName: string) {
+	previewShapeOverride.value = { ...previewShapeOverride.value, [entityLabel]: shapeName };
+}
+
 // --- Derived ---
 
 /** Annotations for the current sheet (read-only computed). Mutate via currentSheet.value.annotations directly. */

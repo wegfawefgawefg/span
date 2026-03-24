@@ -8,9 +8,10 @@ import {
 	openSheetByPath,
 	selectAnnotation,
 	activeSpec,
+	getPreviewShapeName,
 } from "../state";
 import { getShapeRect } from "../annotation";
-import { getEntityByLabel, getShapesForEntity } from "../spec/types";
+import { getEntityByLabel } from "../spec/types";
 import { api } from "../platform/adapter";
 import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
 import ContextMenu from "./ContextMenu.vue";
@@ -42,10 +43,7 @@ let galleryTimer: number | null = null;
 const canvasRefs = ref<Map<string, HTMLCanvasElement>>(new Map());
 
 const isRectEntity = (ann: Annotation): boolean => {
-	if (!activeSpec.value) return false;
-	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
-	if (!entity) return false;
-	return getShapesForEntity(entity).some((s) => s.shapeType === "rect");
+	return getPreviewShapeName(ann.entityType) !== null;
 };
 
 function getAnnotationName(ann: Annotation): string {
@@ -131,12 +129,10 @@ const groups = computed<SpriteGroup[]>(() => {
 			if (a.sheetFile !== b.sheetFile)
 				return a.sheetFile.localeCompare(b.sheetFile);
 			const spec = activeSpec.value!;
-			const entityA = getEntityByLabel(spec, a.annotation.entityType);
-			const firstRectA = entityA ? getShapesForEntity(entityA).find(s => s.shapeType === "rect")?.name : undefined;
-			const entityB = getEntityByLabel(spec, b.annotation.entityType);
-			const firstRectB = entityB ? getShapesForEntity(entityB).find(s => s.shapeType === "rect")?.name : undefined;
-			const ra = firstRectA ? getShapeRect(a.annotation, spec, firstRectA) : null;
-			const rb = firstRectB ? getShapeRect(b.annotation, spec, firstRectB) : null;
+			const previewA = getPreviewShapeName(a.annotation.entityType);
+			const previewB = getPreviewShapeName(b.annotation.entityType);
+			const ra = previewA ? getShapeRect(a.annotation, spec, previewA) : null;
+			const rb = previewB ? getShapeRect(b.annotation, spec, previewB) : null;
 			if (ra && rb) {
 				if (ra.y !== rb.y) return ra.y - rb.y;
 				return ra.x - rb.x;
@@ -158,10 +154,9 @@ const groups = computed<SpriteGroup[]>(() => {
 function getFirstFrameRect(group: SpriteGroup): { width: number; height: number } | null {
 	const first = group.frames[0];
 	if (!first || !activeSpec.value) return null;
-	const entity = getEntityByLabel(activeSpec.value, first.annotation.entityType);
-	const firstRectName = entity ? getShapesForEntity(entity).find(s => s.shapeType === "rect")?.name : undefined;
-	if (!firstRectName) return null;
-	return getShapeRect(first.annotation, activeSpec.value, firstRectName);
+	const previewName = getPreviewShapeName(first.annotation.entityType);
+	if (!previewName) return null;
+	return getShapeRect(first.annotation, activeSpec.value, previewName);
 }
 
 function loadImage(sheetFile: string): Promise<HTMLImageElement> {
@@ -181,10 +176,9 @@ function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 
 function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 	if (!activeSpec.value) return;
-	const entity = getEntityByLabel(activeSpec.value, frame.annotation.entityType);
-	const firstRectName = entity ? getShapesForEntity(entity).find(s => s.shapeType === "rect")?.name : undefined;
-	if (!firstRectName) return;
-	const rect = getShapeRect(frame.annotation, activeSpec.value, firstRectName);
+	const previewName = getPreviewShapeName(frame.annotation.entityType);
+	if (!previewName) return;
+	const rect = getShapeRect(frame.annotation, activeSpec.value, previewName);
 	if (!rect) return;
 
 	const w = Math.max(1, rect.width);

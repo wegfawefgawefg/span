@@ -22,7 +22,9 @@ export default function consoleForward(): Plugin {
 		apply: "serve",
 
 		configureServer(server) {
-			server.ws.on("console-forward", (data: { level: string; args: unknown[] }) => {
+			// Vite 6 uses server.hot, Vite 5 used server.ws
+			const channel = server.hot ?? (server as any).ws;
+			channel.on("console-forward", (data: { level: string; args: unknown[] }) => {
 				const color = LEVEL_COLORS[data.level] ?? "";
 				const tag = `${color}${data.level.toUpperCase()}${RESET}`;
 				console.log(`${LABEL} ${tag} ${formatArgs(data.args)}`);

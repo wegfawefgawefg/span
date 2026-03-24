@@ -347,6 +347,131 @@ textarea {
 	background: var(--color-copper);
 }
 
+/* --- Point annotations --- */
+
+.annotation-point {
+	position: absolute;
+	width: 16px;
+	height: 16px;
+	margin-left: -8px;
+	margin-top: -8px;
+	cursor: grab;
+	touch-action: none;
+}
+
+.annotation-point::before,
+.annotation-point::after {
+	content: "";
+	position: absolute;
+	background: var(--color-copper);
+	border-radius: 1px;
+}
+
+.annotation-point::before {
+	left: 7px;
+	top: 2px;
+	width: 2px;
+	height: 12px;
+}
+
+.annotation-point::after {
+	left: 2px;
+	top: 7px;
+	width: 12px;
+	height: 2px;
+}
+
+.annotation-point.selected::before,
+.annotation-point.selected::after {
+	background: var(--color-copper-bright);
+	box-shadow: 0 0 6px var(--color-copper-glow);
+}
+
+/* --- Circle annotations --- */
+
+.annotation-circle {
+	position: absolute;
+	border: 1.5px solid var(--color-copper);
+	border-radius: 50%;
+	background: var(--color-copper-glow);
+	cursor: grab;
+	touch-action: none;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.annotation-circle.selected {
+	border-color: var(--color-copper-bright);
+	background: var(--color-copper-glow-strong);
+	box-shadow: 0 0 16px var(--color-copper-glow);
+}
+
+/* --- Polygon annotations --- */
+
+.annotation-polygon {
+	position: absolute;
+	pointer-events: none;
+}
+
+.annotation-polygon svg {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+.annotation-polygon polygon,
+.annotation-polygon polyline {
+	fill: var(--color-copper-glow);
+	stroke: var(--color-copper);
+	stroke-width: 1.5;
+	cursor: grab;
+	pointer-events: all;
+}
+
+.annotation-polygon.selected polygon,
+.annotation-polygon.selected polyline {
+	fill: var(--color-copper-glow-strong);
+	stroke: var(--color-copper-bright);
+}
+
+.vertex-handle {
+	position: absolute;
+	width: 8px;
+	height: 8px;
+	margin-left: -4px;
+	margin-top: -4px;
+	background: var(--color-copper-bright);
+	border: 1px solid rgba(0, 0, 0, 0.5);
+	border-radius: 50%;
+	cursor: move;
+	pointer-events: all;
+	transition: transform 0.1s ease;
+}
+
+.vertex-handle:hover {
+	transform: scale(1.3);
+}
+
+/* --- Radius handle (for circles) --- */
+
+.radius-handle {
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	margin-left: -5px;
+	margin-top: -5px;
+	border: 1px solid rgba(0, 0, 0, 0.5);
+	background: var(--color-copper-bright);
+	border-radius: 50%;
+	cursor: ew-resize;
+	transition: transform 0.1s ease;
+}
+
+.radius-handle:hover {
+	transform: scale(1.3);
+}
+
 /* --- Respect reduced motion --- */
 
 @media (prefers-reduced-motion: reduce) {

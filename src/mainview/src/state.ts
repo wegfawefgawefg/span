@@ -2,6 +2,7 @@ import { computed, ref, watch } from "vue";
 import type { Annotation } from "./annotation";
 import { createAnnotation, duplicateAnnotation, clampToImage } from "./annotation";
 import type { SpanSpec } from "./spec/types";
+import { getEntityByLabel } from "./spec/types";
 import { parseSpec } from "./spec/parse";
 import { api, platform } from "./platform/adapter";
 import {
@@ -155,7 +156,7 @@ export function addAnnotation(x: number = 0, y: number = 0) {
 	const spec = activeSpec.value;
 	const tool = activeTool.value;
 	const sheet = currentSheet.value;
-	if (!spec || !tool || !spec.entities[tool] || !sheet) return;
+	if (!spec || !tool || !getEntityByLabel(spec, tool) || !sheet) return;
 
 	const annotation = createAnnotation(spec, tool, { x, y });
 	sheet.annotations.push(annotation);
@@ -184,10 +185,12 @@ export function deleteSelected() {
 	markDirty(true);
 }
 
-export function updateShapeData(patch: Record<string, number>) {
+export function updateShapeData(shapeName: string, patch: Record<string, number>) {
 	const ann = selectedAnnotation.value;
 	if (!ann) return;
-	Object.assign(ann.shapeData, patch);
+	const shapeData = ann.shapes[shapeName];
+	if (!shapeData) return;
+	Object.assign(shapeData, patch);
 	markDirty(true);
 }
 
@@ -220,9 +223,8 @@ export function loadSpec(raw: string, format: "json" | "yaml") {
 	}
 	activeSpec.value = result;
 	// Set first entity as active tool
-	const entityNames = Object.keys(result.entities);
-	if (entityNames.length > 0) {
-		activeTool.value = entityNames[0];
+	if (result.entities.length > 0) {
+		activeTool.value = result.entities[0].label;
 	}
 	statusText.value = "Spec loaded";
 }
@@ -236,7 +238,8 @@ export async function exportWorkspace() {
 		return;
 	}
 
-	const output = exportToString(sheets.value, spec, effectiveRoot.value);
+	const allAnnotations = sheets.value.flatMap((s) => s.annotations);
+	const output = exportToString(allAnnotations, spec, effectiveRoot.value);
 
 	const ext = spec.format === "yaml" ? "yaml" : "json";
 	const defaultName = `annotations.${ext}`;

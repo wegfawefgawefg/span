@@ -7,7 +7,6 @@ import {
 	getEntityByLabel,
 	getShapesForEntity,
 	getScalarsForEntity,
-	getPathFieldForEntity,
 } from "../spec/types";
 import {
 	annotations,
@@ -199,7 +198,7 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 			<span class="text-[10px] font-medium text-text-faint uppercase tracking-wider">
 				Properties
 			</span>
-			<div class="grid grid-cols-2 gap-2">
+			<div class="flex flex-col gap-2">
 				<template
 					v-for="def in getScalarsForEntity(getEntityByLabel(spec, annotation.entityType)!)"
 					:key="def.name"
@@ -253,13 +252,18 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 						:class="labelClass"
 					>
 						{{ def.name }}
-						<div class="flex items-center gap-1">
-							<input
-								type="color"
-								:value="annotation.propertyData[def.name] || '#000000'"
-								class="w-6 h-6 p-0 border border-border rounded-sm cursor-pointer"
-								@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
-							/>
+						<div class="flex items-center gap-1.5">
+							<span
+								class="w-7 h-7 shrink-0 rounded-sm border border-border cursor-pointer relative overflow-hidden"
+								:style="{ backgroundColor: annotation.propertyData[def.name] || '#000000' }"
+							>
+								<input
+									type="color"
+									:value="annotation.propertyData[def.name] || '#000000'"
+									class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+									@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
+								/>
+							</span>
 							<input
 								type="text"
 								:value="annotation.propertyData[def.name] ?? ''"
@@ -318,23 +322,5 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 			</div>
 		</div>
 
-		<!-- Path fields (read-only) -->
-		<div
-			v-if="getEntityByLabel(spec, annotation.entityType) && getPathFieldForEntity(getEntityByLabel(spec, annotation.entityType)!)"
-			class="flex flex-col gap-2"
-		>
-			<span class="text-[10px] font-medium text-text-faint uppercase tracking-wider">
-				Path
-			</span>
-			<label :class="labelClass">
-				{{ getPathFieldForEntity(getEntityByLabel(spec, annotation.entityType)!)!.name }}
-				<input
-					type="text"
-					readonly
-					:value="String(annotation.propertyData[getPathFieldForEntity(getEntityByLabel(spec, annotation.entityType)!)!.name] ?? '')"
-					class="opacity-60 cursor-default"
-				/>
-			</label>
-		</div>
-	</form>
+		</form>
 </template>

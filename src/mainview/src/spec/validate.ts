@@ -151,6 +151,56 @@ export function validateSpec(raw: unknown): SpecError[] {
 				});
 			}
 		}
+
+		// Validate __reference fields within shape properties
+		const shapeNames: string[] = [];
+		for (const [fieldName, fieldValue] of Object.entries(properties)) {
+			if (typeof fieldValue === "object" && fieldValue !== null && !Array.isArray(fieldValue)) {
+				const obj = fieldValue as Record<string, unknown>;
+				if ("__shape" in obj) {
+					shapeNames.push(fieldName);
+				}
+			}
+		}
+
+		for (const [fieldName, fieldValue] of Object.entries(properties)) {
+			if (typeof fieldValue !== "object" || fieldValue === null || Array.isArray(fieldValue)) continue;
+			const obj = fieldValue as Record<string, unknown>;
+			if (!("__shape" in obj) || !("__reference" in obj)) continue;
+
+			const fPath = `${ePath}.properties.${fieldName}`;
+			const ref = obj.__reference;
+
+			if (typeof ref !== "string") {
+				errors.push({ path: `${fPath}.__reference`, severity: "error", message: `__reference must be a string` });
+				continue;
+			}
+
+			// Self-reference
+			if (ref === fieldName) {
+				errors.push({ path: `${fPath}.__reference`, severity: "error", message: `Shape "${fieldName}" cannot reference itself` });
+				continue;
+			}
+
+			// Target must exist as a shape in this entity
+			if (!shapeNames.includes(ref)) {
+				errors.push({ path: `${fPath}.__reference`, severity: "error", message: `Reference target "${ref}" is not a shape in this entity` });
+				continue;
+			}
+
+			// Forward-only: target must appear before this shape in spec order
+			const targetIndex = shapeNames.indexOf(ref);
+			const selfIndex = shapeNames.indexOf(fieldName);
+			if (targetIndex >= selfIndex) {
+				errors.push({ path: `${fPath}.__reference`, severity: "error", message: `Reference target "${ref}" must appear before "${fieldName}" in spec order` });
+				continue;
+			}
+
+			// Polygon cannot have __reference
+			if (obj.__shape === "polygon") {
+				errors.push({ path: `${fPath}.__reference`, severity: "error", message: `Polygon shapes cannot use __reference` });
+			}
+		}
 	}
 
 	return errors;
@@ -173,7 +223,7 @@ function validateShapeField(
 	}
 
 	// Extract shape fields (everything except __shape)
-	const shapeFieldEntries = Object.entries(obj).filter(([k]) => k !== "__shape");
+	const shapeFieldEntries = Object.entries(obj).filter(([k]) => k !== "__shape" && k !== "__reference");
 	const expectedCount = EXPECTED_SHAPE_FIELDS[shapeType];
 
 	if (shapeFieldEntries.length !== expectedCount) {

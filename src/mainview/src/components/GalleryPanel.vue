@@ -10,6 +10,7 @@ import {
 	activeSpec,
 } from "../state";
 import { getShapeRect } from "../annotation";
+import { getEntityByLabel, getShapesForEntity } from "../spec/types";
 import { api } from "../platform/adapter";
 import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
 import ContextMenu from "./ContextMenu.vue";
@@ -42,32 +43,34 @@ const canvasRefs = ref<Map<string, HTMLCanvasElement>>(new Map());
 
 const isRectEntity = (ann: Annotation): boolean => {
 	if (!activeSpec.value) return false;
-	const entity = activeSpec.value.entities[ann.entityType];
-	return entity?.shape.type === "rect";
+	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
+	if (!entity) return false;
+	return getShapesForEntity(entity).some((s) => s.shapeType === "rect");
 };
 
 function getAnnotationName(ann: Annotation): string {
 	if (!activeSpec.value) return "";
-	const entity = activeSpec.value.entities[ann.entityType];
+	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return "";
-	const firstString = entity.properties.find(p => p.type === "string");
+	const firstString = entity.fields.find(f => f.kind === "scalar" && f.type === "string");
 	return firstString ? (ann.propertyData[firstString.name] as string ?? "") : "";
 }
 
 function getFrameValue(ann: Annotation): number {
 	if (!activeSpec.value) return 0;
-	const entity = activeSpec.value.entities[ann.entityType];
+	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return 0;
-	const frameProp = entity.properties.find(p => p.name === "frame" && (p.type === "integer" || p.type === "number"))
-		?? entity.properties.find(p => p.type === "integer" || p.type === "number");
+	const scalars = entity.fields.filter(f => f.kind === "scalar");
+	const frameProp = scalars.find(f => f.kind === "scalar" && f.name === "frame" && (f.type === "integer" || f.type === "number"))
+		?? scalars.find(f => f.kind === "scalar" && (f.type === "integer" || f.type === "number"));
 	return frameProp ? (ann.propertyData[frameProp.name] as number ?? 0) : 0;
 }
 
 function getChromaKey(ann: Annotation): string | undefined {
 	if (!activeSpec.value) return undefined;
-	const entity = activeSpec.value.entities[ann.entityType];
+	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return undefined;
-	const chromaProp = entity.properties.find(p => p.name === "chroma_key");
+	const chromaProp = entity.fields.find(f => f.name === "chroma_key");
 	if (!chromaProp) return undefined;
 	return ann.propertyData["chroma_key"] as string | undefined;
 }
@@ -76,10 +79,10 @@ function groupKey(ann: Annotation): string {
 	const name = getAnnotationName(ann).trim();
 	// Build extra grouping fields: all string properties except the first (name)
 	if (!activeSpec.value) return [ann.entityType, name].join("|");
-	const entity = activeSpec.value.entities[ann.entityType];
+	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return [ann.entityType, name].join("|");
-	const stringProps = entity.properties.filter(p => p.type === "string");
-	const extraFields = stringProps.slice(1).map(p => (ann.propertyData[p.name] as string ?? "").trim());
+	const stringFields = entity.fields.filter(f => f.kind === "scalar" && f.type === "string");
+	const extraFields = stringFields.slice(1).map(f => (ann.propertyData[f.name] as string ?? "").trim());
 	return [ann.entityType, name, ...extraFields].join("|");
 }
 
@@ -127,8 +130,13 @@ const groups = computed<SpriteGroup[]>(() => {
 			if (fd !== 0) return fd;
 			if (a.sheetFile !== b.sheetFile)
 				return a.sheetFile.localeCompare(b.sheetFile);
-			const ra = getShapeRect(a.annotation, activeSpec.value!);
-			const rb = getShapeRect(b.annotation, activeSpec.value!);
+			const spec = activeSpec.value!;
+			const entityA = getEntityByLabel(spec, a.annotation.entityType);
+			const firstRectA = entityA ? getShapesForEntity(entityA).find(s => s.shapeType === "rect")?.name : undefined;
+			const entityB = getEntityByLabel(spec, b.annotation.entityType);
+			const firstRectB = entityB ? getShapesForEntity(entityB).find(s => s.shapeType === "rect")?.name : undefined;
+			const ra = firstRectA ? getShapeRect(a.annotation, spec, firstRectA) : null;
+			const rb = firstRectB ? getShapeRect(b.annotation, spec, firstRectB) : null;
 			if (ra && rb) {
 				if (ra.y !== rb.y) return ra.y - rb.y;
 				return ra.x - rb.x;
@@ -150,7 +158,10 @@ const groups = computed<SpriteGroup[]>(() => {
 function getFirstFrameRect(group: SpriteGroup): { width: number; height: number } | null {
 	const first = group.frames[0];
 	if (!first || !activeSpec.value) return null;
-	return getShapeRect(first.annotation, activeSpec.value);
+	const entity = getEntityByLabel(activeSpec.value, first.annotation.entityType);
+	const firstRectName = entity ? getShapesForEntity(entity).find(s => s.shapeType === "rect")?.name : undefined;
+	if (!firstRectName) return null;
+	return getShapeRect(first.annotation, activeSpec.value, firstRectName);
 }
 
 function loadImage(sheetFile: string): Promise<HTMLImageElement> {
@@ -170,7 +181,10 @@ function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 
 function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 	if (!activeSpec.value) return;
-	const rect = getShapeRect(frame.annotation, activeSpec.value);
+	const entity = getEntityByLabel(activeSpec.value, frame.annotation.entityType);
+	const firstRectName = entity ? getShapesForEntity(entity).find(s => s.shapeType === "rect")?.name : undefined;
+	if (!firstRectName) return;
+	const rect = getShapeRect(frame.annotation, activeSpec.value, firstRectName);
 	if (!rect) return;
 
 	const w = Math.max(1, rect.width);

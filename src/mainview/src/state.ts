@@ -1,6 +1,9 @@
 import { computed, ref, triggerRef } from "vue";
-import type { Annotation, Sheet, SheetWithAnnotations } from "./types";
-import { makeId, normalizeAnnotation } from "./types";
+import type { Sheet, SheetWithAnnotations } from "./types";
+import type { Annotation } from "./annotation";
+import { createAnnotation, duplicateAnnotation, clampToImage, getShapePosition } from "./annotation";
+import type { SpanSpec } from "./spec/types";
+import { makeId } from "./types";
 import { api } from "./platform/adapter";
 
 export const ZOOM_MIN = 0.1;
@@ -18,11 +21,13 @@ export const annotations = ref<Annotation[]>([]);
 export const selectedId = ref<string | null>(null);
 export const zoom = ref(2);
 export const dirty = ref(false);
-export const colorPickArmed = ref(false);
 export const statusText = ref("Loading sheets\u2026");
 export const currentSheetImageSrc = ref<string>("");
 export const imageWidth = ref(0);
 export const imageHeight = ref(0);
+
+export const activeSpec = ref<SpanSpec | null>(null);
+export const activeTool = ref<string>("");
 
 // --- Derived ---
 
@@ -53,7 +58,6 @@ export function addAnnotationAtViewportCenter() {
 
 export function selectAnnotation(id: string | null) {
 	selectedId.value = id;
-	colorPickArmed.value = false;
 }
 
 export function markDirty(isDirty: boolean) {
@@ -70,9 +74,7 @@ function syncCurrentSheetIntoProject() {
 	if (!sheet) return;
 	const record = projectSheets.value.find((s) => s.file === sheet.file);
 	if (!record) return;
-	record.annotations = annotations.value.map((a) =>
-		normalizeAnnotation(a as unknown as Record<string, unknown>),
-	);
+	record.annotations = [...annotations.value];
 	// Force Vue to notice the deep mutation so gallery recomputes
 	triggerRef(projectSheets);
 }
@@ -82,12 +84,7 @@ export async function loadProjectData() {
 	const prevFile = currentSheet.value?.file ?? null;
 	const prevSelection = selectedId.value;
 	const result = await api.getProjectAnnotations();
-	projectSheets.value = result.map((s) => ({
-		...s,
-		annotations: s.annotations.map((a) =>
-			normalizeAnnotation(a as unknown as Record<string, unknown>),
-		),
-	}));
+	projectSheets.value = result.map((s) => ({ ...s }));
 
 	if (prevFile && projectSheets.value.some((s) => s.file === prevFile)) {
 		await openSheet(prevFile, prevSelection);
@@ -110,9 +107,7 @@ export async function openSheet(
 	if (!record) return;
 
 	currentSheet.value = record;
-	annotations.value = record.annotations.map((a) =>
-		normalizeAnnotation(a as unknown as Record<string, unknown>),
-	);
+	annotations.value = [...record.annotations];
 	selectedId.value =
 		selectId && annotations.value.some((a) => a.id === selectId)
 			? selectId
@@ -122,29 +117,12 @@ export async function openSheet(
 	currentSheetImageSrc.value = await api.getSheetImage(file);
 }
 
-export function addAnnotation(
-	viewportCenterX: number = 0,
-	viewportCenterY: number = 0,
-) {
-	const w = Math.min(16, imageWidth.value || 16);
-	const h = Math.min(16, imageHeight.value || 16);
-	const x = Math.max(0, Math.round(viewportCenterX - w / 2));
-	const y = Math.max(0, Math.round(viewportCenterY - h / 2));
-	const annotation: Annotation = {
-		id: makeId(),
-		name: "new_sprite",
-		type: "sprite",
-		frame: 0,
-		x,
-		y,
-		width: w,
-		height: h,
-		direction: "",
-		variant: "",
-		chroma_key: "",
-		tags: "",
-		notes: "",
-	};
+export function addAnnotation(x: number = 0, y: number = 0) {
+	const spec = activeSpec.value;
+	const tool = activeTool.value;
+	if (!spec || !tool || !spec.entities[tool]) return;
+
+	const annotation = createAnnotation(spec, tool, { x, y });
 	annotations.value.push(annotation);
 	selectedId.value = annotation.id;
 	markDirty(true);
@@ -153,14 +131,9 @@ export function addAnnotation(
 
 export function duplicateSelected() {
 	const ann = selectedAnnotation.value;
-	if (!ann) return;
-	const copy: Annotation = {
-		...ann,
-		id: makeId(),
-		frame: ann.frame + 1,
-		x: ann.x + 4,
-		y: ann.y + 4,
-	};
+	const spec = activeSpec.value;
+	if (!ann || !spec) return;
+	const copy = duplicateAnnotation(ann, spec);
 	annotations.value.push(copy);
 	selectedId.value = copy.id;
 	markDirty(true);
@@ -177,10 +150,19 @@ export function deleteSelected() {
 	syncCurrentSheetIntoProject();
 }
 
-export function updateSelectedAnnotation(patch: Partial<Annotation>) {
+export function updateShapeData(patch: Record<string, number>) {
 	const ann = selectedAnnotation.value;
 	if (!ann) return;
-	Object.assign(ann, patch);
+	Object.assign(ann.shapeData, patch);
+	markDirty(true);
+	triggerRef(annotations);
+	syncCurrentSheetIntoProject();
+}
+
+export function updatePropertyData(patch: Record<string, unknown>) {
+	const ann = selectedAnnotation.value;
+	if (!ann) return;
+	Object.assign(ann.propertyData, patch);
 	markDirty(true);
 	triggerRef(annotations);
 	syncCurrentSheetIntoProject();
@@ -203,16 +185,7 @@ export function clampAnnotationToImage(
 	imgW: number = imageWidth.value,
 	imgH: number = imageHeight.value,
 ) {
-	annotation.frame = Math.max(0, Math.round(annotation.frame));
-	annotation.x = Math.max(0, Math.round(annotation.x));
-	annotation.y = Math.max(0, Math.round(annotation.y));
-	annotation.width = Math.max(1, Math.round(annotation.width));
-	annotation.height = Math.max(1, Math.round(annotation.height));
-	annotation.width = Math.min(annotation.width, imgW);
-	annotation.height = Math.min(annotation.height, imgH);
-	annotation.x = Math.min(annotation.x, Math.max(0, imgW - annotation.width));
-	annotation.y = Math.min(
-		annotation.y,
-		Math.max(0, imgH - annotation.height),
-	);
+	const spec = activeSpec.value;
+	if (!spec) return;
+	clampToImage(annotation, spec, imgW, imgH);
 }

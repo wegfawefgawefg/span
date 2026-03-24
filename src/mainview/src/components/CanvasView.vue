@@ -3,6 +3,11 @@ import { ref, computed, onMounted, onUnmounted } from "vue";
 import type { Annotation } from "../annotation";
 import { getShapeRect, getShapePosition } from "../annotation";
 import {
+	getEntityByLabel,
+	getShapesForEntity,
+} from "../spec/types";
+import type { ShapeSpecField } from "../spec/types";
+import {
 	zoom,
 	annotations,
 	selectedId,
@@ -148,50 +153,76 @@ function handleZoomOut() {
 	zoomTo(zoom.value - ZOOM_STEP, scroller.value!, stage.value!);
 }
 
-// --- Shape type helpers ---
+// --- Multi-shape helpers ---
 
-function getShapeType(annotation: Annotation): string | null {
-	if (!activeSpec.value) return null;
-	const entity = activeSpec.value.entities[annotation.entityType];
-	return entity?.shape.type ?? null;
+interface ShapeRenderInfo {
+	annotation: Annotation;
+	shapeName: string;
+	shapeField: ShapeSpecField;
+	shapeIndex: number;
+	isPrimary: boolean;
 }
 
-function getAnnotationRect(annotation: Annotation) {
-	if (!activeSpec.value) return null;
-	return getShapeRect(annotation, activeSpec.value);
+function getShapesForAnnotation(annotation: Annotation): ShapeRenderInfo[] {
+	if (!activeSpec.value) return [];
+	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
+	if (!entity) return [];
+	const shapes = getShapesForEntity(entity);
+	const primaryName = shapes.length > 0 ? shapes[0].name : null;
+	return shapes.map((sf, index) => ({
+		annotation,
+		shapeName: sf.name,
+		shapeField: sf,
+		shapeIndex: index,
+		isPrimary: sf.name === primaryName,
+	}));
 }
 
-function getAnnotationPosition(annotation: Annotation) {
-	if (!activeSpec.value) return null;
-	return getShapePosition(annotation, activeSpec.value);
-}
-
-function getCircleRadius(annotation: Annotation): number {
-	if (!activeSpec.value) return 0;
-	const entity = activeSpec.value.entities[annotation.entityType];
-	const mapping = entity?.shape.mapping;
-	if (!mapping || mapping.type !== "circle") return 0;
-	return (annotation.shapeData[mapping.radius] as number) ?? 0;
+function shapeColorClass(shapeIndex: number): string {
+	if (shapeIndex === 0) return "";
+	return `shape-color-${shapeIndex}`;
 }
 
 // --- Annotation display helpers ---
 
 function getAnnotationLabel(annotation: Annotation): string {
 	if (!activeSpec.value) return annotation.entityType;
-	const entity = activeSpec.value.entities[annotation.entityType];
+	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
 	if (!entity) return annotation.entityType;
-	// Use first string property as display name
-	const firstStringProp = entity.properties.find((p) => p.type === "string");
-	if (firstStringProp) {
-		const val = annotation.propertyData[firstStringProp.name];
-		if (val && typeof val === "string") return val;
+	// Use first string scalar property as display name
+	for (const field of entity.fields) {
+		if (field.kind === "scalar" && field.type === "string") {
+			const val = annotation.propertyData[field.name];
+			if (val && typeof val === "string") return val;
+		}
 	}
 	return annotation.entityType;
 }
 
+// --- Shape geometry helpers ---
+
+function getShapeRectForShape(annotation: Annotation, shapeName: string) {
+	if (!activeSpec.value) return null;
+	return getShapeRect(annotation, activeSpec.value, shapeName);
+}
+
+function getShapePositionForShape(annotation: Annotation, shapeName: string) {
+	if (!activeSpec.value) return null;
+	return getShapePosition(annotation, activeSpec.value, shapeName);
+}
+
+function getCircleRadiusForShape(annotation: Annotation, shapeName: string): number {
+	if (!activeSpec.value) return 0;
+	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
+	if (!entity) return 0;
+	const sf = getShapesForEntity(entity).find((s) => s.name === shapeName);
+	if (!sf?.mapping || sf.mapping.type !== "circle") return 0;
+	return annotation.shapes[shapeName]?.[sf.mapping.radius] ?? 0;
+}
+
 // --- Box (rect) handlers ---
 
-function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {
+function handleShapePointerDown(event: PointerEvent, annotation: Annotation, shapeName: string) {
 	if (isPanning.value || spaceHeld.value) return;
 	event.preventDefault();
 	event.stopPropagation();
@@ -205,17 +236,7 @@ function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {
 		duplicateSelected();
 		const copy = selectedAnnotation.value;
 		if (copy) {
-			// Reset copy position to match original for "pull off a clone" feel
-			const spec = activeSpec.value;
-			if (spec) {
-				const entity = spec.entities[annotation.entityType];
-				const mapping = entity?.shape.mapping;
-				if (mapping && (mapping.type === "rect" || mapping.type === "point" || mapping.type === "circle")) {
-					copy.shapeData[mapping.x] = annotation.shapeData[mapping.x];
-					copy.shapeData[mapping.y] = annotation.shapeData[mapping.y];
-				}
-			}
-			startDrag(event, copy, "move");
+			startDrag(event, copy, shapeName, "move");
 			const box = event.currentTarget as HTMLElement;
 			box.setPointerCapture(event.pointerId);
 		}
@@ -223,7 +244,7 @@ function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {
 	}
 
 	selectAnnotation(annotation.id);
-	startDrag(event, annotation, isResize ? "resize" : "move");
+	startDrag(event, annotation, shapeName, isResize ? "resize" : "move");
 
 	const box = event.currentTarget as HTMLElement;
 	box.setPointerCapture(event.pointerId);
@@ -231,13 +252,13 @@ function handleBoxPointerDown(event: PointerEvent, annotation: Annotation) {
 
 // --- Circle radius drag handler ---
 
-function handleRadiusPointerDown(event: PointerEvent, annotation: Annotation) {
+function handleRadiusPointerDown(event: PointerEvent, annotation: Annotation, shapeName: string) {
 	if (isPanning.value || spaceHeld.value) return;
 	event.preventDefault();
 	event.stopPropagation();
 
 	selectAnnotation(annotation.id);
-	startDrag(event, annotation, "radius");
+	startDrag(event, annotation, shapeName, "radius");
 
 	const el = event.currentTarget as HTMLElement;
 	el.setPointerCapture(event.pointerId);
@@ -259,7 +280,7 @@ function handleLayerPointerDown(event: PointerEvent) {
 	// Click-to-create: guard behind activeSpec and activeTool
 	if (!activeSpec.value || !activeTool.value) return;
 
-	const entity = activeSpec.value.entities[activeTool.value];
+	const entity = getEntityByLabel(activeSpec.value, activeTool.value);
 	if (!entity) return;
 
 	const stageEl = stage.value;
@@ -268,7 +289,11 @@ function handleLayerPointerDown(event: PointerEvent) {
 	const x = Math.round((event.clientX - rect.left) / zoom.value);
 	const y = Math.round((event.clientY - rect.top) / zoom.value);
 
-	const shapeType = entity.shape.type;
+	const shapes = getShapesForEntity(entity);
+	if (shapes.length === 0) return;
+
+	const primaryShape = shapes[0];
+	const shapeType = primaryShape.shapeType;
 
 	if (shapeType === "point") {
 		// Single click creates point annotation
@@ -282,7 +307,7 @@ function handleLayerPointerDown(event: PointerEvent) {
 		addAnnotation(x, y);
 		const ann = selectedAnnotation.value;
 		if (ann) {
-			startDrag(event, ann, shapeType === "rect" ? "resize" : "radius");
+			startDrag(event, ann, primaryShape.name, shapeType === "rect" ? "resize" : "radius");
 			stageEl.setPointerCapture(event.pointerId);
 		}
 	}
@@ -301,34 +326,34 @@ function handleLayerPointerUp(event: PointerEvent) {
 
 // --- Style helpers ---
 
-function boxStyle(annotation: Annotation, index: number) {
+function boxStyle(annotation: Annotation, shapeName: string, annIndex: number) {
 	const isSelected = annotation.id === selectedId.value;
-	const rect = getAnnotationRect(annotation);
+	const rect = getShapeRectForShape(annotation, shapeName);
 	if (!rect) return {};
 	return {
 		left: `${rect.x * zoom.value}px`,
 		top: `${rect.y * zoom.value}px`,
 		width: `${rect.width * zoom.value}px`,
 		height: `${rect.height * zoom.value}px`,
-		zIndex: isSelected ? annotations.value.length + 10 : index + 1,
+		zIndex: isSelected ? annotations.value.length + 10 : annIndex + 1,
 	};
 }
 
-function pointStyle(annotation: Annotation, index: number) {
+function pointStyle(annotation: Annotation, shapeName: string, annIndex: number) {
 	const isSelected = annotation.id === selectedId.value;
-	const pos = getAnnotationPosition(annotation);
+	const pos = getShapePositionForShape(annotation, shapeName);
 	if (!pos) return {};
 	return {
 		left: `${pos.x * zoom.value}px`,
 		top: `${pos.y * zoom.value}px`,
-		zIndex: isSelected ? annotations.value.length + 10 : index + 1,
+		zIndex: isSelected ? annotations.value.length + 10 : annIndex + 1,
 	};
 }
 
-function circleStyle(annotation: Annotation, index: number) {
+function circleStyle(annotation: Annotation, shapeName: string, annIndex: number) {
 	const isSelected = annotation.id === selectedId.value;
-	const pos = getAnnotationPosition(annotation);
-	const r = getCircleRadius(annotation);
+	const pos = getShapePositionForShape(annotation, shapeName);
+	const r = getCircleRadiusForShape(annotation, shapeName);
 	if (!pos) return {};
 	const diameter = r * 2 * zoom.value;
 	return {
@@ -336,13 +361,13 @@ function circleStyle(annotation: Annotation, index: number) {
 		top: `${(pos.y - r) * zoom.value}px`,
 		width: `${diameter}px`,
 		height: `${diameter}px`,
-		zIndex: isSelected ? annotations.value.length + 10 : index + 1,
+		zIndex: isSelected ? annotations.value.length + 10 : annIndex + 1,
 	};
 }
 
-function radiusHandleStyle(annotation: Annotation) {
-	const pos = getAnnotationPosition(annotation);
-	const r = getCircleRadius(annotation);
+function radiusHandleStyle(annotation: Annotation, shapeName: string) {
+	const pos = getShapePositionForShape(annotation, shapeName);
+	const r = getCircleRadiusForShape(annotation, shapeName);
 	if (!pos) return {};
 	// Position handle at the right edge of the circle
 	return {
@@ -418,55 +443,69 @@ function onCanvasContextMenu(event: MouseEvent) {
 					@pointermove="handleLayerPointerMove"
 					@pointerup="handleLayerPointerUp"
 					@pointercancel="handleLayerPointerUp">
-						<template v-for="(annotation, index) in annotations" :key="annotation.id">
-							<!-- Rect shape -->
-							<button v-if="getShapeType(annotation) === 'rect'"
-								type="button"
-								class="annotation-box" :class="{ selected: annotation.id === selectedId }"
-								:style="boxStyle(annotation, index)"
-								@pointerdown="handleBoxPointerDown($event, annotation)"
-								@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
-								@pointercancel="handleBoxPointerUp"
-								@contextmenu.stop="onBoxContextMenu($event, annotation)">
-								<div class="annotation-label">
-									{{ getAnnotationLabel(annotation) }}
-								</div>
-								<div class="resize-handle" data-resize="true"></div>
-							</button>
-
-							<!-- Point shape -->
-							<button v-else-if="getShapeType(annotation) === 'point'"
-								type="button"
-								class="annotation-point" :class="{ selected: annotation.id === selectedId }"
-								:style="pointStyle(annotation, index)"
-								@pointerdown="handleBoxPointerDown($event, annotation)"
-								@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
-								@pointercancel="handleBoxPointerUp"
-								@contextmenu.stop="onBoxContextMenu($event, annotation)">
-							</button>
-
-							<!-- Circle shape -->
-							<button v-else-if="getShapeType(annotation) === 'circle'"
-								type="button"
-								class="annotation-circle" :class="{ selected: annotation.id === selectedId }"
-								:style="circleStyle(annotation, index)"
-								@pointerdown="handleBoxPointerDown($event, annotation)"
-								@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
-								@pointercancel="handleBoxPointerUp"
-								@contextmenu.stop="onBoxContextMenu($event, annotation)">
-								<div class="annotation-label">
-									{{ getAnnotationLabel(annotation) }}
-								</div>
-								<div class="radius-handle"
-									:style="radiusHandleStyle(annotation)"
-									@pointerdown.stop="handleRadiusPointerDown($event, annotation)"
-									@pointermove="handleBoxPointerMove"
-									@pointerup="handleBoxPointerUp"
+						<template v-for="(annotation, annIndex) in annotations" :key="annotation.id">
+							<template v-for="shape in getShapesForAnnotation(annotation)" :key="`${annotation.id}-${shape.shapeName}`">
+								<!-- Rect shape -->
+								<button v-if="shape.shapeField.shapeType === 'rect'"
+									type="button"
+									class="annotation-box"
+									:class="[
+										{ selected: annotation.id === selectedId },
+										shapeColorClass(shape.shapeIndex),
+									]"
+									:style="boxStyle(annotation, shape.shapeName, annIndex)"
+									@pointerdown="handleShapePointerDown($event, annotation, shape.shapeName)"
+									@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
 									@pointercancel="handleBoxPointerUp"
-								></div>
-							</button>
+									@contextmenu.stop="onBoxContextMenu($event, annotation)">
+									<div class="annotation-label">
+										{{ shape.isPrimary ? getAnnotationLabel(annotation) : shape.shapeName }}
+									</div>
+									<div class="resize-handle" data-resize="true"></div>
+								</button>
 
-							<!-- Polygon shape: placeholder -->
+								<!-- Point shape -->
+								<button v-else-if="shape.shapeField.shapeType === 'point'"
+									type="button"
+									class="annotation-point"
+									:class="[
+										{ selected: annotation.id === selectedId },
+										shapeColorClass(shape.shapeIndex),
+									]"
+									:style="pointStyle(annotation, shape.shapeName, annIndex)"
+									@pointerdown="handleShapePointerDown($event, annotation, shape.shapeName)"
+									@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
+									@pointercancel="handleBoxPointerUp"
+									@contextmenu.stop="onBoxContextMenu($event, annotation)">
+								</button>
+
+								<!-- Circle shape -->
+								<button v-else-if="shape.shapeField.shapeType === 'circle'"
+									type="button"
+									class="annotation-circle"
+									:class="[
+										{ selected: annotation.id === selectedId },
+										shapeColorClass(shape.shapeIndex),
+									]"
+									:style="circleStyle(annotation, shape.shapeName, annIndex)"
+									@pointerdown="handleShapePointerDown($event, annotation, shape.shapeName)"
+									@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
+									@pointercancel="handleBoxPointerUp"
+									@contextmenu.stop="onBoxContextMenu($event, annotation)">
+									<div class="annotation-label">
+										{{ shape.isPrimary ? getAnnotationLabel(annotation) : shape.shapeName }}
+									</div>
+									<div class="radius-handle"
+										:style="radiusHandleStyle(annotation, shape.shapeName)"
+										@pointerdown.stop="handleRadiusPointerDown($event, annotation, shape.shapeName)"
+										@pointermove="handleBoxPointerMove"
+										@pointerup="handleBoxPointerUp"
+										@pointercancel="handleBoxPointerUp"
+									></div>
+								</button>
+
+								<!-- Polygon shape: placeholder -->
+							</template>
 						</template>
 					</div>
 				</div>

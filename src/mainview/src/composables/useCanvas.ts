@@ -2,6 +2,12 @@ import { ref, triggerRef } from "vue";
 import type { Annotation } from "../annotation";
 import { zoom, annotations, markDirty, activeSpec } from "../state";
 import { ZOOM_MIN, ZOOM_MAX } from "../state";
+import {
+	getEntityByLabel,
+	getShapesForEntity,
+	getPrimaryShapeName,
+} from "../spec/types";
+import type { ShapeMapping } from "../spec/types";
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
@@ -9,11 +15,12 @@ function clamp(value: number, min: number, max: number): number {
 
 export interface DragState {
 	id: string;
+	shapeName: string;
 	mode: "move" | "resize" | "radius";
 	pointerId: number;
 	startClientX: number;
 	startClientY: number;
-	startShapeData: Record<string, number>;
+	startShapeData: Record<string, Record<string, number>>;
 }
 
 export function useCanvas() {
@@ -62,24 +69,85 @@ export function useCanvas() {
 	function startDrag(
 		event: PointerEvent,
 		annotation: Annotation,
+		shapeName: string,
 		mode: "move" | "resize" | "radius" = "move",
 	) {
-		// Snapshot only numeric shape data values
-		const startShapeData: Record<string, number> = {};
-		for (const [key, value] of Object.entries(annotation.shapeData)) {
-			if (typeof value === "number") {
-				startShapeData[key] = value;
+		// Snapshot all shapes' numeric data for group-move support
+		const startShapeData: Record<string, Record<string, number>> = {};
+		for (const [sName, sData] of Object.entries(annotation.shapes)) {
+			const snapshot: Record<string, number> = {};
+			for (const [key, value] of Object.entries(sData)) {
+				if (typeof value === "number") {
+					snapshot[key] = value;
+				}
 			}
+			startShapeData[sName] = snapshot;
 		}
 
 		drag.value = {
 			id: annotation.id,
+			shapeName,
 			mode,
 			pointerId: event.pointerId,
 			startClientX: event.clientX,
 			startClientY: event.clientY,
 			startShapeData,
 		};
+	}
+
+	function applyMoveDelta(
+		shapeData: Record<string, number>,
+		startData: Record<string, number>,
+		mapping: ShapeMapping,
+		deltaX: number,
+		deltaY: number,
+		imageWidth: number,
+		imageHeight: number,
+	) {
+		switch (mapping.type) {
+			case "rect": {
+				const w = shapeData[mapping.width] as number;
+				const h = shapeData[mapping.height] as number;
+				shapeData[mapping.x] = clamp(
+					Math.round(startData[mapping.x] + deltaX),
+					0,
+					imageWidth - w,
+				);
+				shapeData[mapping.y] = clamp(
+					Math.round(startData[mapping.y] + deltaY),
+					0,
+					imageHeight - h,
+				);
+				break;
+			}
+			case "point": {
+				shapeData[mapping.x] = clamp(
+					Math.round(startData[mapping.x] + deltaX),
+					0,
+					imageWidth,
+				);
+				shapeData[mapping.y] = clamp(
+					Math.round(startData[mapping.y] + deltaY),
+					0,
+					imageHeight,
+				);
+				break;
+			}
+			case "circle": {
+				const r = shapeData[mapping.radius] as number;
+				shapeData[mapping.x] = clamp(
+					Math.round(startData[mapping.x] + deltaX),
+					r,
+					imageWidth - r,
+				);
+				shapeData[mapping.y] = clamp(
+					Math.round(startData[mapping.y] + deltaY),
+					r,
+					imageHeight - r,
+				);
+				break;
+			}
+		}
 	}
 
 	function onPointerMove(
@@ -96,90 +164,74 @@ export function useCanvas() {
 		const ann = annotations.value.find((a) => a.id === d.id);
 		if (!ann) return;
 
-		const entity = spec.entities[ann.entityType];
+		const entity = getEntityByLabel(spec, ann.entityType);
 		if (!entity) return;
 
-		const mapping = entity.shape.mapping;
-		if (!mapping) return;
+		const shapeFields = getShapesForEntity(entity);
+		const primaryName = getPrimaryShapeName(entity);
+		const isPrimaryDrag = d.shapeName === primaryName;
 
 		const deltaX = (event.clientX - d.startClientX) / zoom.value;
 		const deltaY = (event.clientY - d.startClientY) / zoom.value;
 
 		if (d.mode === "move") {
-			// Move: offset x/y roles by delta
-			switch (mapping.type) {
-				case "rect": {
-					const w = ann.shapeData[mapping.width] as number;
-					const h = ann.shapeData[mapping.height] as number;
-					ann.shapeData[mapping.x] = clamp(
-						Math.round(d.startShapeData[mapping.x] + deltaX),
-						0,
-						imageWidth - w,
-					);
-					ann.shapeData[mapping.y] = clamp(
-						Math.round(d.startShapeData[mapping.y] + deltaY),
-						0,
-						imageHeight - h,
-					);
-					break;
+			if (isPrimaryDrag) {
+				// Group move: apply delta to ALL shapes
+				for (const sf of shapeFields) {
+					const mapping = sf.mapping;
+					if (!mapping) continue;
+					const shapeData = ann.shapes[sf.name];
+					const startData = d.startShapeData[sf.name];
+					if (!shapeData || !startData) continue;
+					applyMoveDelta(shapeData, startData, mapping, deltaX, deltaY, imageWidth, imageHeight);
 				}
-				case "point": {
-					ann.shapeData[mapping.x] = clamp(
-						Math.round(d.startShapeData[mapping.x] + deltaX),
-						0,
-						imageWidth,
-					);
-					ann.shapeData[mapping.y] = clamp(
-						Math.round(d.startShapeData[mapping.y] + deltaY),
-						0,
-						imageHeight,
-					);
-					break;
-				}
-				case "circle": {
-					const r = ann.shapeData[mapping.radius] as number;
-					ann.shapeData[mapping.x] = clamp(
-						Math.round(d.startShapeData[mapping.x] + deltaX),
-						r,
-						imageWidth - r,
-					);
-					ann.shapeData[mapping.y] = clamp(
-						Math.round(d.startShapeData[mapping.y] + deltaY),
-						r,
-						imageHeight - r,
-					);
-					break;
-				}
+			} else {
+				// Secondary shape: move only this shape
+				const sf = shapeFields.find((s) => s.name === d.shapeName);
+				if (!sf?.mapping) return;
+				const shapeData = ann.shapes[d.shapeName];
+				const startData = d.startShapeData[d.shapeName];
+				if (!shapeData || !startData) return;
+				applyMoveDelta(shapeData, startData, sf.mapping, deltaX, deltaY, imageWidth, imageHeight);
 			}
 		} else if (d.mode === "resize") {
-			// Resize: offset width/height roles by delta (rect only)
-			if (mapping.type === "rect") {
-				const x = ann.shapeData[mapping.x] as number;
-				const y = ann.shapeData[mapping.y] as number;
-				ann.shapeData[mapping.width] = clamp(
-					Math.round(d.startShapeData[mapping.width] + deltaX),
-					1,
-					imageWidth - x,
-				);
-				ann.shapeData[mapping.height] = clamp(
-					Math.round(d.startShapeData[mapping.height] + deltaY),
-					1,
-					imageHeight - y,
-				);
-			}
+			// Resize only applies to the specific shape being dragged
+			const sf = shapeFields.find((s) => s.name === d.shapeName);
+			if (!sf?.mapping || sf.mapping.type !== "rect") return;
+			const mapping = sf.mapping;
+			const shapeData = ann.shapes[d.shapeName];
+			const startData = d.startShapeData[d.shapeName];
+			if (!shapeData || !startData) return;
+
+			const x = shapeData[mapping.x] as number;
+			const y = shapeData[mapping.y] as number;
+			shapeData[mapping.width] = clamp(
+				Math.round(startData[mapping.width] + deltaX),
+				1,
+				imageWidth - x,
+			);
+			shapeData[mapping.height] = clamp(
+				Math.round(startData[mapping.height] + deltaY),
+				1,
+				imageHeight - y,
+			);
 		} else if (d.mode === "radius") {
-			// Radius: compute distance from center to pointer
-			if (mapping.type === "circle") {
-				const cx = d.startShapeData[mapping.x];
-				const cy = d.startShapeData[mapping.y];
-				// Convert pointer position to image coordinates
-				const stageEl = event.currentTarget as HTMLElement;
-				const rect = stageEl.getBoundingClientRect();
-				const pointerX = (event.clientX - rect.left) / zoom.value;
-				const pointerY = (event.clientY - rect.top) / zoom.value;
-				const dist = Math.sqrt((pointerX - cx) ** 2 + (pointerY - cy) ** 2);
-				ann.shapeData[mapping.radius] = Math.max(1, Math.round(dist));
-			}
+			// Radius drag only applies to the specific shape
+			const sf = shapeFields.find((s) => s.name === d.shapeName);
+			if (!sf?.mapping || sf.mapping.type !== "circle") return;
+			const mapping = sf.mapping;
+			const startData = d.startShapeData[d.shapeName];
+			const shapeData = ann.shapes[d.shapeName];
+			if (!shapeData || !startData) return;
+
+			const cx = startData[mapping.x];
+			const cy = startData[mapping.y];
+			const stageEl = event.currentTarget as HTMLElement;
+			const rect = stageEl.getBoundingClientRect();
+			const pointerX = (event.clientX - rect.left) / zoom.value;
+			const pointerY = (event.clientY - rect.top) / zoom.value;
+			const dist = Math.sqrt((pointerX - cx) ** 2 + (pointerY - cy) ** 2);
+			shapeData[mapping.radius] = Math.max(1, Math.round(dist));
 		}
 
 		markDirty(true);

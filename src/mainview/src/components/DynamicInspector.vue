@@ -1,7 +1,14 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import type { Annotation } from "../annotation";
 import { migrateEntityType } from "../annotation";
-import type { SpanSpec, PropertyDef } from "../spec/types";
+import type { SpanSpec, ScalarSpecField } from "../spec/types";
+import {
+	getEntityByLabel,
+	getShapesForEntity,
+	getScalarsForEntity,
+	getPathFieldForEntity,
+} from "../spec/types";
 import {
 	annotations,
 	updateShapeData,
@@ -15,8 +22,21 @@ const props = defineProps<{
 	spec: SpanSpec;
 }>();
 
+const SHAPE_COLORS = ["var(--color-copper)", "#5a8ac8", "#5ac878", "#8a5ac8"];
+
 const labelClass =
 	"flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider";
+
+// Track which shape sections are collapsed (by shape name)
+const collapsedShapes = ref<Set<string>>(new Set());
+
+function toggleShapeSection(shapeName: string) {
+	if (collapsedShapes.value.has(shapeName)) {
+		collapsedShapes.value.delete(shapeName);
+	} else {
+		collapsedShapes.value.add(shapeName);
+	}
+}
 
 function onEntityTypeChange(newType: string) {
 	const migrated = migrateEntityType(props.annotation, props.spec, newType);
@@ -28,13 +48,15 @@ function onEntityTypeChange(newType: string) {
 		triggerRef(annotations);
 		markDirty(true);
 	}
+	// Reset collapsed state for new entity
+	collapsedShapes.value = new Set();
 }
 
-function onShapeInput(fieldName: string, value: string) {
-	updateShapeData({ [fieldName]: Number(value) || 0 });
+function onShapeInput(shapeName: string, fieldName: string, value: string) {
+	updateShapeData(shapeName, { [fieldName]: Number(value) || 0 });
 }
 
-function onPropertyInput(def: PropertyDef, value: string | boolean) {
+function onPropertyInput(def: ScalarSpecField, value: string | boolean) {
 	let converted: unknown = value;
 	switch (def.type) {
 		case "integer":
@@ -60,7 +82,7 @@ function onPropertyInput(def: PropertyDef, value: string | boolean) {
 	updatePropertyData({ [def.name]: converted });
 }
 
-function displayValue(def: PropertyDef, value: unknown): string {
+function displayValue(def: ScalarSpecField, value: unknown): string {
 	if (def.type === "string[]" && Array.isArray(value)) {
 		return value.join(", ");
 	}
@@ -85,44 +107,69 @@ function displayValue(def: PropertyDef, value: unknown): string {
 				"
 			>
 				<option
-					v-for="(_, name) in spec.entities"
-					:key="name"
-					:value="name"
+					v-for="entity in spec.entities"
+					:key="entity.label"
+					:value="entity.label"
 				>
-					{{ name }}
+					{{ entity.label }}
 				</option>
 			</select>
 		</label>
 
-		<!-- Shape fields -->
-		<div class="flex flex-col gap-2">
-			<span class="text-[10px] font-medium text-text-faint uppercase tracking-wider">
-				Shape &mdash; {{ spec.entities[annotation.entityType].shape.type }}
-			</span>
-			<div class="grid grid-cols-2 gap-2">
-				<label
-					v-for="field in spec.entities[annotation.entityType].shape.fields"
-					:key="field.name"
-					:class="labelClass"
+		<!-- Shape sections — one collapsible section per named shape -->
+		<template
+			v-if="getEntityByLabel(spec, annotation.entityType)"
+			v-for="(shape, shapeIndex) in getShapesForEntity(getEntityByLabel(spec, annotation.entityType)!)"
+			:key="shape.name"
+		>
+			<div class="flex flex-col gap-2">
+				<!-- Shape section header -->
+				<button
+					type="button"
+					class="flex items-center gap-2 text-[10px] font-medium text-text-faint uppercase tracking-wider cursor-pointer hover:text-text-dim transition-colors text-left"
+					@click="toggleShapeSection(shape.name)"
 				>
-					{{ field.name }}
-					<input
-						type="number"
-						:value="annotation.shapeData[field.name]"
-						@input="
-							onShapeInput(
-								field.name,
-								($event.target as HTMLInputElement).value,
-							)
-						"
+					<!-- Colored dot -->
+					<span
+						class="inline-block w-2 h-2 rounded-full flex-shrink-0"
+						:style="{ backgroundColor: SHAPE_COLORS[shapeIndex] ?? SHAPE_COLORS[SHAPE_COLORS.length - 1] }"
 					/>
-				</label>
-			</div>
-		</div>
+					{{ shape.name }} ({{ shape.shapeType }})
+					<span class="ml-auto text-text-faint">
+						{{ collapsedShapes.has(shape.name) ? "▶" : "▼" }}
+					</span>
+				</button>
 
-		<!-- Property fields -->
+				<!-- Shape fields -->
+				<div
+					v-if="!collapsedShapes.has(shape.name)"
+					class="grid grid-cols-2 gap-2"
+				>
+					<label
+						v-for="field in shape.shapeFields"
+						:key="field.name"
+						:class="labelClass"
+					>
+						{{ field.name }}
+						<input
+							type="number"
+							:value="annotation.shapes[shape.name]?.[field.name] ?? 0"
+							@input="
+								onShapeInput(
+									shape.name,
+									field.name,
+									($event.target as HTMLInputElement).value,
+								)
+							"
+						/>
+					</label>
+				</div>
+			</div>
+		</template>
+
+		<!-- Properties section (scalar fields) -->
 		<div
-			v-if="spec.entities[annotation.entityType].properties.length > 0"
+			v-if="getEntityByLabel(spec, annotation.entityType) && getScalarsForEntity(getEntityByLabel(spec, annotation.entityType)!).length > 0"
 			class="flex flex-col gap-2"
 		>
 			<span class="text-[10px] font-medium text-text-faint uppercase tracking-wider">
@@ -130,7 +177,7 @@ function displayValue(def: PropertyDef, value: unknown): string {
 			</span>
 			<div class="grid grid-cols-2 gap-2">
 				<template
-					v-for="def in spec.entities[annotation.entityType].properties"
+					v-for="def in getScalarsForEntity(getEntityByLabel(spec, annotation.entityType)!)"
 					:key="def.name"
 				>
 					<!-- Boolean checkbox -->
@@ -222,6 +269,25 @@ function displayValue(def: PropertyDef, value: unknown): string {
 					</label>
 				</template>
 			</div>
+		</div>
+
+		<!-- Path fields (read-only) -->
+		<div
+			v-if="getEntityByLabel(spec, annotation.entityType) && getPathFieldForEntity(getEntityByLabel(spec, annotation.entityType)!)"
+			class="flex flex-col gap-2"
+		>
+			<span class="text-[10px] font-medium text-text-faint uppercase tracking-wider">
+				Path
+			</span>
+			<label :class="labelClass">
+				{{ getPathFieldForEntity(getEntityByLabel(spec, annotation.entityType)!)!.name }}
+				<input
+					type="text"
+					readonly
+					:value="String(annotation.propertyData[getPathFieldForEntity(getEntityByLabel(spec, annotation.entityType)!)!.name] ?? '')"
+					class="opacity-60 cursor-default"
+				/>
+			</label>
 		</div>
 	</form>
 </template>

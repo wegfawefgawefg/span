@@ -38,6 +38,7 @@ export interface ShapeSpecField {
 	shapeType: ShapeType;
 	shapeFields: ShapeField[];
 	mapping: ShapeMapping | null;
+	reference: string | null;
 	warnings: string[];
 }
 

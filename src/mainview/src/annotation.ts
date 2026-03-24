@@ -95,6 +95,38 @@ function buildShapeDefaults(
 	return data;
 }
 
+export function createAnnotationWithSize(
+	spec: SpanSpec,
+	entityType: string,
+	position: { x: number; y: number },
+	size: { width?: number; height?: number; radius?: number },
+): Annotation {
+	const annotation = createAnnotation(spec, entityType, position);
+
+	// Override primary shape dimensions with drawn size
+	const entity = getEntityByLabel(spec, entityType);
+	if (!entity) return annotation;
+
+	const shapes = getShapesForEntity(entity);
+	if (shapes.length === 0) return annotation;
+
+	const primary = shapes[0];
+	const mapping = primary.mapping;
+	if (!mapping) return annotation;
+
+	const shapeData = annotation.shapes[primary.name];
+	if (!shapeData) return annotation;
+
+	if (mapping.type === "rect" && size.width !== undefined && size.height !== undefined) {
+		shapeData[mapping.width] = size.width;
+		shapeData[mapping.height] = size.height;
+	} else if (mapping.type === "circle" && size.radius !== undefined) {
+		shapeData[mapping.radius] = size.radius;
+	}
+
+	return annotation;
+}
+
 export function getShapeRect(
 	annotation: Annotation,
 	spec: SpanSpec,

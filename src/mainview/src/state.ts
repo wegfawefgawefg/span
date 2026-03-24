@@ -1,8 +1,8 @@
 import { computed, ref, watch } from "vue";
 import type { Annotation } from "./annotation";
-import { createAnnotation, duplicateAnnotation, clampToImage } from "./annotation";
+import { createAnnotation, duplicateAnnotation, clampToImage, createAnnotationWithSize } from "./annotation";
 import type { SpanSpec } from "./spec/types";
-import { getEntityByLabel } from "./spec/types";
+import { getEntityByLabel, getShapesForEntity } from "./spec/types";
 import { parseSpec } from "./spec/parse";
 import { api, platform } from "./platform/adapter";
 import {
@@ -159,6 +159,33 @@ export function addAnnotation(x: number = 0, y: number = 0) {
 	if (!spec || !tool || !getEntityByLabel(spec, tool) || !sheet) return;
 
 	const annotation = createAnnotation(spec, tool, { x, y });
+	sheet.annotations.push(annotation);
+	selectedId.value = annotation.id;
+	markDirty(true);
+}
+
+export function addAnnotationWithSize(
+	entityType: string,
+	x: number,
+	y: number,
+	...sizeArgs: number[]
+) {
+	const spec = activeSpec.value;
+	const sheet = currentSheet.value;
+	if (!spec || !getEntityByLabel(spec, entityType) || !sheet) return;
+
+	const entity = getEntityByLabel(spec, entityType)!;
+	const shapes = getShapesForEntity(entity);
+	const shapeType = shapes[0]?.shapeType;
+
+	let size: { width?: number; height?: number; radius?: number } = {};
+	if (shapeType === "rect") {
+		size = { width: sizeArgs[0], height: sizeArgs[1] };
+	} else if (shapeType === "circle") {
+		size = { radius: sizeArgs[0] };
+	}
+
+	const annotation = createAnnotationWithSize(spec, entityType, { x, y }, size);
 	sheet.annotations.push(annotation);
 	selectedId.value = annotation.id;
 	markDirty(true);

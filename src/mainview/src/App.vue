@@ -5,13 +5,15 @@ import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
 import {
 	dirty,
 	statusText,
-	loadProjectData,
 	duplicateSelected,
 	deleteSelected,
-	saveCurrentAnnotations,
+	workspaceReady,
+	addSheet,
+	loadSpec,
+	exportWorkspace,
 } from "./state";
-import { api, setResetLayoutHandler, setAddPanelHandler, projectOpen, platform, getRawAdapter } from "./platform/adapter";
-import type { WebPlatformAdapter } from "./platform/web";
+import { parseSpec } from "./spec/parse";
+import { api, setResetLayoutHandler, setAddPanelHandler } from "./platform/adapter";
 import LandingScreen from "./components/LandingScreen.vue";
 
 const PANELS: Record<string, { component: string; title: string }> = {
@@ -26,6 +28,10 @@ let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const statusFlash = ref(false);
 const landingError = ref("");
+
+const IMAGE_EXTS = /\.(png|jpg|jpeg|gif|webp)$/i;
+const SPEC_EXTS = /\.(ya?ml|json)$/i;
+const SPAN_EXT = /\.span$/i;
 
 // Flash the status bar briefly on save (dirty goes true → false)
 watch(dirty, (now, was) => {
@@ -48,45 +54,105 @@ function debouncedSaveLayout() {
 	}, 500);
 }
 
-const hasDirectoryPicker = "showDirectoryPicker" in window;
+// --- File handling (images, specs, .span) ---
 
-async function handlePickDirectory() {
+async function fileToDataUrl(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result as string);
+		reader.onerror = reject;
+		reader.readAsDataURL(file);
+	});
+}
+
+async function loadImageDimensions(dataUrl: string): Promise<{ width: number; height: number }> {
+	return new Promise((resolve) => {
+		const img = new Image();
+		img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+		img.onerror = () => resolve({ width: 0, height: 0 });
+		img.src = dataUrl;
+	});
+}
+
+async function handleDroppedFiles(files: File[]) {
 	landingError.value = "";
-	try {
-		await api.pickProjectDirectory();
-		if (projectOpen.value) {
-			await loadProjectData();
+
+	for (const file of files) {
+		const name = file.name;
+
+		if (SPAN_EXT.test(name)) {
+			// .span workspace file — read and restore
+			try {
+				const text = await file.text();
+				// TODO: restoreWorkspace(text) — for now just log
+				console.log("Dropped .span file:", name, text.length, "bytes");
+				statusText.value = `.span restore not yet wired`;
+			} catch (e) {
+				console.error("Failed to read .span file:", e);
+				landingError.value = "Failed to read .span file";
+			}
+			continue;
 		}
-	} catch (e: any) {
-		if (e?.message === "no-sheets" || e?.message === "no-png") {
-			landingError.value = "No spritesheet files found in this folder";
+
+		if (SPEC_EXTS.test(name)) {
+			try {
+				const text = await file.text();
+				const format = name.endsWith(".json") ? "json" : "yaml";
+				const result = parseSpec(text, format);
+				if (Array.isArray(result)) {
+					landingError.value = `Spec errors: ${result.map((e) => e.message).join("; ")}`;
+				} else {
+					loadSpec(text, format);
+				}
+			} catch (e) {
+				console.error("Failed to read spec file:", e);
+				landingError.value = "Failed to read spec file";
+			}
+			continue;
+		}
+
+		if (IMAGE_EXTS.test(name)) {
+			try {
+				const dataUrl = await fileToDataUrl(file);
+				const dims = await loadImageDimensions(dataUrl);
+				addSheet({
+					path: name,
+					absolutePath: name,
+					annotations: [],
+					status: "loaded",
+					imageUrl: dataUrl,
+					width: dims.width,
+					height: dims.height,
+				});
+			} catch (e) {
+				console.error("Failed to load image:", e);
+				landingError.value = "Failed to load image";
+			}
+			continue;
 		}
 	}
 }
 
-async function handleOpenHandle(handle: FileSystemDirectoryHandle) {
-	landingError.value = "";
-	if (platform.value !== "web") return;
-	const webAdapter = getRawAdapter<WebPlatformAdapter>();
-	const result = await webAdapter.openWithHandle(handle);
-	if (!result.ok) {
-		landingError.value = result.error ?? "Invalid project folder";
-		return;
-	}
-	await loadProjectData();
+// --- Landing screen drop handler ---
+
+function onLandingDrop(files: File[]) {
+	handleDroppedFiles(files);
 }
 
-async function handleSelectFiles(files: FileList) {
-	landingError.value = "";
-	if (platform.value !== "web") return;
-	const webAdapter = getRawAdapter<WebPlatformAdapter>();
-	const result = webAdapter.setFallbackFiles(files);
-	if (!result.ok) {
-		landingError.value = result.error ?? "Failed to open folder";
-		return;
-	}
-	await loadProjectData();
+// --- Global drag-and-drop ---
+
+function onGlobalDragOver(e: DragEvent) {
+	e.preventDefault();
 }
+
+function onGlobalDrop(e: DragEvent) {
+	e.preventDefault();
+	const dt = e.dataTransfer;
+	if (!dt?.files?.length) return;
+	handleDroppedFiles(Array.from(dt.files));
+}
+
+// --- Dockview ---
 
 function applyDefaultLayout(dv: DockviewApi) {
 	const sheetsPanel = dv.addPanel({
@@ -182,11 +248,11 @@ function onKeydown(event: KeyboardEvent) {
 	const inInput =
 		tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 
-	if (mod && event.key.toLowerCase() === "s") {
+	if (mod && event.key.toLowerCase() === "e" && !inInput) {
 		event.preventDefault();
-		saveCurrentAnnotations().catch((e) => {
+		exportWorkspace().catch((e) => {
 			console.error(e);
-			statusText.value = "Save failed \u2014 check disk permissions";
+			statusText.value = "Export failed";
 		});
 		return;
 	}
@@ -206,27 +272,23 @@ function onKeydown(event: KeyboardEvent) {
 	}
 }
 
-onMounted(async () => {
+onMounted(() => {
 	window.addEventListener("keydown", onKeydown);
-	if (projectOpen.value) {
-		try {
-			await loadProjectData();
-		} catch (e) {
-			console.error(e);
-			statusText.value = "Failed to load project";
-		}
-	}
+	document.addEventListener("dragover", onGlobalDragOver);
+	document.addEventListener("drop", onGlobalDrop);
 });
 
 onUnmounted(() => {
 	window.removeEventListener("keydown", onKeydown);
+	document.removeEventListener("dragover", onGlobalDragOver);
+	document.removeEventListener("drop", onGlobalDrop);
 	if (saveTimeout) clearTimeout(saveTimeout);
 });
 </script>
 
 <template>
 	<div class="app-shell" @contextmenu.prevent>
-		<template v-if="projectOpen">
+		<template v-if="workspaceReady">
 			<div class="dockview-theme-dark dockview-container">
 				<DockviewVue @ready="onReady" />
 			</div>
@@ -239,20 +301,12 @@ onUnmounted(() => {
 				"
 			>
 				{{ statusText }}
-				<template v-if="platform === 'web'">
-					<span class="ml-2 opacity-60">
-						{{ api.canSave.value ? '· Direct Save' : '· Download Mode' }}
-					</span>
-				</template>
 			</div>
 		</template>
 		<LandingScreen
 			v-else
-			:has-directory-picker="hasDirectoryPicker"
 			:external-error="landingError"
-			@pick-directory="handlePickDirectory"
-			@open-handle="handleOpenHandle"
-			@select-files="handleSelectFiles"
+			@drop-files="onLandingDrop"
 		/>
 	</div>
 </template>

@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { ref } from "vue";
 
-const props = defineProps<{
-	hasDirectoryPicker: boolean;
+defineProps<{
 	externalError?: string;
 }>();
 
 const emit = defineEmits<{
-	pickDirectory: [];
-	openHandle: [handle: FileSystemDirectoryHandle];
-	selectFiles: [files: FileList];
+	dropFiles: [files: File[]];
 }>();
 
 const error = ref("");
@@ -21,29 +18,9 @@ function onDrop(e: DragEvent) {
 	error.value = "";
 	e.preventDefault();
 
-	// Try to get a directory handle (Chromium only)
-	const items = e.dataTransfer?.items;
-	if (items && items.length === 1) {
-		const item = items[0];
-		if ("getAsFileSystemHandle" in item) {
-			(item as any)
-				.getAsFileSystemHandle()
-				.then((handle: FileSystemHandle) => {
-					if (handle.kind === "directory") {
-						emit("openHandle", handle as FileSystemDirectoryHandle);
-					}
-				})
-				.catch(() => {
-					error.value = "Could not read dropped folder";
-				});
-			return;
-		}
-	}
-
-	// Fallback: read files from drop
 	const files = e.dataTransfer?.files;
 	if (files && files.length > 0) {
-		emit("selectFiles", files);
+		emit("dropFiles", Array.from(files));
 	}
 }
 
@@ -51,7 +28,7 @@ function onFileInputChange(e: Event) {
 	error.value = "";
 	const input = e.target as HTMLInputElement;
 	if (input.files && input.files.length > 0) {
-		emit("selectFiles", input.files);
+		emit("dropFiles", Array.from(input.files));
 	}
 }
 </script>
@@ -79,37 +56,27 @@ function onFileInputChange(e: Event) {
 			</div>
 
 			<p class="text-xs text-text-faint">
-				Open a project folder containing a <code class="text-text-dim">sheets/</code> directory with PNG spritesheets.
+				Drop images, spec files, or a <code class="text-text-dim">.span</code> workspace file to get started.
 			</p>
 
 			<button
-				v-if="hasDirectoryPicker"
 				type="button"
 				class="px-5 py-2 bg-copper text-surface-0 font-medium text-sm rounded cursor-pointer hover:brightness-110 active:translate-y-px transition-all"
-				@click="emit('pickDirectory')"
+				@click="fileInput?.click()"
 			>
-				Open Folder
+				Select Files
 			</button>
+			<input
+				ref="fileInput"
+				type="file"
+				multiple
+				accept=".png,.jpg,.jpeg,.gif,.webp,.yaml,.yml,.json,.span"
+				class="hidden"
+				@change="onFileInputChange"
+			/>
 
-			<template v-else>
-				<button
-					type="button"
-					class="px-5 py-2 bg-copper text-surface-0 font-medium text-sm rounded cursor-pointer hover:brightness-110 active:translate-y-px transition-all"
-					@click="fileInput?.click()"
-				>
-					Select Folder
-				</button>
-				<input
-					ref="fileInput"
-					type="file"
-					webkitdirectory
-					class="hidden"
-					@change="onFileInputChange"
-				/>
-			</template>
-
-			<p v-if="hasDirectoryPicker" class="text-[11px] text-text-faint">
-				or drag and drop a folder here
+			<p class="text-[11px] text-text-faint">
+				or drag and drop files here
 			</p>
 
 			<p v-if="error || externalError" class="text-xs text-danger">{{ error || externalError }}</p>

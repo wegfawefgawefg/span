@@ -4,10 +4,10 @@ import { inferShapeMapping } from "./infer";
 
 const VALID_SHAPE_TYPES = new Set<string>(["rect", "point", "circle", "polygon"]);
 const VALID_SHAPE_VALUE_TYPES = new Set<string>(["integer", "number"]);
-const VALID_PROPERTY_TYPES = new Set<string>([
-	"string", "integer", "number", "boolean", "string[]", "enum",
+const VALID_SCALAR_TYPES = new Set<string>([
+	"string", "integer", "number", "boolean", "string[]",
 ]);
-const ENTITY_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const LABEL_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 const EXPECTED_SHAPE_FIELDS: Record<string, number> = {
 	rect: 4,
@@ -16,210 +16,259 @@ const EXPECTED_SHAPE_FIELDS: Record<string, number> = {
 	polygon: 1,
 };
 
+/**
+ * Validate the entity array from a parsed spec.
+ * Input is the raw entity list (frontmatter is parsed separately).
+ */
 export function validateSpec(raw: unknown): SpecError[] {
 	const errors: SpecError[] = [];
 
-	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-		errors.push({ path: "", severity: "error", message: "Spec must be an object" });
+	if (!Array.isArray(raw)) {
+		errors.push({ path: "", severity: "error", message: "Spec must be an array of entity definitions" });
 		return errors;
 	}
 
-	const obj = raw as Record<string, unknown>;
-
-	if (!obj.entities || typeof obj.entities !== "object" || Array.isArray(obj.entities)) {
-		errors.push({ path: "entities", severity: "error", message: "Spec must have an 'entities' object" });
+	if (raw.length === 0) {
+		errors.push({ path: "", severity: "error", message: "Spec must have at least one entity" });
 		return errors;
 	}
 
-	const entities = obj.entities as Record<string, unknown>;
-	const entityNames = Object.keys(entities);
+	const seenLabels = new Set<string>();
+	const seenGroups = new Set<string>();
 
-	if (entityNames.length === 0) {
-		errors.push({ path: "entities", severity: "error", message: "Spec must have at least one entity" });
-		return errors;
-	}
+	for (let i = 0; i < raw.length; i++) {
+		const entity = raw[i];
+		const ePath = `[${i}]`;
 
-	for (const entityName of entityNames) {
-		const ePath = `entities.${entityName}`;
-
-		if (!ENTITY_NAME_RE.test(entityName)) {
-			errors.push({
-				path: ePath,
-				severity: "error",
-				message: `Entity name "${entityName}" must be a valid identifier (alphanumeric + underscore, no spaces)`,
-			});
-			continue;
-		}
-
-		const entity = entities[entityName];
-		if (typeof entity !== "object" || entity === null) {
+		if (typeof entity !== "object" || entity === null || Array.isArray(entity)) {
 			errors.push({ path: ePath, severity: "error", message: "Entity must be an object" });
 			continue;
 		}
 
 		const ent = entity as Record<string, unknown>;
 
-		// --- Shape ---
-		if (!ent.shape || typeof ent.shape !== "object") {
-			errors.push({ path: `${ePath}.shape`, severity: "error", message: "Entity must have a 'shape' object" });
-			continue;
-		}
-
-		const shape = ent.shape as Record<string, unknown>;
-		const shapeType = shape.type as string;
-
-		if (!VALID_SHAPE_TYPES.has(shapeType)) {
+		// --- label ---
+		if (typeof ent.label !== "string" || ent.label.length === 0) {
+			errors.push({ path: `${ePath}.label`, severity: "error", message: "Entity must have a 'label' string" });
+		} else if (!LABEL_RE.test(ent.label)) {
 			errors.push({
-				path: `${ePath}.shape.type`,
+				path: `${ePath}.label`,
 				severity: "error",
-				message: `Unknown shape type "${shapeType}". Must be one of: rect, point, circle, polygon`,
+				message: `Label "${ent.label}" must be a valid identifier (alphanumeric + underscore, no spaces)`,
 			});
-			continue;
-		}
-
-		// Extract shape fields (everything in shape except "type")
-		const shapeFieldEntries = Object.entries(shape).filter(([k]) => k !== "type");
-		const expectedCount = EXPECTED_SHAPE_FIELDS[shapeType];
-
-		if (shapeFieldEntries.length !== expectedCount) {
+		} else if (seenLabels.has(ent.label)) {
 			errors.push({
-				path: `${ePath}.shape`,
+				path: `${ePath}.label`,
 				severity: "error",
-				message: `Shape type "${shapeType}" requires exactly ${expectedCount} field(s), got ${shapeFieldEntries.length}`,
+				message: `Duplicate label "${ent.label}"`,
 			});
+		} else {
+			seenLabels.add(ent.label);
+		}
+
+		// --- group ---
+		if (typeof ent.group !== "string" || ent.group.length === 0) {
+			errors.push({ path: `${ePath}.group`, severity: "error", message: "Entity must have a 'group' string" });
+		} else if (seenGroups.has(ent.group)) {
+			errors.push({
+				path: `${ePath}.group`,
+				severity: "error",
+				message: `Duplicate group "${ent.group}"`,
+			});
+		} else {
+			seenGroups.add(ent.group);
+		}
+
+		// --- properties ---
+		if (ent.properties !== undefined && (typeof ent.properties !== "object" || ent.properties === null || Array.isArray(ent.properties))) {
+			errors.push({ path: `${ePath}.properties`, severity: "error", message: "Properties must be an object" });
 			continue;
 		}
 
-		// Validate shape field value types
-		const shapeFields: ShapeField[] = [];
-		let shapeFieldsValid = true;
+		const properties = (ent.properties ?? {}) as Record<string, unknown>;
+		const fieldNames = new Set<string>();
+		const label = typeof ent.label === "string" ? ent.label : `entity[${i}]`;
 
-		for (const [fieldName, fieldType] of shapeFieldEntries) {
-			// Polygon points field has a special nested type
-			if (shapeType === "polygon" && typeof fieldType === "object" && fieldType !== null) {
-				const pt = fieldType as Record<string, unknown>;
-				if (pt.type !== "array" || typeof pt.items !== "object" || pt.items === null) {
-					errors.push({
-						path: `${ePath}.shape.${fieldName}`,
-						severity: "error",
-						message: `Polygon field "${fieldName}" must have { type: array, items: { ... } }`,
-					});
-					shapeFieldsValid = false;
-				} else {
-					// Validate items have point-like fields
-					const items = pt.items as Record<string, unknown>;
-					const itemFields = Object.entries(items);
-					if (itemFields.length !== 2 || !itemFields.every(([, v]) => v === "integer" || v === "number")) {
-						errors.push({
-							path: `${ePath}.shape.${fieldName}.items`,
-							severity: "error",
-							message: `Polygon items must have exactly 2 numeric fields (e.g., { x: integer, y: integer })`,
-						});
-						shapeFieldsValid = false;
-					}
-				}
-				shapeFields.push({ name: fieldName, valueType: "integer" });
+		for (const [fieldName, fieldValue] of Object.entries(properties)) {
+			const fPath = `${ePath}.properties.${fieldName}`;
+
+			// Reserved __ prefix
+			if (fieldName.startsWith("__")) {
+				errors.push({
+					path: fPath,
+					severity: "error",
+					message: `Field name "${fieldName}" is reserved (__ prefix)`,
+				});
 				continue;
 			}
 
-			if (typeof fieldType !== "string" || !VALID_SHAPE_VALUE_TYPES.has(fieldType)) {
+			// Duplicate field name
+			if (fieldNames.has(fieldName)) {
 				errors.push({
-					path: `${ePath}.shape.${fieldName}`,
+					path: fPath,
 					severity: "error",
-					message: `Shape field "${fieldName}" must have type "integer" or "number", got "${fieldType}"`,
+					message: `Duplicate field name "${fieldName}"`,
 				});
-				shapeFieldsValid = false;
-			} else {
-				shapeFields.push({
-					name: fieldName,
-					valueType: fieldType as "integer" | "number",
-				});
+				continue;
 			}
-		}
+			fieldNames.add(fieldName);
 
-		// Run inference to produce warnings
-		if (shapeFieldsValid) {
-			const inference = inferShapeMapping(shapeType as ShapeType, shapeFields);
-			for (const w of inference.warnings) {
-				errors.push({
-					path: `${ePath}.shape`,
-					severity: "warning",
-					message: w,
-				});
-			}
-		}
+			// Determine field type
+			if (typeof fieldValue === "object" && fieldValue !== null && !Array.isArray(fieldValue)) {
+				const obj = fieldValue as Record<string, unknown>;
 
-		// --- Properties ---
-		const shapeFieldNames = new Set(shapeFieldEntries.map(([k]) => k));
-		const properties = ent.properties as Record<string, unknown> | undefined;
-
-		if (properties && typeof properties === "object" && !Array.isArray(properties)) {
-			const propNames = new Set<string>();
-
-			for (const [propName, propType] of Object.entries(properties)) {
-				const pPath = `${ePath}.properties.${propName}`;
-
-				// Check collision with shape fields
-				if (shapeFieldNames.has(propName)) {
-					errors.push({
-						path: pPath,
-						severity: "error",
-						message: `Property "${propName}" has a name collision with a shape field`,
-					});
-				}
-
-				// Check duplicate property name
-				if (propNames.has(propName)) {
-					errors.push({
-						path: pPath,
-						severity: "error",
-						message: `Duplicate property name "${propName}"`,
-					});
-				}
-				propNames.add(propName);
-
-				// Check property type
-				if (typeof propType === "string") {
-					if (!VALID_PROPERTY_TYPES.has(propType)) {
-						errors.push({
-							path: pPath,
-							severity: "error",
-							message: `Unknown property type "${propType}". Must be one of: string, integer, number, boolean, string[], enum`,
-						});
-					}
-				} else if (typeof propType === "object" && propType !== null) {
-					const pt = propType as Record<string, unknown>;
-					if (Array.isArray(pt.enum)) {
-						if (pt.enum.length < 2) {
-							errors.push({
-								path: pPath,
-								severity: "error",
-								message: `Enum must have at least 2 values, got ${pt.enum.length}`,
-							});
-						} else if (!pt.enum.every((v: unknown) => typeof v === "string")) {
-							errors.push({
-								path: pPath,
-								severity: "error",
-								message: `Enum values must all be strings`,
-							});
-						}
-					} else {
-						errors.push({
-							path: pPath,
-							severity: "error",
-							message: `Complex property type must be an enum: { enum: [...] }`,
-						});
-					}
+				if ("__shape" in obj) {
+					// Shape field
+					validateShapeField(obj, fPath, errors);
+				} else if ("enum" in obj) {
+					// Enum field
+					validateEnumField(obj, fPath, errors);
 				} else {
 					errors.push({
-						path: pPath,
+						path: fPath,
 						severity: "error",
-						message: `Invalid property type for "${propName}"`,
+						message: `Invalid field definition — object must have "__shape" or "enum" key`,
 					});
 				}
+			} else if (typeof fieldValue === "string") {
+				// Path type or scalar type
+				if (fieldValue === "Path" || fieldValue === "RelativePath") {
+					// Valid path type — nothing more to check
+				} else if (VALID_SCALAR_TYPES.has(fieldValue)) {
+					// Valid scalar type
+				} else {
+					errors.push({
+						path: fPath,
+						severity: "error",
+						message: `Unknown type "${fieldValue}". Must be one of: string, integer, number, boolean, string[], Path, RelativePath`,
+					});
+				}
+			} else {
+				errors.push({
+					path: fPath,
+					severity: "error",
+					message: `Invalid field value for "${fieldName}"`,
+				});
 			}
 		}
 	}
 
 	return errors;
+}
+
+function validateShapeField(
+	obj: Record<string, unknown>,
+	fPath: string,
+	errors: SpecError[],
+): void {
+	const shapeType = obj.__shape;
+
+	if (typeof shapeType !== "string" || !VALID_SHAPE_TYPES.has(shapeType)) {
+		errors.push({
+			path: `${fPath}.__shape`,
+			severity: "error",
+			message: `Unknown shape type "${shapeType}". Must be one of: rect, point, circle, polygon`,
+		});
+		return;
+	}
+
+	// Extract shape fields (everything except __shape)
+	const shapeFieldEntries = Object.entries(obj).filter(([k]) => k !== "__shape");
+	const expectedCount = EXPECTED_SHAPE_FIELDS[shapeType];
+
+	if (shapeFieldEntries.length !== expectedCount) {
+		errors.push({
+			path: fPath,
+			severity: "error",
+			message: `Shape type "${shapeType}" requires exactly ${expectedCount} field(s), got ${shapeFieldEntries.length}`,
+		});
+		return;
+	}
+
+	// Validate shape field value types
+	const shapeFields: ShapeField[] = [];
+	let shapeFieldsValid = true;
+
+	for (const [name, valueType] of shapeFieldEntries) {
+		// Polygon points field has a special nested type
+		if (shapeType === "polygon" && typeof valueType === "object" && valueType !== null) {
+			const pt = valueType as Record<string, unknown>;
+			if (pt.type !== "array" || typeof pt.items !== "object" || pt.items === null) {
+				errors.push({
+					path: `${fPath}.${name}`,
+					severity: "error",
+					message: `Polygon field "${name}" must have { type: array, items: { ... } }`,
+				});
+				shapeFieldsValid = false;
+			} else {
+				const items = pt.items as Record<string, unknown>;
+				const itemFields = Object.entries(items);
+				if (itemFields.length !== 2 || !itemFields.every(([, v]) => v === "integer" || v === "number")) {
+					errors.push({
+						path: `${fPath}.${name}.items`,
+						severity: "error",
+						message: `Polygon items must have exactly 2 numeric fields (e.g., { x: integer, y: integer })`,
+					});
+					shapeFieldsValid = false;
+				}
+			}
+			shapeFields.push({ name, valueType: "integer" });
+			continue;
+		}
+
+		if (typeof valueType !== "string" || !VALID_SHAPE_VALUE_TYPES.has(valueType)) {
+			errors.push({
+				path: `${fPath}.${name}`,
+				severity: "error",
+				message: `Shape field "${name}" must have type "integer" or "number", got "${valueType}"`,
+			});
+			shapeFieldsValid = false;
+		} else {
+			shapeFields.push({
+				name,
+				valueType: valueType as "integer" | "number",
+			});
+		}
+	}
+
+	// Run inference to produce warnings
+	if (shapeFieldsValid) {
+		const inference = inferShapeMapping(shapeType as ShapeType, shapeFields);
+		for (const w of inference.warnings) {
+			errors.push({
+				path: fPath,
+				severity: "warning",
+				message: w,
+			});
+		}
+	}
+}
+
+function validateEnumField(
+	obj: Record<string, unknown>,
+	fPath: string,
+	errors: SpecError[],
+): void {
+	if (!Array.isArray(obj.enum)) {
+		errors.push({
+			path: fPath,
+			severity: "error",
+			message: `Enum must be an array`,
+		});
+		return;
+	}
+
+	if (obj.enum.length < 2) {
+		errors.push({
+			path: fPath,
+			severity: "error",
+			message: `Enum must have at least 2 values, got ${obj.enum.length}`,
+		});
+	} else if (!obj.enum.every((v: unknown) => typeof v === "string")) {
+		errors.push({
+			path: fPath,
+			severity: "error",
+			message: `Enum values must all be strings`,
+		});
+	}
 }

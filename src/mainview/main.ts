@@ -36,8 +36,8 @@ wireDesktopMenuHandlers({
 	duplicateSprite: () => duplicateSelected(),
 	deleteSprite: () => deleteSelected(),
 	triggerSave: () => saveWorkspace(),
-	triggerSaveAs: () => saveWorkspaceAs(),
-	triggerOpen: () => openWorkspace(),
+	triggerSaveAs: (path: string) => saveWorkspaceAs(path),
+	triggerOpen: (path: string) => openWorkspace(path),
 });
 
 const app = createApp(App);

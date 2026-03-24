@@ -241,12 +241,30 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 		case "triggerSave":
 			mainWindow.webview.rpc.request.triggerSave({});
 			break;
-		case "triggerSaveAs":
-			mainWindow.webview.rpc.request.triggerSaveAs({});
+		case "triggerSaveAs": {
+			const script = `set f to POSIX path of (choose file name with prompt "Save As" default name "workspace.span")\nreturn f`;
+			try {
+				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+				const out = await new Response(proc.stdout).text();
+				const code = await proc.exited;
+				if (code === 0 && out.trim()) {
+					mainWindow.webview.rpc.request.triggerSaveAs({ path: out.trim() });
+				}
+			} catch {}
 			break;
-		case "triggerOpen":
-			mainWindow.webview.rpc.request.triggerOpen({});
+		}
+		case "triggerOpen": {
+			const script = `set f to POSIX path of (choose file of type {"span"} with prompt "Open")\nreturn f`;
+			try {
+				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+				const out = await new Response(proc.stdout).text();
+				const code = await proc.exited;
+				if (code === 0 && out.trim()) {
+					mainWindow.webview.rpc.request.triggerOpen({ path: out.trim() });
+				}
+			} catch {}
 			break;
+		}
 		case "addSprite":
 			mainWindow.webview.rpc.request.addSprite({});
 			break;

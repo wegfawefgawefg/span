@@ -1,91 +1,281 @@
 // src/mainview/src/spec/__tests__/parse.test.ts
 import { describe, test, expect } from "bun:test";
 import { parseSpec } from "../parse";
-import type { SpanSpec, SpecError } from "../types";
+import type { SpanSpec, SpecError, ShapeSpecField, ScalarSpecField, PathSpecField } from "../types";
 
 function isSpec(result: SpanSpec | SpecError[]): result is SpanSpec {
 	return !Array.isArray(result);
 }
 
-const VALID_YAML = `
-entities:
-  Sprite:
-    shape:
-      type: rect
+// The example spec YAML (multi-doc with frontmatter)
+const EXAMPLE_SPEC_YAML = `---
+__properties:
+  version: 0.1.0
+---
+- label: Sprite
+  group: sprites
+  properties:
+    path: RelativePath
+    slice:
+      __shape: rect
       x: integer
       y: integer
       width: integer
       height: integer
-    properties:
-      name: string
-      frame: integer
-      direction: { enum: [up, down, left, right] }
-  Waypoint:
-    shape:
-      type: point
+    collision:
+      __shape: rect
       x: integer
       y: integer
-    properties:
-      name: string
+      width: integer
+      height: integer
+    origin:
+      __shape: point
+      x: integer
+      y: integer
+    name: string
+    frame: integer
+    direction: { enum: [up, down, left, right] }
+    variant: string
+    tags: string[]
+
+- label: Tile
+  group: tiles
+  properties:
+    path: RelativePath
+    slice:
+      __shape: rect
+      x: integer
+      y: integer
+      width: integer
+      height: integer
+    name: string
+    solid: boolean
+    layer: { enum: [background, foreground, overlay] }
+    tags: string[]
+
+- label: Waypoint
+  group: waypoints
+  properties:
+    point:
+      __shape: point
+      x: integer
+      y: integer
+    name: string
+    order: integer
+    type: { enum: [spawn, entrance, exit, warp] }
 `;
 
-const VALID_JSON = JSON.stringify({
-	entities: {
-		Tile: {
-			shape: { type: "rect", x: "integer", y: "integer", w: "integer", h: "integer" },
-			properties: { solid: "boolean" },
+const YAML_NO_FRONTMATTER = `
+- label: Sprite
+  group: sprites
+  properties:
+    slice:
+      __shape: rect
+      x: integer
+      y: integer
+      width: integer
+      height: integer
+    name: string
+`;
+
+const JSON_SPEC = JSON.stringify([
+	{
+		label: "Tile",
+		group: "tiles",
+		properties: {
+			slice: { __shape: "rect", x: "integer", y: "integer", w: "integer", h: "integer" },
+			solid: "boolean",
 		},
 	},
-});
+]);
 
 describe("parseSpec", () => {
-	test("parses valid YAML spec", () => {
-		const result = parseSpec(VALID_YAML, "yaml");
+	// --- Example spec (multi-doc with frontmatter) ---
+
+	test("parses example YAML spec with frontmatter and 3 entities", () => {
+		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		expect(isSpec(result)).toBe(true);
 		if (!isSpec(result)) return;
 
 		expect(result.format).toBe("yaml");
-		expect(Object.keys(result.entities)).toEqual(["Sprite", "Waypoint"]);
-
-		const sprite = result.entities.Sprite;
-		expect(sprite.shape.type).toBe("rect");
-		expect(sprite.shape.mapping).toEqual({
-			type: "rect",
-			x: "x", y: "y", width: "width", height: "height",
-		});
-		expect(sprite.properties).toHaveLength(3);
-		expect(sprite.properties[0]).toEqual({ name: "name", type: "string" });
-		expect(sprite.properties[2]).toEqual({
-			name: "direction",
-			type: "enum",
-			enumValues: ["up", "down", "left", "right"],
-		});
+		expect(result.frontmatter).toEqual({ version: "0.1.0" });
+		expect(result.entities).toHaveLength(3);
+		expect(result.entities.map((e) => e.label)).toEqual(["Sprite", "Tile", "Waypoint"]);
+		expect(result.entities.map((e) => e.group)).toEqual(["sprites", "tiles", "waypoints"]);
 	});
 
-	test("parses valid JSON spec", () => {
-		const result = parseSpec(VALID_JSON, "json");
+	test("Sprite entity has multiple shapes (2 rect + 1 point)", () => {
+		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
+		if (!isSpec(result)) return;
+
+		const sprite = result.entities[0];
+		const shapes = sprite.fields.filter((f): f is ShapeSpecField => f.kind === "shape");
+		expect(shapes).toHaveLength(3);
+
+		expect(shapes[0].name).toBe("slice");
+		expect(shapes[0].shapeType).toBe("rect");
+		expect(shapes[0].mapping).toEqual({ type: "rect", x: "x", y: "y", width: "width", height: "height" });
+
+		expect(shapes[1].name).toBe("collision");
+		expect(shapes[1].shapeType).toBe("rect");
+
+		expect(shapes[2].name).toBe("origin");
+		expect(shapes[2].shapeType).toBe("point");
+		expect(shapes[2].mapping).toEqual({ type: "point", x: "x", y: "y" });
+	});
+
+	test("Sprite has Path and scalar fields in correct order", () => {
+		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
+		if (!isSpec(result)) return;
+
+		const sprite = result.entities[0];
+		const fieldNames = sprite.fields.map((f) => f.name);
+		expect(fieldNames).toEqual([
+			"path", "slice", "collision", "origin",
+			"name", "frame", "direction", "variant", "tags",
+		]);
+
+		// path field
+		const pathField = sprite.fields[0] as PathSpecField;
+		expect(pathField.kind).toBe("path");
+		expect(pathField.pathType).toBe("RelativePath");
+
+		// scalar fields
+		const nameField = sprite.fields[4] as ScalarSpecField;
+		expect(nameField.kind).toBe("scalar");
+		expect(nameField.type).toBe("string");
+
+		const frameField = sprite.fields[5] as ScalarSpecField;
+		expect(frameField.kind).toBe("scalar");
+		expect(frameField.type).toBe("integer");
+
+		// enum field
+		const dirField = sprite.fields[6] as ScalarSpecField;
+		expect(dirField.kind).toBe("scalar");
+		expect(dirField.type).toBe("enum");
+		expect(dirField.enumValues).toEqual(["up", "down", "left", "right"]);
+
+		// string[] field
+		const tagsField = sprite.fields[8] as ScalarSpecField;
+		expect(tagsField.kind).toBe("scalar");
+		expect(tagsField.type).toBe("string[]");
+	});
+
+	// --- Frontmatter ---
+
+	test("__properties values land in spec.frontmatter", () => {
+		const yaml = `---
+__properties:
+  version: 1.2.3
+  author: test
+---
+- label: Thing
+  group: things
+  properties:
+    name: string
+`;
+		const result = parseSpec(yaml, "yaml");
+		expect(isSpec(result)).toBe(true);
+		if (!isSpec(result)) return;
+
+		expect(result.frontmatter).toEqual({ version: "1.2.3", author: "test" });
+	});
+
+	test("spec with no frontmatter has empty frontmatter", () => {
+		const result = parseSpec(YAML_NO_FRONTMATTER, "yaml");
+		expect(isSpec(result)).toBe(true);
+		if (!isSpec(result)) return;
+
+		expect(result.frontmatter).toEqual({});
+		expect(result.entities).toHaveLength(1);
+		expect(result.entities[0].label).toBe("Sprite");
+	});
+
+	// --- JSON ---
+
+	test("parses JSON spec with correct SpanSpec", () => {
+		const result = parseSpec(JSON_SPEC, "json");
 		expect(isSpec(result)).toBe(true);
 		if (!isSpec(result)) return;
 
 		expect(result.format).toBe("json");
-		const tile = result.entities.Tile;
-		expect(tile.shape.mapping).toEqual({
-			type: "rect",
-			x: "x", y: "y", width: "w", height: "h",
-		});
+		expect(result.frontmatter).toEqual({});
+		expect(result.entities).toHaveLength(1);
+
+		const tile = result.entities[0];
+		expect(tile.label).toBe("Tile");
+		expect(tile.group).toBe("tiles");
+
+		const shape = tile.fields[0] as ShapeSpecField;
+		expect(shape.kind).toBe("shape");
+		expect(shape.shapeType).toBe("rect");
+		expect(shape.mapping).toEqual({ type: "rect", x: "x", y: "y", width: "w", height: "h" });
+
+		const solidField = tile.fields[1] as ScalarSpecField;
+		expect(solidField.kind).toBe("scalar");
+		expect(solidField.type).toBe("boolean");
 	});
 
-	test("returns errors for invalid YAML", () => {
+	// --- Path types ---
+
+	test("Path and RelativePath produce PathSpecField entries", () => {
+		const yaml = `
+- label: Asset
+  group: assets
+  properties:
+    source: Path
+    relative: RelativePath
+    name: string
+`;
+		const result = parseSpec(yaml, "yaml");
+		expect(isSpec(result)).toBe(true);
+		if (!isSpec(result)) return;
+
+		const asset = result.entities[0];
+		const source = asset.fields[0] as PathSpecField;
+		expect(source.kind).toBe("path");
+		expect(source.pathType).toBe("Path");
+
+		const relative = asset.fields[1] as PathSpecField;
+		expect(relative.kind).toBe("path");
+		expect(relative.pathType).toBe("RelativePath");
+	});
+
+	// --- Field order ---
+
+	test("field order preserved from spec", () => {
+		const yaml = `
+- label: Item
+  group: items
+  properties:
+    z_name: string
+    a_count: integer
+    m_flag: boolean
+`;
+		const result = parseSpec(yaml, "yaml");
+		expect(isSpec(result)).toBe(true);
+		if (!isSpec(result)) return;
+
+		const fieldNames = result.entities[0].fields.map((f) => f.name);
+		expect(fieldNames).toEqual(["z_name", "a_count", "m_flag"]);
+	});
+
+	// --- Error cases ---
+
+	test("invalid YAML returns error array", () => {
 		const result = parseSpec("{{invalid", "yaml");
 		expect(Array.isArray(result)).toBe(true);
+		if (Array.isArray(result)) {
+			expect(result.some((e) => e.severity === "error")).toBe(true);
+		}
 	});
 
-	test("returns errors for invalid JSON", () => {
+	test("invalid JSON returns error array", () => {
 		const result = parseSpec("{bad json", "json");
 		expect(Array.isArray(result)).toBe(true);
 	});
 
-	test("returns errors for invalid spec structure", () => {
+	test("invalid structure (not an array) returns error array", () => {
 		const result = parseSpec("{}", "json");
 		expect(Array.isArray(result)).toBe(true);
 		if (Array.isArray(result)) {
@@ -93,42 +283,50 @@ describe("parseSpec", () => {
 		}
 	});
 
-	test("entity with no properties is valid", () => {
+	test("invalid structure (missing label) returns error array", () => {
 		const yaml = `
-entities:
-  HitBox:
-    shape:
-      type: rect
-      x: integer
-      y: integer
-      width: integer
-      height: integer
+- group: things
+  properties:
+    name: string
 `;
 		const result = parseSpec(yaml, "yaml");
-		expect(isSpec(result)).toBe(true);
-		if (isSpec(result)) {
-			expect(result.entities.HitBox.properties).toHaveLength(0);
+		expect(Array.isArray(result)).toBe(true);
+		if (Array.isArray(result)) {
+			expect(result.some((e) => e.severity === "error")).toBe(true);
 		}
 	});
 
+	// --- Warnings ---
+
 	test("warnings are preserved but don't block parsing", () => {
 		const yaml = `
-entities:
-  Thing:
+- label: Thing
+  group: things
+  properties:
     shape:
-      type: point
+      __shape: point
       foo: integer
       bar: integer
-    properties:
-      name: string
+    name: string
 `;
 		const result = parseSpec(yaml, "yaml");
-		// Unrecognized field names — inference fails but this is a warning
-		// The parse should still succeed but with warnings on the shape
 		expect(isSpec(result)).toBe(true);
 		if (isSpec(result)) {
-			expect(result.entities.Thing.shape.warnings.length).toBeGreaterThan(0);
-			expect(result.entities.Thing.shape.mapping).toBeNull();
+			const shape = result.entities[0].fields[0] as ShapeSpecField;
+			expect(shape.warnings.length).toBeGreaterThan(0);
+			expect(shape.mapping).toBeNull();
+		}
+	});
+
+	test("entity with no properties has empty fields", () => {
+		const yaml = `
+- label: Empty
+  group: empties
+`;
+		const result = parseSpec(yaml, "yaml");
+		expect(isSpec(result)).toBe(true);
+		if (isSpec(result)) {
+			expect(result.entities[0].fields).toHaveLength(0);
 		}
 	});
 });

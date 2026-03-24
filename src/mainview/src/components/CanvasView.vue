@@ -23,6 +23,7 @@ import {
 	duplicateSelected,
 	deleteSelected,
 	selectedAnnotation,
+	getPreviewShapeName,
 } from "../state";
 import { ZOOM_STEP } from "../state";
 import { useCanvas } from "../composables/useCanvas";
@@ -187,14 +188,18 @@ function getShapesForAnnotation(annotation: Annotation): ShapeRenderInfo[] {
 	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
 	if (!entity) return [];
 	const shapes = getShapesForEntity(entity);
-	const primaryName = shapes.length > 0 ? shapes[0].name : null;
-	return shapes.map((sf, index) => ({
-		annotation,
-		shapeName: sf.name,
-		shapeField: sf,
-		shapeIndex: index,
-		isPrimary: sf.name === primaryName,
-	}));
+	const previewName = getPreviewShapeName(annotation.entityType);
+
+	// Only show the preview shape on the main canvas
+	return shapes
+		.filter((sf) => sf.name === previewName)
+		.map((sf, index) => ({
+			annotation,
+			shapeName: sf.name,
+			shapeField: sf,
+			shapeIndex: index,
+			isPrimary: true,
+		}));
 }
 
 function shapeColorClass(shapeIndex: number): string {

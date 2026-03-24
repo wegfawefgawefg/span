@@ -103,7 +103,7 @@ The style helpers in `CanvasView.vue` (`boxStyle`, `pointStyle`, `circleStyle`) 
 ### 4. Annotation Creation
 
 **`createAnnotation` / `buildShapeDefaults`:**
-- For shapes with a reference, default coordinates to `0, 0` (same position as reference shape) instead of the annotation's click position
+- For shapes with a reference, default coordinates to `0, 0` (same position as reference shape) instead of the annotation's click position. This replaces the current `i * 4` offset logic for secondary shapes — referenced shapes use `0, 0`, non-referenced secondary shapes keep the `i * 4` offset.
 - Width/height/radius defaults remain unchanged (e.g., 16x16 for rects)
 
 **`createAnnotationWithSize` (deferred drawing):**
@@ -129,8 +129,17 @@ The style helpers in `CanvasView.vue` (`boxStyle`, `pointStyle`, `circleStyle`) 
 - If referenced: apply delta to stored offset directly, no clamping
 - If not referenced: current behavior (apply delta, clamp to image bounds)
 
-**Resize and radius drags:**
-- Work on stored values directly — unchanged, since width/height/radius are not affected by the reference system (only x/y position is relative)
+**Resize drags (rects):**
+- The resize logic in `useCanvas.ts` currently clamps width/height using the stored x/y as absolute bounds: `imageWidth - x`. For referenced shapes, the stored x is a relative offset, not absolute. The resize handler must resolve the absolute position first, then use that for clamping: `imageWidth - resolvedAbsoluteX`.
+- This requires passing the spec and annotation to the resize logic so it can resolve references.
+
+**Radius drags (circles):**
+- The radius drag computes distance from pointer to the circle's center using stored x/y. For referenced shapes, these are relative offsets. The handler must resolve the absolute center position before computing the distance.
+- This requires passing the spec and annotation to the radius drag logic.
+
+**`clampToImage` function:**
+- Currently clamps all shapes to image bounds using stored coordinates as absolute. For referenced shapes, the stored coordinates are relative offsets and must not be clamped as if absolute.
+- `clampToImage` must resolve the absolute position of referenced shapes before clamping, then convert the clamped result back to a relative offset. Or, simpler: skip clamping for referenced shapes entirely (they're free to go outside their reference, and the user said no bounds constraint).
 
 ### 6. Export
 
@@ -148,10 +157,11 @@ No changes needed. The export already reads `annotation.shapes[shapeName][fieldN
 | File | Change |
 |------|--------|
 | `src/mainview/src/spec/types.ts` | Add `reference: string \| null` to `ShapeSpecField` |
-| `src/mainview/src/spec/parse.ts` | Extract `__reference` in `buildShapeField()`, exclude from data fields |
-| `src/mainview/src/spec/validate.ts` | Allow `__reference` as reserved key, validate target exists, no cycles, forward-only |
+| `src/mainview/src/spec/parse.ts` | Extract `__reference` in `buildShapeField()`, exclude from data fields (alongside `__shape`) |
+| `src/mainview/src/spec/validate.ts` | Exclude `__reference` from shape field count check (alongside `__shape`); validate reference target exists in same entity, no self-references, no cycles, forward-only ordering; both referencing and referenced shapes must have a mapping |
 | `src/mainview/src/annotation.ts` | Reference resolution in `getShapeRect`/`getShapePosition`; relative defaults in `buildShapeDefaults`; offset conversion in `createAnnotationWithSize` |
-| `src/mainview/src/composables/useCanvas.ts` | Skip referenced shapes in group-move; no-clamp mode for referenced shape drags |
+| `src/mainview/src/composables/useCanvas.ts` | Skip referenced shapes in group-move; no-clamp mode for referenced shape move drags; resolve absolute position for resize clamping and radius computation on referenced shapes |
+| `src/mainview/src/annotation.ts` (clampToImage) | Skip clamping for shapes with a reference |
 | `src/mainview/src/components/DynamicInspector.vue` | Show "(relative to X)" label on referenced shape sections |
 
 ## Files NOT Changed
@@ -161,12 +171,17 @@ No changes needed. The export already reads `annotation.shapes[shapeName][fieldN
 | `src/mainview/src/export.ts` | Stored values are already relative — export outputs them directly |
 | `src/mainview/src/components/CanvasView.vue` | Consumes resolved absolute positions from `getShapeRect`/`getShapePosition` — no changes needed |
 | `src/mainview/src/components/ToolPalette.vue` | Tool selection unaffected |
-| `src/mainview/src/state.ts` | State actions call into `annotation.ts` — no direct changes needed |
+| `src/mainview/src/state.ts` | State actions call into `annotation.ts` — no direct changes needed. `addAnnotationWithSize` doesn't need changes because deferred drawing only creates annotations using the primary shape's entity tool, and primary shapes don't have references (they're the reference target) |
 
 ## Edge Cases
 
-- **Reference chain resolution:** A → B → C resolves recursively. Validation ensures no cycles.
+- **Reference chain resolution:** A → B → C resolves recursively. Validation enforces no cycles and forward-only ordering.
 - **Deleting a reference target:** Not applicable — shapes are defined by the spec, not user-deletable individually.
+- **Polygon shapes with `__reference`:** Not supported in this iteration. Polygons store point arrays, not simple x/y offsets. Validation should reject `__reference` on polygon shapes.
+- **Both referencing and referenced shapes must have a mapping:** A shape without a mapping has no x/y to offset or be offset from. Validation rejects `__reference` if either shape lacks a mapping.
+- **`duplicateAnnotation`:** Works correctly without changes. It copies stored values and offsets the primary shape by 4px. Since referenced shapes store relative offsets, they follow the duplicated primary automatically.
+- **Negative offsets:** Valid — a referenced shape can be positioned above/left of its reference shape.
+- **`createAnnotationWithSize` and references:** Primary shapes (the ones you draw) don't have references — they're the reference target. So deferred drawing doesn't need offset conversion. Secondary referenced shapes get default `0, 0` offsets on creation.
 - **Spec reload with different references:** `activeTool` resets to select mode (already implemented). Existing annotations may have stale data — this is handled by the existing spec-diff/migration system.
 - **Creating annotation via deferred drawing:** The drawn absolute position is converted to relative offset at creation time. The reference shape's data is guaranteed to exist because shapes are processed in spec order.
 - **Negative offsets:** Valid — a collision rect can be positioned above/left of its reference shape.

@@ -356,6 +356,8 @@ export function clampToImage(
 	const shapeFields = getShapesForEntity(entity);
 
 	for (const sf of shapeFields) {
+		if (sf.reference) continue; // referenced shapes use relative offsets — skip clamping
+
 		const shapeData = annotation.shapes[sf.name];
 		if (!shapeData) continue;
 

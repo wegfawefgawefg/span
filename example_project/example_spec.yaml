@@ -25,6 +25,7 @@ __properties:
       __reference: slice
       x: integer
       y: integer
+    chroma_key: ColorHEX
     frame: integer
     direction: { enum: [up, down, left, right] }
     variant: string
@@ -43,6 +44,7 @@ __properties:
       height: integer
     solid: boolean
     layer: { enum: [background, foreground, overlay] }
+    chroma_key: ColorHEX
     tags: string[]
 
 - label: Waypoint

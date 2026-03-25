@@ -333,7 +333,7 @@ export async function saveWorkspaceAs(dialogPath?: string) {
 		return;
 	}
 
-	const savePath = path.endsWith(".span") ? path : path + ".span";
+	const savePath = dialogPath.endsWith(".span") ? dialogPath : dialogPath + ".span";
 	spanFilePath.value = savePath;
 
 	const data = serializeWorkspace(

@@ -17,6 +17,7 @@ sprites:
     origin:
       x: 8
       y: 8
+    chroma_key: '#FF00FF'
     tags: ['player', 'idle']
     variant: 'default'
   - name: 'link_walk'
@@ -36,6 +37,7 @@ sprites:
     origin:
       x: 8
       y: 8
+    chroma_key: '#FF00FF'
     tags: ['player', 'walk']
     variant: 'default'
 
@@ -60,3 +62,4 @@ tiles:
       y: 0
       width: 16
       height: 16
+    chroma_key: '#FF00FF'

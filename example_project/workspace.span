@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "spec": "",
+  "root": "",
+  "sheets": [
+    {
+      "path": "01 - Link.png",
+      "annotations": [
+        {
+          "id": "d47d7fa4-eec1-4638-b9c1-294022d02165",
+          "entityType": "Sprite",
+          "shapes": {
+            "slice": {
+              "x": 1,
+              "y": 11,
+              "width": 16,
+              "height": 16
+            },
+            "collision": {
+              "x": 0,
+              "y": 0,
+              "width": 15,
+              "height": 16
+            },
+            "origin": {
+              "x": 8,
+              "y": 7
+            }
+          },
+          "propertyData": {
+            "name": "link_idle",
+            "path": "",
+            "chroma_key": "#747474",
+            "frame": 0,
+            "direction": "up",
+            "variant": "",
+            "tags": []
+          }
+        },
+        {
+          "id": "e8de4d60-c07a-493c-86b2-57a43cdb540e",
+          "entityType": "Sprite",
+          "shapes": {
+            "slice": {
+              "x": 18,
+              "y": 11,
+              "width": 16,
+              "height": 16
+            },
+            "collision": {
+              "x": 0,
+              "y": 0,
+              "width": 15,
+              "height": 16
+            },
+            "origin": {
+              "x": 8,
+              "y": 7
+            }
+          },
+          "propertyData": {
+            "name": "link_idle",
+            "path": "",
+            "chroma_key": "#747474",
+            "frame": 1,
+            "direction": "up",
+            "variant": "",
+            "tags": []
+          }
+        }
+      ]
+    }
+  ]
+}

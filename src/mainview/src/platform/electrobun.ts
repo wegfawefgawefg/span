@@ -13,7 +13,7 @@ let canCloseHandler: () => boolean = () => true;
 let addSpriteHandler: () => void = () => {};
 let duplicateSpriteHandler: () => void = () => {};
 let deleteSpriteHandler: () => void = () => {};
-let triggerSaveHandler: () => void = () => {};
+let triggerSaveHandler: () => Promise<{ needsSaveAs: boolean }> = async () => ({ needsSaveAs: false });
 let triggerSaveAsHandler: (path: string) => void = () => {};
 let triggerOpenHandler: (path: string) => void = () => {};
 
@@ -24,7 +24,7 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			addSprite: () => addSpriteHandler(),
 			duplicateSprite: () => duplicateSpriteHandler(),
 			deleteSprite: () => deleteSpriteHandler(),
-			triggerSave: () => { setTimeout(triggerSaveHandler, 0); },
+			triggerSave: () => triggerSaveHandler(),
 			triggerSaveAs: ({ path }) => { setTimeout(() => triggerSaveAsHandler(path), 0); },
 			triggerOpen: ({ path }) => { setTimeout(() => triggerOpenHandler(path), 0); },
 			resetLayout: () => getResetLayoutHandler()(),
@@ -66,7 +66,7 @@ export function wireDesktopMenuHandlers(handlers: {
 	addSprite: () => void;
 	duplicateSprite: () => void;
 	deleteSprite: () => void;
-	triggerSave: () => void;
+	triggerSave: () => Promise<{ needsSaveAs: boolean }>;
 	triggerSaveAs: (path: string) => void;
 	triggerOpen: (path: string) => void;
 }) {

@@ -18,6 +18,17 @@ function layoutPath(): string {
 	return join(dir, "layout.json");
 }
 
+async function showSaveAsDialog(): Promise<string | null> {
+	const script = `set f to POSIX path of (choose file name with prompt "Save As" default name "workspace.span")\nreturn f`;
+	try {
+		const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+		const out = await new Response(proc.stdout).text();
+		const code = await proc.exited;
+		if (code === 0 && out.trim()) return out.trim();
+	} catch {}
+	return null;
+}
+
 // --- RPC ---
 const rpc = BrowserView.defineRPC<SpanRPC>({
 	handlers: {
@@ -238,19 +249,17 @@ ApplicationMenu.setApplicationMenu([
 Electrobun.events.on("application-menu-clicked", async (e) => {
 	const { action } = e.data as { action: string };
 	switch (action) {
-		case "triggerSave":
-			mainWindow.webview.rpc.request.triggerSave({});
+		case "triggerSave": {
+			const result = await mainWindow.webview.rpc.request.triggerSave({});
+			if (result.needsSaveAs) {
+				const path = await showSaveAsDialog();
+				if (path) mainWindow.webview.rpc.request.triggerSaveAs({ path });
+			}
 			break;
+		}
 		case "triggerSaveAs": {
-			const script = `set f to POSIX path of (choose file name with prompt "Save As" default name "workspace.span")\nreturn f`;
-			try {
-				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
-				const out = await new Response(proc.stdout).text();
-				const code = await proc.exited;
-				if (code === 0 && out.trim()) {
-					mainWindow.webview.rpc.request.triggerSaveAs({ path: out.trim() });
-				}
-			} catch {}
+			const path = await showSaveAsDialog();
+			if (path) mainWindow.webview.rpc.request.triggerSaveAs({ path });
 			break;
 		}
 		case "triggerOpen": {

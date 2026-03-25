@@ -63,7 +63,7 @@ export type SpanRPC = {
 			};
 			triggerSave: {
 				params: {};
-				response: void;
+				response: { needsSaveAs: boolean };
 			};
 			triggerSaveAs: {
 				params: { path: string };

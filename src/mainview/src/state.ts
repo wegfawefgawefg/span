@@ -318,12 +318,12 @@ export async function exportWorkspace() {
 
 // --- Save / Save As / Open ---
 
-export async function saveWorkspace() {
+export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
 	if (!spanFilePath.value) {
-		statusText.value = "Use Save As (Cmd+Shift+S) to save for the first time";
-		return;
+		return { needsSaveAs: true };
 	}
 	performSave();
+	return { needsSaveAs: false };
 }
 
 export async function saveWorkspaceAs(dialogPath?: string) {

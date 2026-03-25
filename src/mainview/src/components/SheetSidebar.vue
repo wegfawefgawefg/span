@@ -6,8 +6,10 @@ import {
 	openSheetByPath,
 	removeSheet,
 	addSheet,
+	fulfillSheet,
 	statusText,
 } from "../state";
+import type { WorkspaceSheet } from "../state";
 import { api, platform } from "../platform/adapter";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
@@ -75,6 +77,27 @@ function handleRemove(path: string, hasAnnotations: boolean) {
 	removeSheet(path);
 }
 
+async function handleLocateImage(sheet: WorkspaceSheet) {
+	const selected = await api.showOpenDialog([
+		{ name: "Images", extensions: ["png", "jpg", "gif", "webp"] },
+	]);
+	if (!selected) return;
+
+	try {
+		const dataUrl = await api.readImageAsDataUrl(selected);
+		const img = new Image();
+		img.src = dataUrl;
+		await new Promise<void>((resolve, reject) => {
+			img.onload = () => resolve();
+			img.onerror = () => reject(new Error("Failed to load image"));
+		});
+		fulfillSheet(sheet, dataUrl, img.naturalWidth, img.naturalHeight);
+	} catch (e) {
+		console.error(e);
+		statusText.value = "Failed to load image";
+	}
+}
+
 function onSheetContextMenu(event: MouseEvent, sheet: (typeof sheets.value)[number]) {
 	const entries: MenuEntry[] = [
 		{
@@ -82,7 +105,10 @@ function onSheetContextMenu(event: MouseEvent, sheet: (typeof sheets.value)[numb
 			action: () => handleOpen(sheet.path),
 			disabled: currentSheet.value?.path === sheet.path,
 		},
-		...(platform.value === "desktop"
+		...(sheet.status === "missing"
+			? [{ label: "Locate image\u2026", action: () => handleLocateImage(sheet) }]
+			: []),
+		...(platform.value === "desktop" && sheet.status !== "missing"
 			? [{ label: "Reveal in Finder", action: () => api.revealFile(sheet.absolutePath) }]
 			: []),
 		{ separator: true },
@@ -124,7 +150,7 @@ function onPanelContextMenu(event: MouseEvent) {
 			>
 				<div class="text-xs font-medium truncate flex items-center gap-1"
 					:class="currentSheet?.path === sheet.path ? 'text-copper-bright' : 'text-text'">
-					<span v-if="sheet.status === 'missing'" title="Image file not found">&#9888;</span>
+					<span v-if="sheet.status === 'missing'" title="Image not found — click to locate" class="cursor-pointer hover:opacity-80" @click.stop="handleLocateImage(sheet)">&#9888;</span>
 					{{ filename(sheet.path) }}
 				</div>
 				<div class="font-mono text-[10px] text-text-faint truncate mt-0.5">{{ sheet.path }}</div>

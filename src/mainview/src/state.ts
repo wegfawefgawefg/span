@@ -84,6 +84,26 @@ export const selectedAnnotation = computed<Annotation | null>(
 	() => annotations.value.find((a) => a.id === selectedId.value) ?? null,
 );
 
+/** Fulfill a missing sheet with image data. Replaces the object to trigger Vue reactivity. */
+export function fulfillSheet(sheet: WorkspaceSheet, imageUrl: string, width: number, height: number) {
+	const idx = sheets.value.indexOf(sheet);
+	if (idx === -1) return;
+
+	const fulfilled: WorkspaceSheet = {
+		...sheet,
+		imageUrl,
+		width,
+		height,
+		status: "loaded",
+	};
+	sheets.value.splice(idx, 1, fulfilled);
+
+	// If this was the active sheet, update canvas
+	if (currentSheet.value === sheet) {
+		currentSheet.value = fulfilled;
+	}
+}
+
 // --- Watch currentSheet to load image ---
 
 watch(currentSheet, async (sheet) => {
@@ -285,6 +305,51 @@ export function loadSpec(raw: string, format: "json" | "yaml") {
 	statusText.value = "Spec loaded";
 }
 
+export async function importSpecFromPath(path: string) {
+	try {
+		const raw = await api.readFile(path);
+		const format = path.endsWith(".json") ? "json" : "yaml" as const;
+		loadSpec(raw, format);
+	} catch (e) {
+		console.error("Failed to import spec:", e);
+		statusText.value = "Failed to import spec file";
+	}
+}
+
+export async function importSheetFromPath(path: string) {
+	try {
+		const dataUrl = await api.readImageAsDataUrl(path);
+		const dims = await new Promise<{ width: number; height: number }>((resolve) => {
+			const img = new Image();
+			img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+			img.onerror = () => resolve({ width: 0, height: 0 });
+			img.src = dataUrl;
+		});
+		const name = path.split("/").pop() ?? path;
+
+		// Fulfill a missing sheet if one matches
+		const missing = sheets.value.find(
+			(s) => s.status === "missing" && s.path.split("/").pop() === name,
+		);
+		if (missing) {
+			fulfillSheet(missing, dataUrl, dims.width, dims.height);
+		} else {
+			addSheet({
+				path: name,
+				absolutePath: path,
+				annotations: [],
+				status: "loaded",
+				imageUrl: dataUrl,
+				width: dims.width,
+				height: dims.height,
+			});
+		}
+	} catch (e) {
+		console.error("Failed to import sheet:", e);
+		statusText.value = "Failed to import image";
+	}
+}
+
 // --- Export ---
 
 export async function exportWorkspace() {
@@ -326,13 +391,17 @@ export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
 }
 
 export async function saveWorkspaceAs(dialogPath?: string) {
-	if (!dialogPath) {
-		// On desktop, dialog is shown by the backend — this shouldn't be called without a path
-		statusText.value = "Use File → Save As from the menu";
-		return;
+	let savePath = dialogPath;
+	if (!savePath) {
+		// On web or when called without a path, show save dialog
+		const selected = await api.showSaveDialog("workspace.span", [
+			{ name: "Span files", extensions: ["span"] },
+		]);
+		if (!selected) return;
+		savePath = selected;
 	}
 
-	const savePath = dialogPath.endsWith(".span") ? dialogPath : dialogPath + ".span";
+	savePath = savePath.endsWith(".span") ? savePath : savePath + ".span";
 	spanFilePath.value = savePath;
 
 	const data = serializeWorkspace(

@@ -20,6 +20,9 @@ import {
 	saveWorkspace,
 	saveWorkspaceAs,
 	openWorkspace,
+	exportWorkspace,
+	importSpecFromPath,
+	importSheetFromPath,
 } from "./src/state";
 
 // Initialize platform
@@ -38,6 +41,9 @@ wireDesktopMenuHandlers({
 	triggerSave: () => saveWorkspace(),
 	triggerSaveAs: (path: string) => saveWorkspaceAs(path),
 	triggerOpen: (path: string) => openWorkspace(path),
+	triggerExport: () => exportWorkspace(),
+	triggerImportSpec: (path: string) => importSpecFromPath(path),
+	triggerImportSheet: (path: string) => importSheetFromPath(path),
 });
 
 const app = createApp(App);

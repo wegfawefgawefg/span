@@ -33,6 +33,9 @@ interface SpriteGroup {
 
 const previewScale = ref(3);
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
+
+// Invalidate cached images when sheets change (e.g. missing sheet fulfilled)
+watch(sheets, () => { imageCache.clear(); }, { deep: true });
 const sourceCanvas = document.createElement("canvas");
 const sourceCtx = sourceCanvas.getContext("2d", {
 	willReadFrequently: true,

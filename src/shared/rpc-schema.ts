@@ -73,6 +73,18 @@ export type SpanRPC = {
 				params: { path: string };
 				response: void;
 			};
+			triggerExport: {
+				params: {};
+				response: void;
+			};
+			triggerImportSpec: {
+				params: { path: string };
+				response: void;
+			};
+			triggerImportSheet: {
+				params: { path: string };
+				response: void;
+			};
 			resetLayout: {
 				params: {};
 				response: void;

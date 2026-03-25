@@ -7,15 +7,23 @@ import {
 	statusText,
 	duplicateSelected,
 	deleteSelected,
+	addAnnotationAtViewportCenter,
 	activeSpec,
 	sheets,
 	addSheet,
+	fulfillSheet,
 	loadSpec,
+	saveWorkspace,
+	saveWorkspaceAs,
+	openWorkspace,
 	exportWorkspace,
+	importSpecFromPath,
+	importSheetFromPath,
 	restoreWorkspace,
 } from "./state";
 import { parseSpec } from "./spec/parse";
-import { api, setResetLayoutHandler, setAddPanelHandler } from "./platform/adapter";
+import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler } from "./platform/adapter";
+import MenuBar from "./components/MenuBar.vue";
 
 const PANELS: Record<string, { component: string; title: string }> = {
 	sheets: { component: "sheets", title: "Sheets" },
@@ -74,8 +82,42 @@ async function loadImageDimensions(dataUrl: string): Promise<{ width: number; he
 	});
 }
 
+async function handleImportSpec() {
+	const path = await api.showOpenDialog([
+		{ name: "Spec files", extensions: ["yaml", "yml", "json"] },
+	]);
+	if (!path) return;
+	await importSpecFromPath(path);
+}
+
+async function handleImportSheet() {
+	const path = await api.showOpenDialog([
+		{ name: "Images", extensions: ["png", "jpg", "gif", "webp"] },
+	]);
+	if (!path) return;
+	await importSheetFromPath(path);
+}
+
 async function handleDroppedFiles(files: File[]) {
+	// Sort: process images first, then specs, then .span files last.
+	// This ensures images are available when the .span file restores and looks for them.
+	const spanFiles: File[] = [];
+	const specFiles: File[] = [];
+	const imageFiles: File[] = [];
+	const other: File[] = [];
+
 	for (const file of files) {
+		const name = file.name;
+		if (SPAN_EXT.test(name)) spanFiles.push(file);
+		else if (SPEC_EXTS.test(name)) specFiles.push(file);
+		else if (IMAGE_EXTS.test(name)) imageFiles.push(file);
+		else other.push(file);
+	}
+
+	// Process .span first (creates missing sheets), then specs, then images (fulfill missing sheets).
+	const ordered = [...spanFiles, ...specFiles, ...imageFiles, ...other];
+
+	for (const file of ordered) {
 		const name = file.name;
 
 		if (SPAN_EXT.test(name)) {
@@ -117,10 +159,7 @@ async function handleDroppedFiles(files: File[]) {
 					(s) => s.status === "missing" && s.path.split("/").pop() === name,
 				);
 				if (missing) {
-					missing.imageUrl = dataUrl;
-					missing.width = dims.width;
-					missing.height = dims.height;
-					missing.status = "loaded";
+					fulfillSheet(missing, dataUrl, dims.width, dims.height);
 				} else {
 					addSheet({
 						path: name,
@@ -244,11 +283,58 @@ async function onReady(event: DockviewReadyEvent) {
 	});
 }
 
+async function handleMenuAction(action: string) {
+	if (action === "open") {
+		await openWorkspace();
+	} else if (action === "save") {
+		const result = await saveWorkspace();
+		if (result.needsSaveAs) {
+			await saveWorkspaceAs();
+		}
+	} else if (action === "saveAs") {
+		await saveWorkspaceAs();
+	} else if (action === "importSpec") {
+		await handleImportSpec();
+	} else if (action === "importSheet") {
+		await handleImportSheet();
+	} else if (action === "export") {
+		await exportWorkspace();
+	} else if (action === "addAnnotation") {
+		addAnnotationAtViewportCenter();
+	} else if (action === "duplicateAnnotation") {
+		duplicateSelected();
+	} else if (action === "deleteAnnotation") {
+		deleteSelected();
+	} else if (action === "resetLayout") {
+		getResetLayoutHandler()();
+	} else if (action.startsWith("addPanel:")) {
+		getAddPanelHandler()(action.slice("addPanel:".length));
+	}
+}
+
 function onKeydown(event: KeyboardEvent) {
 	const mod = event.ctrlKey || event.metaKey;
 	const tag = (document.activeElement?.tagName ?? "").toUpperCase();
 	const inInput =
 		tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+
+	if (mod && event.key.toLowerCase() === "s" && !event.shiftKey) {
+		event.preventDefault();
+		handleMenuAction("save");
+		return;
+	}
+
+	if (mod && event.shiftKey && event.key.toLowerCase() === "s") {
+		event.preventDefault();
+		handleMenuAction("saveAs");
+		return;
+	}
+
+	if (mod && event.key.toLowerCase() === "o") {
+		event.preventDefault();
+		handleMenuAction("open");
+		return;
+	}
 
 	if (mod && event.key.toLowerCase() === "e" && !inInput) {
 		event.preventDefault();
@@ -290,6 +376,7 @@ onUnmounted(() => {
 
 <template>
 	<div class="app-shell" @contextmenu.prevent>
+		<MenuBar v-if="platform === 'web'" @action="handleMenuAction" />
 		<div class="dockview-theme-dark dockview-container">
 			<DockviewVue @ready="onReady" />
 		</div>

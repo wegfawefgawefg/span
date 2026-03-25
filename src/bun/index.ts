@@ -170,6 +170,15 @@ ApplicationMenu.setApplicationMenu([
 			},
 			{ type: "separator" as const },
 			{
+				label: "Import Spec...",
+				action: "importSpec",
+			},
+			{
+				label: "Import Sheet...",
+				action: "importSheet",
+			},
+			{ type: "separator" as const },
+			{
 				label: "Save",
 				accelerator: "CommandOrControl+S",
 				action: "triggerSave",
@@ -178,6 +187,12 @@ ApplicationMenu.setApplicationMenu([
 				label: "Save As...",
 				accelerator: "CommandOrControl+Shift+S",
 				action: "triggerSaveAs",
+			},
+			{ type: "separator" as const },
+			{
+				label: "Export...",
+				accelerator: "CommandOrControl+E",
+				action: "triggerExport",
 			},
 		],
 	},
@@ -192,14 +207,14 @@ ApplicationMenu.setApplicationMenu([
 			{ role: "paste" },
 			{ role: "selectAll" },
 			{ type: "separator" as const },
-			{ label: "Add Sprite", action: "addSprite" },
+			{ label: "Add Annotation", action: "addSprite" },
 			{
-				label: "Duplicate Sprite",
+				label: "Duplicate Annotation",
 				accelerator: "CommandOrControl+D",
 				action: "duplicateSprite",
 			},
 			{
-				label: "Delete Sprite",
+				label: "Delete Annotation",
 				accelerator: "Backspace",
 				action: "deleteSprite",
 			},
@@ -208,16 +223,11 @@ ApplicationMenu.setApplicationMenu([
 	{
 		label: "View",
 		submenu: [
-			{
-				label: "Add Panel",
-				submenu: [
-					{ label: "Sheets", action: "addPanel:sheets" },
-					{ label: "Canvas", action: "addPanel:sprite-canvas" },
-					{ label: "Inspector", action: "addPanel:inspector" },
-					{ label: "Sprites In Sheet", action: "addPanel:annotations" },
-					{ label: "Gallery", action: "addPanel:gallery" },
-				],
-			},
+			{ label: "Sheets", action: "addPanel:sheets" },
+			{ label: "Canvas", action: "addPanel:sprite-canvas" },
+			{ label: "Inspector", action: "addPanel:inspector" },
+			{ label: "Sprites In Sheet", action: "addPanel:annotations" },
+			{ label: "Gallery", action: "addPanel:gallery" },
 			{ type: "separator" as const },
 			{ label: "Reset Panel Layout", action: "resetLayout" },
 			{ type: "separator" as const },
@@ -283,6 +293,33 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 		case "deleteSprite":
 			mainWindow.webview.rpc.request.deleteSprite({});
 			break;
+		case "triggerExport":
+			mainWindow.webview.rpc.request.triggerExport({});
+			break;
+		case "importSpec": {
+			const script = `set f to POSIX path of (choose file of type {"yaml", "yml", "json"} with prompt "Import Spec")\nreturn f`;
+			try {
+				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+				const out = await new Response(proc.stdout).text();
+				const code = await proc.exited;
+				if (code === 0 && out.trim()) {
+					mainWindow.webview.rpc.request.triggerImportSpec({ path: out.trim() });
+				}
+			} catch {}
+			break;
+		}
+		case "importSheet": {
+			const script = `set f to POSIX path of (choose file of type {"png", "jpg", "jpeg", "gif", "webp"} with prompt "Import Sheet")\nreturn f`;
+			try {
+				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+				const out = await new Response(proc.stdout).text();
+				const code = await proc.exited;
+				if (code === 0 && out.trim()) {
+					mainWindow.webview.rpc.request.triggerImportSheet({ path: out.trim() });
+				}
+			} catch {}
+			break;
+		}
 		case "resetLayout":
 			try {
 				await unlink(layoutPath());

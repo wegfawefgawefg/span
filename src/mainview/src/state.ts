@@ -320,16 +320,18 @@ export async function exportWorkspace() {
 
 export async function saveWorkspace() {
 	if (!spanFilePath.value) {
-		return saveWorkspaceAs();
+		statusText.value = "Use Save As (Cmd+Shift+S) to save for the first time";
+		return;
 	}
 	performSave();
 }
 
 export async function saveWorkspaceAs(dialogPath?: string) {
-	const path = dialogPath ?? await api.showSaveDialog("workspace.span", [
-		{ name: "Span files", extensions: ["span"] },
-	]);
-	if (!path) return;
+	if (!dialogPath) {
+		// On desktop, dialog is shown by the backend — this shouldn't be called without a path
+		statusText.value = "Use File → Save As from the menu";
+		return;
+	}
 
 	const savePath = path.endsWith(".span") ? path : path + ".span";
 	spanFilePath.value = savePath;

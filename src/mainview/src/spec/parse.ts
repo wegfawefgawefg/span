@@ -119,7 +119,7 @@ export function parseSpec(
 					} satisfies ScalarSpecField);
 				}
 			} else if (typeof fieldValue === "string") {
-				if (fieldValue === "Path" || fieldValue === "RelativePath") {
+				if (fieldValue === "FileName") {
 					fields.push({
 						kind: "path",
 						name: fieldName,

@@ -55,7 +55,7 @@ describe("buildExportData", () => {
 		const spec = makeSpec([makeSpriteEntity()], { path: "assets", version: 2 });
 		const ann = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 
 		expect(result["path"]).toBe("assets");
 		expect(result["version"]).toBe(2);
@@ -65,7 +65,7 @@ describe("buildExportData", () => {
 		const spec = makeSpec([makeSpriteEntity()]);
 		const ann = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 
 		expect(result["sprites"]).toBeDefined();
 		expect(Array.isArray(result["sprites"])).toBe(true);
@@ -75,7 +75,7 @@ describe("buildExportData", () => {
 		const spec = makeSpec([makeSpriteEntity()]);
 		const ann = makeAnnotation("Sprite", { slice: { x: 10, y: 20, width: 32, height: 32 } });
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 		const sprites = result["sprites"] as Record<string, unknown>[];
 
 		expect(sprites[0]["slice"]).toEqual({ x: 10, y: 20, width: 32, height: 32 });
@@ -93,7 +93,7 @@ describe("buildExportData", () => {
 			{ name: "link_idle", frame: 3 },
 		);
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
 
 		expect(sprite["name"]).toBe("link_idle");
@@ -112,7 +112,7 @@ describe("buildExportData", () => {
 			{ name: "hero", frame: 1 },
 		);
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
 		const keys = Object.keys(sprite);
 
@@ -170,7 +170,7 @@ describe("buildExportData", () => {
 			origin: { x: 8, y: 16 },
 		});
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
 
 		expect(sprite["slice"]).toEqual({ x: 0, y: 0, width: 16, height: 16 });
@@ -178,38 +178,21 @@ describe("buildExportData", () => {
 		expect(sprite["origin"]).toEqual({ x: 8, y: 16 });
 	});
 
-	it("exports Path field as absolute path string", () => {
+	it("exports FileName field as-is", () => {
 		const entity: EntityDef = {
 			label: "Sprite",
 			group: "sprites",
 			fields: [
-				{ kind: "path", name: "src", pathType: "Path" },
+				{ kind: "path", name: "path", pathType: "FileName" },
 			],
 		};
 		const spec = makeSpec([entity]);
-		const ann = makeAnnotation("Sprite", {}, { src: "/absolute/path/to/link.png" });
+		const ann = makeAnnotation("Sprite", {}, { path: "link.png" });
 
-		const result = buildExportData([ann], spec, "/workspace");
+		const result = buildExportData([ann], spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
 
-		expect(sprite["src"]).toBe("/absolute/path/to/link.png");
-	});
-
-	it("exports RelativePath field as path relative to workspace root", () => {
-		const entity: EntityDef = {
-			label: "Sprite",
-			group: "sprites",
-			fields: [
-				{ kind: "path", name: "path", pathType: "RelativePath" },
-			],
-		};
-		const spec = makeSpec([entity]);
-		const ann = makeAnnotation("Sprite", {}, { path: "/workspace/assets/link.png" });
-
-		const result = buildExportData([ann], spec, "/workspace");
-		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
-
-		expect(sprite["path"]).toBe("./assets/link.png");
+		expect(sprite["path"]).toBe("link.png");
 	});
 
 	it("excludes id and _stash from output", () => {
@@ -221,7 +204,7 @@ describe("buildExportData", () => {
 			{ id: "abc123", _stash: { old_prop: "value" } },
 		);
 
-		const result = buildExportData([ann], spec, "");
+		const result = buildExportData([ann], spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
 
 		expect(sprite).not.toHaveProperty("id");
@@ -251,7 +234,7 @@ describe("buildExportData", () => {
 		const spec = makeSpec([makeSpriteEntity(), tileEntity]);
 		const ann = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 
 		expect(result["sprites"]).toBeDefined();
 		expect(result["tiles"]).toBeUndefined();
@@ -262,7 +245,7 @@ describe("buildExportData", () => {
 		const validAnn = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 		const orphanAnn = makeAnnotation("Ghost", {});
 
-		const result = buildExportData([validAnn, orphanAnn], spec, "/root");
+		const result = buildExportData([validAnn, orphanAnn], spec);
 
 		expect((result["sprites"] as unknown[]).length).toBe(1);
 		expect(result["Ghost"]).toBeUndefined();
@@ -271,7 +254,7 @@ describe("buildExportData", () => {
 	it("returns empty object with only frontmatter for empty annotations list", () => {
 		const spec = makeSpec([makeSpriteEntity()], { path: "assets" });
 
-		const result = buildExportData([], spec, "/root");
+		const result = buildExportData([], spec);
 
 		expect(result["path"]).toBe("assets");
 		expect(result["sprites"]).toBeUndefined();
@@ -302,7 +285,7 @@ describe("buildExportData", () => {
 		const spriteAnn = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 		const tileAnn = makeAnnotation("Tile", { slice: { x: 32, y: 0, width: 16, height: 16 } });
 
-		const result = buildExportData([spriteAnn, tileAnn], spec, "/root");
+		const result = buildExportData([spriteAnn, tileAnn], spec);
 
 		expect(Array.isArray(result["sprites"])).toBe(true);
 		expect(Array.isArray(result["tiles"])).toBe(true);
@@ -315,7 +298,7 @@ describe("buildExportData", () => {
 		const ann1 = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 		const ann2 = makeAnnotation("Sprite", { slice: { x: 16, y: 0, width: 16, height: 16 } });
 
-		const result = buildExportData([ann1, ann2], spec, "/root");
+		const result = buildExportData([ann1, ann2], spec);
 		const sprites = result["sprites"] as Record<string, unknown>[];
 
 		expect(sprites).toHaveLength(2);
@@ -330,7 +313,7 @@ describe("buildExportData", () => {
 		const ann2 = makeAnnotation("Sprite", { slice: { x: 0, y: 16, width: 16, height: 16 } });
 
 		// Pass annotations from both sheets combined
-		const result = buildExportData([ann1, ann2], spec, "/root");
+		const result = buildExportData([ann1, ann2], spec);
 		const sprites = result["sprites"] as Record<string, unknown>[];
 
 		expect(sprites).toHaveLength(2);
@@ -347,7 +330,7 @@ describe("buildExportData", () => {
 			{ tags: ["hero", "player"] },
 		);
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
 
 		expect(sprite["tags"]).toEqual(["hero", "player"]);
@@ -357,7 +340,7 @@ describe("buildExportData", () => {
 		const spec = makeSpec([makeSpriteEntity()]);
 		const ann = makeAnnotation("Sprite", { slice: {} }); // no values
 
-		const result = buildExportData([ann], spec, "/root");
+		const result = buildExportData([ann], spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
 
 		expect(sprite["slice"]).toEqual({ x: 0, y: 0, width: 0, height: 0 });
@@ -369,7 +352,7 @@ describe("exportToString", () => {
 		const spec = makeSpec([makeSpriteEntity()]);
 		const ann = makeAnnotation("Sprite", { slice: { x: 1, y: 2, width: 3, height: 4 } });
 
-		const output = exportToString([ann], spec, "/root");
+		const output = exportToString([ann], spec);
 
 		expect(() => JSON.parse(output)).toThrow();
 		expect(output).toContain("sprites:");
@@ -380,7 +363,7 @@ describe("exportToString", () => {
 		const spec = makeSpec([makeSpriteEntity()], {}, "json");
 		const ann = makeAnnotation("Sprite", { slice: { x: 5, y: 6, width: 7, height: 8 } });
 
-		const output = exportToString([ann], spec, "/root");
+		const output = exportToString([ann], spec);
 		const parsed = JSON.parse(output);
 
 		expect(Array.isArray(parsed["sprites"])).toBe(true);
@@ -392,7 +375,7 @@ describe("exportToString", () => {
 		const spec = makeSpec([makeSpriteEntity()], {}, "json");
 		const ann = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 
-		const output = exportToString([ann], spec, "/root");
+		const output = exportToString([ann], spec);
 		expect(output.endsWith("\n")).toBe(true);
 	});
 
@@ -400,7 +383,7 @@ describe("exportToString", () => {
 		const spec = makeSpec([makeSpriteEntity()], {}, "json");
 		const ann = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 
-		const output = exportToString([ann], spec, "/root");
+		const output = exportToString([ann], spec);
 		expect(output).toContain("  ");
 	});
 
@@ -408,7 +391,7 @@ describe("exportToString", () => {
 		const spec = makeSpec([makeSpriteEntity()], { path: "assets", version: 2 });
 		const ann = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 
-		const output = exportToString([ann], spec, "/root");
+		const output = exportToString([ann], spec);
 
 		expect(output).toContain("path:");
 		expect(output).toContain("version:");
@@ -418,7 +401,7 @@ describe("exportToString", () => {
 		const spec = makeSpec([makeSpriteEntity()], { path: "assets", version: 2 }, "json");
 		const ann = makeAnnotation("Sprite", { slice: { x: 0, y: 0, width: 16, height: 16 } });
 
-		const output = exportToString([ann], spec, "/root");
+		const output = exportToString([ann], spec);
 		const parsed = JSON.parse(output);
 
 		expect(parsed["path"]).toBe("assets");
@@ -428,26 +411,26 @@ describe("exportToString", () => {
 	it("produces empty object with frontmatter for empty annotations in JSON", () => {
 		const spec = makeSpec([makeSpriteEntity()], { path: "assets" }, "json");
 
-		const output = exportToString([], spec, "/root");
+		const output = exportToString([], spec);
 		const parsed = JSON.parse(output);
 
 		expect(parsed["path"]).toBe("assets");
 		expect(parsed["sprites"]).toBeUndefined();
 	});
 
-	it("RelativePath becomes relative in YAML output", () => {
+	it("FileName emits as-is in YAML output", () => {
 		const entity: EntityDef = {
 			label: "Sprite",
 			group: "sprites",
 			fields: [
-				{ kind: "path", name: "path", pathType: "RelativePath" },
+				{ kind: "path", name: "path", pathType: "FileName" },
 			],
 		};
 		const spec = makeSpec([entity]);
-		const ann = makeAnnotation("Sprite", {}, { path: "/workspace/assets/link.png" });
+		const ann = makeAnnotation("Sprite", {}, { path: "link.png" });
 
-		const output = exportToString([ann], spec, "/workspace");
+		const output = exportToString([ann], spec);
 
-		expect(output).toContain("./assets/link.png");
+		expect(output).toContain("link.png");
 	});
 });

@@ -12,15 +12,14 @@ import {
 	effectiveRoot,
 	root,
 	rootOverride,
-	spanFilePath,
-	specFilePath,
-	openSheetByPath,
+	spanFilePath,	openSheetByPath,
 	removeSheet,
 	addSheet,
 	resetWorkspace,
 } from "./workspace";
 import type { WorkspaceSheet } from "./workspace";
 import { serializeWorkspace, deserializeWorkspace, debouncedSave } from "./persistence";
+import type { SpanFileSpec } from "./persistence";
 import { exportToString } from "./export";
 
 // Re-export workspace state for consumers
@@ -51,6 +50,7 @@ export const imageWidth = ref(0);
 export const imageHeight = ref(0);
 
 export const activeSpec = ref<SpanSpec | null>(null);
+export const activeSpecRaw = ref<SpanFileSpec | null>(null);
 export const activeTool = ref<string>("");
 
 // Per-entity preview shape override (entityLabel → shapeName)
@@ -130,9 +130,7 @@ function performSave() {
 
 	const data = serializeWorkspace(
 		sheets.value,
-		specFilePath.value,
-		effectiveRoot.value,
-		spanFilePath.value ? spanFilePath.value.replace(/\/[^/]+$/, "") : undefined,
+		activeSpecRaw.value,
 	);
 
 	if (platform.value === "desktop" && spanFilePath.value) {
@@ -282,6 +280,7 @@ export function loadSpec(raw: string, format: "json" | "yaml") {
 		return;
 	}
 	activeSpec.value = result;
+	activeSpecRaw.value = { raw, format };
 	activeTool.value = "";
 	statusText.value = "Spec loaded";
 }
@@ -296,7 +295,7 @@ export async function exportWorkspace() {
 	}
 
 	const allAnnotations = sheets.value.flatMap((s) => s.annotations);
-	const output = exportToString(allAnnotations, spec, effectiveRoot.value);
+	const output = exportToString(allAnnotations, spec);
 
 	const ext = spec.format === "yaml" ? "yaml" : "json";
 	const defaultName = `annotations.${ext}`;
@@ -338,9 +337,7 @@ export async function saveWorkspaceAs(dialogPath?: string) {
 
 	const data = serializeWorkspace(
 		sheets.value,
-		specFilePath.value,
-		effectiveRoot.value,
-		savePath.replace(/\/[^/]+$/, ""),
+		activeSpecRaw.value,
 	);
 
 	try {
@@ -374,23 +371,9 @@ export async function loadWorkspaceFromPath(path: string) {
 export async function restoreWorkspace(raw: string, filePath?: string) {
 	const data = deserializeWorkspace(raw);
 
-	// Resolve spec path relative to .span file directory
-	let specPath = data.spec;
-	if (filePath && specPath && !specPath.startsWith("/")) {
-		const dir = filePath.replace(/\/[^/]+$/, "");
-		specPath = dir + "/" + specPath;
-	}
-
-	// Load spec
-	try {
-		const specRaw = await api.readFile(specPath);
-		const format = specPath.endsWith(".json") ? "json" : "yaml" as const;
-		loadSpec(specRaw, format);
-		specFilePath.value = specPath;
-	} catch (e) {
-		console.error("Failed to load spec from .span file:", e);
-		statusText.value = "Failed to load spec referenced by .span file";
-		return;
+	// Load inline spec if present
+	if (data.spec) {
+		loadSpec(data.spec.raw, data.spec.format);
 	}
 
 	// Reset and load sheets
@@ -408,27 +391,51 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
 			imgPath = dir + "/" + imgPath;
 		}
 
-		try {
-			const dataUrl = await api.readImageAsDataUrl(imgPath);
-			// Get image dimensions
-			const dims = await new Promise<{ width: number; height: number }>((resolve) => {
-				const img = new Image();
-				img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
-				img.onerror = () => resolve({ width: 0, height: 0 });
-				img.src = dataUrl;
-			});
+		let loaded = false;
+		// Try direct path, then filename search in .span file directory
+		const candidates = [imgPath];
+		if (dir) {
+			const filename = sheet.path.split("/").pop() ?? sheet.path;
+			const searchPath = dir + "/" + filename;
+			if (searchPath !== imgPath) candidates.push(searchPath);
+		}
 
+		for (const candidate of candidates) {
+			try {
+				const dataUrl = await api.readImageAsDataUrl(candidate);
+				const dims = await new Promise<{ width: number; height: number }>((resolve) => {
+					const img = new Image();
+					img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+					img.onerror = () => resolve({ width: 0, height: 0 });
+					img.src = dataUrl;
+				});
+
+				addSheet({
+					path: sheet.path,
+					absolutePath: candidate,
+					annotations: sheet.annotations,
+					status: "loaded",
+					imageUrl: dataUrl,
+					width: dims.width,
+					height: dims.height,
+				});
+				loaded = true;
+				break;
+			} catch {
+				// Try next candidate
+			}
+		}
+
+		if (!loaded) {
 			addSheet({
 				path: sheet.path,
 				absolutePath: imgPath,
 				annotations: sheet.annotations,
-				status: "loaded",
-				imageUrl: dataUrl,
-				width: dims.width,
-				height: dims.height,
+				status: "missing",
+				imageUrl: "",
+				width: 0,
+				height: 0,
 			});
-		} catch (e) {
-			console.error(`Failed to load sheet image: ${imgPath}`, e);
 		}
 	}
 

@@ -15,7 +15,7 @@ __properties:
 - label: Sprite
   group: sprites
   properties:
-    path: RelativePath
+    path: FileName
     slice:
       __shape: rect
       x: integer
@@ -41,7 +41,7 @@ __properties:
 - label: Tile
   group: tiles
   properties:
-    path: RelativePath
+    path: FileName
     slice:
       __shape: rect
       x: integer
@@ -138,7 +138,7 @@ describe("parseSpec", () => {
 		// path field
 		const pathField = sprite.fields[0] as PathSpecField;
 		expect(pathField.kind).toBe("path");
-		expect(pathField.pathType).toBe("RelativePath");
+		expect(pathField.pathType).toBe("FileName");
 
 		// scalar fields
 		const nameField = sprite.fields[4] as ScalarSpecField;
@@ -218,13 +218,12 @@ __properties:
 
 	// --- Path types ---
 
-	test("Path and RelativePath produce PathSpecField entries", () => {
+	test("FileName produces PathSpecField entry", () => {
 		const yaml = `
 - label: Asset
   group: assets
   properties:
-    source: Path
-    relative: RelativePath
+    file: FileName
     name: string
 `;
 		const result = parseSpec(yaml, "yaml");
@@ -232,13 +231,9 @@ __properties:
 		if (!isSpec(result)) return;
 
 		const asset = result.entities[0];
-		const source = asset.fields[0] as PathSpecField;
-		expect(source.kind).toBe("path");
-		expect(source.pathType).toBe("Path");
-
-		const relative = asset.fields[1] as PathSpecField;
-		expect(relative.kind).toBe("path");
-		expect(relative.pathType).toBe("RelativePath");
+		const file = asset.fields[0] as PathSpecField;
+		expect(file.kind).toBe("path");
+		expect(file.pathType).toBe("FileName");
 	});
 
 	// --- Field order ---

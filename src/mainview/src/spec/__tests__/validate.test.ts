@@ -262,13 +262,8 @@ describe("validateSpec", () => {
 
 	// --- Path types ---
 
-	test("Path type is valid", () => {
-		const raw = [entity({ properties: { file: "Path" } })];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
-	});
-
-	test("RelativePath type is valid", () => {
-		const raw = [entity({ properties: { file: "RelativePath" } })];
+	test("FileName type is valid", () => {
+		const raw = [entity({ properties: { file: "FileName" } })];
 		expect(errors(validateSpec(raw))).toHaveLength(0);
 	});
 
@@ -352,7 +347,7 @@ describe("validateSpec", () => {
 				label: "Sprite",
 				group: "sprites",
 				properties: {
-					path: "RelativePath",
+					path: "FileName",
 					slice: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
 					collision: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
 					origin: { __shape: "point", x: "integer", y: "integer" },

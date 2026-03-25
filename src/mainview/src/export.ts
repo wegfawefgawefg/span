@@ -3,12 +3,9 @@ import YAML from "yaml";
 import type { SpanSpec } from "./spec/types";
 import { getEntityByLabel } from "./spec/types";
 import type { Annotation } from "./annotation";
-import { relativePath } from "./workspace";
-
 export function buildExportData(
 	annotations: Annotation[],
 	spec: SpanSpec,
-	workspaceRoot: string,
 ): Record<string, unknown> {
 	// Start output with frontmatter values
 	const output: Record<string, unknown> = { ...spec.frontmatter };
@@ -41,14 +38,7 @@ export function buildExportData(
 			} else if (field.kind === "scalar") {
 				flat[field.name] = ann.propertyData[field.name] ?? null;
 			} else if (field.kind === "path") {
-				const rawPath = ann.propertyData[field.name];
-				if (field.pathType === "RelativePath" && typeof rawPath === "string" && rawPath !== "") {
-					// Make relative to workspace root
-					flat[field.name] = "./" + relativePath(rawPath, workspaceRoot);
-				} else {
-					// Path — emit as-is (absolute)
-					flat[field.name] = rawPath ?? "";
-				}
+				flat[field.name] = ann.propertyData[field.name] ?? "";
 			}
 		}
 
@@ -68,9 +58,8 @@ export function buildExportData(
 export function exportToString(
 	annotations: Annotation[],
 	spec: SpanSpec,
-	workspaceRoot: string,
 ): string {
-	const data = buildExportData(annotations, spec, workspaceRoot);
+	const data = buildExportData(annotations, spec);
 
 	if (spec.format === "yaml") {
 		return YAML.stringify(data, {

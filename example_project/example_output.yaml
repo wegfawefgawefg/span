@@ -1,7 +1,7 @@
 version: 0.1.0
 sprites:
   - name: 'link_idle'
-    path: './link.png'
+    path: 'link.png'
     frame: 0
     direction: down
     slice:
@@ -21,7 +21,7 @@ sprites:
     tags: ['player', 'idle']
     variant: 'default'
   - name: 'link_walk'
-    path: './link.png'
+    path: 'link.png'
     frame: 0
     direction: down
     slice:
@@ -43,7 +43,7 @@ sprites:
 
 tiles:
   - name: 'grass'
-    path: '/full/path/to/resources/tiles.png'
+    path: 'tiles.png'
     solid: false
     layer: background
     tags: ['nature']
@@ -53,7 +53,7 @@ tiles:
       width: 16
       height: 16
   - name: 'stone_wall'
-    path: '/full/path/to/resources/tiles.png'
+    path: 'tiles.png'
     solid: true
     layer: foreground
     tags: ['structure']

@@ -17,7 +17,6 @@ export const sheets = ref<WorkspaceSheet[]>([]);
 export const root = ref<string>("");
 export const rootOverride = ref<string | null>(null);
 export const spanFilePath = ref<string | null>(null); // null until first save
-export const specFilePath = ref<string>("");
 
 export const effectiveRoot = computed(() => rootOverride.value ?? root.value);
 export const workspaceReady = computed(() => sheets.value.length > 0);
@@ -90,6 +89,5 @@ export function resetWorkspace(): void {
 	root.value = "";
 	rootOverride.value = null;
 	spanFilePath.value = null;
-	specFilePath.value = "";
 	currentSheet.value = null;
 }

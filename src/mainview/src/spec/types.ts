@@ -11,7 +11,7 @@ export type ScalarType =
 	| "enum"
 	| "ColorHEX";
 
-export type PathType = "Path" | "RelativePath";
+export type PathType = "FileName";
 
 // --- Spec ---
 
@@ -53,7 +53,7 @@ export interface ScalarSpecField {
 export interface PathSpecField {
 	kind: "path";
 	name: string;
-	pathType: PathType;  // "Path" or "RelativePath"
+	pathType: PathType;
 }
 
 // --- Shape sub-types (unchanged) ---

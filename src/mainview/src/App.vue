@@ -8,6 +8,7 @@ import {
 	duplicateSelected,
 	deleteSelected,
 	activeSpec,
+	sheets,
 	addSheet,
 	loadSpec,
 	exportWorkspace,
@@ -110,15 +111,27 @@ async function handleDroppedFiles(files: File[]) {
 			try {
 				const dataUrl = await fileToDataUrl(file);
 				const dims = await loadImageDimensions(dataUrl);
-				addSheet({
-					path: name,
-					absolutePath: name,
-					annotations: [],
-					status: "loaded",
-					imageUrl: dataUrl,
-					width: dims.width,
-					height: dims.height,
-				});
+
+				// Check if this fulfills a missing sheet
+				const missing = sheets.value.find(
+					(s) => s.status === "missing" && s.path.split("/").pop() === name,
+				);
+				if (missing) {
+					missing.imageUrl = dataUrl;
+					missing.width = dims.width;
+					missing.height = dims.height;
+					missing.status = "loaded";
+				} else {
+					addSheet({
+						path: name,
+						absolutePath: name,
+						annotations: [],
+						status: "loaded",
+						imageUrl: dataUrl,
+						width: dims.width,
+						height: dims.height,
+					});
+				}
 			} catch (e) {
 				console.error("Failed to load image:", e);
 				statusText.value = "Failed to load image";

@@ -132,7 +132,7 @@ export function validateSpec(raw: unknown): SpecError[] {
 				}
 			} else if (typeof fieldValue === "string") {
 				// Path type or scalar type
-				if (fieldValue === "Path" || fieldValue === "RelativePath") {
+				if (fieldValue === "FileName") {
 					// Valid path type — nothing more to check
 				} else if (VALID_SCALAR_TYPES.has(fieldValue)) {
 					// Valid scalar type
@@ -140,7 +140,7 @@ export function validateSpec(raw: unknown): SpecError[] {
 					errors.push({
 						path: fPath,
 						severity: "error",
-						message: `Unknown type "${fieldValue}". Must be one of: string, integer, number, boolean, string[], ColorHEX, Path, RelativePath`,
+						message: `Unknown type "${fieldValue}". Must be one of: string, integer, number, boolean, string[], ColorHEX, FileName`,
 					});
 				}
 			} else {

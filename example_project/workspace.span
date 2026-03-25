@@ -1,13 +1,15 @@
 {
   "version": 1,
-  "spec": "",
-  "root": "",
+  "spec": {
+    "raw": "---\n__properties:\n  version: 0.1.0\n---\n- label: Sprite\n  group: sprites\n  properties:\n    name: string\n    path: FileName\n    slice:\n      __shape: rect\n      x: integer\n      y: integer\n      width: integer\n      height: integer\n    collision:\n      __shape: rect\n      __reference: slice\n      x: integer\n      y: integer\n      width: integer\n      height: integer\n    origin:\n      __shape: point\n      __reference: slice\n      x: integer\n      y: integer\n    chroma_key: ColorHEX\n    frame: integer\n    direction: { enum: [up, down, left, right] }\n    variant: string\n    tags: string[]\n\n- label: Tile\n  group: tiles\n  properties:\n    name: string\n    path: FileName\n    slice:\n      __shape: rect\n      x: integer\n      y: integer\n      width: integer\n      height: integer\n    solid: boolean\n    layer: { enum: [background, foreground, overlay] }\n    chroma_key: ColorHEX\n    tags: string[]\n\n- label: Waypoint\n  group: waypoints\n  properties:\n    name: string\n    point:\n      __shape: point\n      x: integer\n      y: integer\n    order: integer\n    type: { enum: [spawn, entrance, exit, warp] }\n",
+    "format": "yaml"
+  },
   "sheets": [
     {
       "path": "01 - Link.png",
       "annotations": [
         {
-          "id": "d47d7fa4-eec1-4638-b9c1-294022d02165",
+          "id": "a6ddc77f-dd54-4fa4-9a31-1374197e5579",
           "entityType": "Sprite",
           "shapes": {
             "slice": {
@@ -32,13 +34,13 @@
             "path": "",
             "chroma_key": "#747474",
             "frame": 0,
-            "direction": "up",
+            "direction": "down",
             "variant": "",
             "tags": []
           }
         },
         {
-          "id": "e8de4d60-c07a-493c-86b2-57a43cdb540e",
+          "id": "6b953fd0-1a5b-4ed5-91ac-e802107d68e2",
           "entityType": "Sprite",
           "shapes": {
             "slice": {
@@ -62,8 +64,8 @@
             "name": "link_idle",
             "path": "",
             "chroma_key": "#747474",
-            "frame": 1,
-            "direction": "up",
+            "frame": 0,
+            "direction": "down",
             "variant": "",
             "tags": []
           }

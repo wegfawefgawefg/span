@@ -6,7 +6,7 @@ __properties:
   group: sprites
   properties:
     name: string
-    path: RelativePath
+    path: FileName
     slice:
       __shape: rect
       x: integer
@@ -35,7 +35,7 @@ __properties:
   group: tiles
   properties:
     name: string
-    path: RelativePath
+    path: FileName
     slice:
       __shape: rect
       x: integer

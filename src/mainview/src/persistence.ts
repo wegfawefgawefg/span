@@ -9,9 +9,13 @@ export interface WorkspaceSheet {
 
 export interface SpanFile {
 	version: number;
-	spec: string;
-	root: string;
+	spec: SpanFileSpec | null;
 	sheets: SpanFileSheet[];
+}
+
+export interface SpanFileSpec {
+	format: "json" | "yaml";
+	raw: string;
 }
 
 export interface SpanFileSheet {
@@ -21,23 +25,11 @@ export interface SpanFileSheet {
 
 export function serializeWorkspace(
 	sheets: WorkspaceSheet[],
-	specPath: string,
-	root: string,
-	spanFileDir?: string,
+	spec: SpanFileSpec | null,
 ): string {
-	// Make spec path relative to .span file directory if possible
-	let relativeSpecPath = specPath;
-	if (spanFileDir) {
-		const prefix = spanFileDir.endsWith("/") ? spanFileDir : spanFileDir + "/";
-		if (specPath.startsWith(prefix)) {
-			relativeSpecPath = specPath.slice(prefix.length);
-		}
-	}
-
 	const data: SpanFile = {
 		version: 1,
-		spec: relativeSpecPath,
-		root,
+		spec,
 		sheets: sheets.map((s) => ({
 			path: s.path,
 			annotations: s.annotations.map((a) => ({
@@ -69,10 +61,15 @@ export function deserializeWorkspace(raw: string): SpanFile {
 		);
 	}
 
+	// Handle spec: inline object (v1+) or legacy path string (ignored)
+	let spec: SpanFileSpec | null = null;
+	if (data.spec && typeof data.spec === "object" && data.spec.raw) {
+		spec = { format: data.spec.format ?? "yaml", raw: data.spec.raw };
+	}
+
 	return {
 		version: data.version,
-		spec: data.spec ?? "",
-		root: data.root ?? "",
+		spec,
 		sheets: (data.sheets ?? []).map((s: any) => ({
 			path: s.path ?? "",
 			annotations: (s.annotations ?? []).map((a: any) => ({

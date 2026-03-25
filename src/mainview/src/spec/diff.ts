@@ -130,8 +130,5 @@ function compareFields(
 			});
 		}
 	}
-	// path kind: PathType change (Path ↔ RelativePath) — not tracked as destructive since
-	// the underlying value format is the same; no change recorded.
-
 	return changes;
 }

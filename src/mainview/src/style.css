@@ -388,10 +388,10 @@ textarea {
 
 .annotation-point {
 	position: absolute;
-	width: 16px;
-	height: 16px;
-	margin-left: -8px;
-	margin-top: -8px;
+	width: 20px;
+	height: 20px;
+	margin-left: -10px;
+	margin-top: -10px;
 	cursor: grab;
 	touch-action: none;
 }
@@ -403,19 +403,24 @@ textarea {
 	background: var(--shape-color, var(--color-copper));
 	border-radius: 0;
 	image-rendering: pixelated;
+	box-shadow:
+		-1px 0 0 rgba(0, 0, 0, 0.7),
+		1px 0 0 rgba(0, 0, 0, 0.7),
+		0 -1px 0 rgba(0, 0, 0, 0.7),
+		0 1px 0 rgba(0, 0, 0, 0.7);
 }
 
 .annotation-point::before {
-	left: 7px;
+	left: 9px;
 	top: 2px;
 	width: 2px;
-	height: 12px;
+	height: 16px;
 }
 
 .annotation-point::after {
 	left: 2px;
-	top: 7px;
-	width: 12px;
+	top: 9px;
+	width: 16px;
 	height: 2px;
 }
 

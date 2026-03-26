@@ -15,6 +15,9 @@ export interface PlatformAdapter {
 	writeFile(path: string, contents: string): Promise<{ ok: boolean }>;
 	readImageAsDataUrl(path: string): Promise<string>;
 
+	// Register a dropped/selected File for later reads (web only, no-op on desktop)
+	registerFile?(name: string, file: File): void;
+
 	// OS integration
 	revealFile(path: string): Promise<void>;
 

@@ -114,6 +114,11 @@ async function handleDroppedFiles(files: File[]) {
 		else other.push(file);
 	}
 
+	// Register all files in the platform adapter so readFile/readImageAsDataUrl can find them (web)
+	for (const file of files) {
+		api.registerFile?.(file.name, file);
+	}
+
 	// Process .span first (creates missing sheets), then specs, then images (fulfill missing sheets).
 	const ordered = [...spanFiles, ...specFiles, ...imageFiles, ...other];
 

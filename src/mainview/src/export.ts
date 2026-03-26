@@ -3,49 +3,97 @@ import YAML from "yaml";
 import type { SpanSpec } from "./spec/types";
 import { getEntityByLabel } from "./spec/types";
 import type { Annotation } from "./annotation";
+
+export interface ExportEntry {
+	annotation: Annotation;
+	sheetFile: string;
+}
+
+export interface ShapeFieldOverrides {
+	rect?: [string, string, string, string]; // [x, y, w, h]
+	point?: [string, string];                 // [x, y]
+}
+
+function remapRect(
+	data: { x: number; y: number; w: number; h: number },
+	overrides?: [string, string, string, string],
+): Record<string, number> {
+	const [xKey, yKey, wKey, hKey] = overrides ?? ["x", "y", "w", "h"];
+	return { [xKey]: data.x, [yKey]: data.y, [wKey]: data.w, [hKey]: data.h };
+}
+
+function remapPoint(
+	data: { x: number; y: number },
+	overrides?: [string, string],
+): Record<string, number> {
+	const [xKey, yKey] = overrides ?? ["x", "y"];
+	return { [xKey]: data.x, [yKey]: data.y };
+}
+
+function remapShapeValue(
+	value: unknown,
+	shapeType: "rect" | "point",
+	array: boolean,
+	overrides?: ShapeFieldOverrides,
+): unknown {
+	if (array) {
+		const arr = Array.isArray(value) ? value : [];
+		return arr.map((item: any) =>
+			shapeType === "rect"
+				? remapRect(item, overrides?.rect)
+				: remapPoint(item, overrides?.point),
+		);
+	}
+	if (shapeType === "rect") {
+		return remapRect(value as any, overrides?.rect);
+	}
+	return remapPoint(value as any, overrides?.point);
+}
+
 export function buildExportData(
-	annotations: Annotation[],
+	entries: ExportEntry[],
 	spec: SpanSpec,
+	shapeFields?: ShapeFieldOverrides,
 ): Record<string, unknown> {
-	// Start output with frontmatter values
-	const output: Record<string, unknown> = { ...spec.frontmatter };
+	const output: Record<string, unknown> = {};
+	const groups = new Map<string, { items: Record<string, unknown>[] }>();
 
-	// Group annotations by their entity's group key
-	const groups = new Map<string, { group: string; items: Record<string, unknown>[] }>();
-
-	for (const ann of annotations) {
+	for (const { annotation: ann, sheetFile } of entries) {
 		const entityDef = getEntityByLabel(spec, ann.entityType);
-		if (!entityDef) continue; // skip orphaned annotations
+		if (!entityDef) continue;
 
 		const groupKey = entityDef.group;
-
 		if (!groups.has(groupKey)) {
-			groups.set(groupKey, { group: groupKey, items: [] });
+			groups.set(groupKey, { items: [] });
 		}
 
-		// Build the flat annotation object in spec field order
 		const flat: Record<string, unknown> = {};
 
-		for (const field of entityDef.fields) {
+		// Path field (from sheet filename)
+		if (entityDef.hasPath) {
+			flat["path"] = sheetFile;
+		}
+
+		// Primary shape
+		if (ann.aabb) {
+			flat["aabb"] = remapRect(ann.aabb, shapeFields?.rect);
+		} else if (ann.point) {
+			flat["point"] = remapPoint(ann.point, shapeFields?.point);
+		}
+
+		// Properties in spec order
+		for (const field of entityDef.properties) {
+			const value = ann.properties[field.name];
 			if (field.kind === "shape") {
-				// Nest shape fields under the shape name
-				const shapeData = ann.shapes[field.name] ?? {};
-				const nested: Record<string, unknown> = {};
-				for (const shapeField of field.shapeFields) {
-					nested[shapeField.name] = shapeData[shapeField.name] ?? 0;
-				}
-				flat[field.name] = nested;
-			} else if (field.kind === "scalar") {
-				flat[field.name] = ann.propertyData[field.name] ?? null;
-			} else if (field.kind === "path") {
-				flat[field.name] = ann.propertyData[field.name] ?? "";
+				flat[field.name] = remapShapeValue(value, field.shapeType, field.array, shapeFields);
+			} else {
+				flat[field.name] = value ?? null;
 			}
 		}
 
 		groups.get(groupKey)!.items.push(flat);
 	}
 
-	// Write non-empty groups to output
 	for (const [groupKey, { items }] of groups) {
 		if (items.length > 0) {
 			output[groupKey] = items;
@@ -56,10 +104,11 @@ export function buildExportData(
 }
 
 export function exportToString(
-	annotations: Annotation[],
+	entries: ExportEntry[],
 	spec: SpanSpec,
+	shapeFields?: ShapeFieldOverrides,
 ): string {
-	const data = buildExportData(annotations, spec);
+	const data = buildExportData(entries, spec, shapeFields);
 
 	if (spec.format === "yaml") {
 		return YAML.stringify(data, {

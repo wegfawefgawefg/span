@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
-import type { Annotation } from "../types";
+import type { Annotation } from "../annotation";
 import {
 	sheets,
 	currentSheet,
@@ -10,7 +10,6 @@ import {
 	activeSpec,
 	getPreviewShapeName,
 } from "../state";
-import { getShapeRect } from "../annotation";
 import { getEntityByLabel } from "../spec/types";
 
 import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
@@ -53,27 +52,27 @@ function getAnnotationName(ann: Annotation): string {
 	if (!activeSpec.value) return "";
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return "";
-	const firstString = entity.fields.find(f => f.kind === "scalar" && f.type === "string");
-	return firstString ? (ann.propertyData[firstString.name] as string ?? "") : "";
+	const firstString = entity.properties.find(f => f.kind === "scalar" && f.type === "string");
+	return firstString ? (ann.properties[firstString.name] as string ?? "") : "";
 }
 
 function getFrameValue(ann: Annotation): number {
 	if (!activeSpec.value) return 0;
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return 0;
-	const scalars = entity.fields.filter(f => f.kind === "scalar");
+	const scalars = entity.properties.filter(f => f.kind === "scalar");
 	const frameProp = scalars.find(f => f.kind === "scalar" && f.name === "frame" && (f.type === "integer" || f.type === "number"))
 		?? scalars.find(f => f.kind === "scalar" && (f.type === "integer" || f.type === "number"));
-	return frameProp ? (ann.propertyData[frameProp.name] as number ?? 0) : 0;
+	return frameProp ? (ann.properties[frameProp.name] as number ?? 0) : 0;
 }
 
 function getChromaKey(ann: Annotation): string | undefined {
 	if (!activeSpec.value) return undefined;
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return undefined;
-	const chromaProp = entity.fields.find(f => f.name === "chroma_key");
+	const chromaProp = entity.properties.find(f => f.name === "chroma_key");
 	if (!chromaProp) return undefined;
-	return ann.propertyData["chroma_key"] as string | undefined;
+	return ann.properties["chroma_key"] as string | undefined;
 }
 
 function groupKey(ann: Annotation): string {
@@ -82,8 +81,8 @@ function groupKey(ann: Annotation): string {
 	if (!activeSpec.value) return [ann.entityType, name].join("|");
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return [ann.entityType, name].join("|");
-	const stringFields = entity.fields.filter(f => f.kind === "scalar" && f.type === "string");
-	const extraFields = stringFields.slice(1).map(f => (ann.propertyData[f.name] as string ?? "").trim());
+	const stringFields = entity.properties.filter(f => f.kind === "scalar" && f.type === "string");
+	const extraFields = stringFields.slice(1).map(f => (ann.properties[f.name] as string ?? "").trim());
 	return [ann.entityType, name, ...extraFields].join("|");
 }
 
@@ -131,11 +130,8 @@ const groups = computed<SpriteGroup[]>(() => {
 			if (fd !== 0) return fd;
 			if (a.sheetFile !== b.sheetFile)
 				return a.sheetFile.localeCompare(b.sheetFile);
-			const spec = activeSpec.value!;
-			const previewA = getPreviewShapeName(a.annotation.entityType);
-			const previewB = getPreviewShapeName(b.annotation.entityType);
-			const ra = previewA ? getShapeRect(a.annotation, spec, previewA) : null;
-			const rb = previewB ? getShapeRect(b.annotation, spec, previewB) : null;
+			const ra = a.annotation.aabb;
+			const rb = b.annotation.aabb;
 			if (ra && rb) {
 				if (ra.y !== rb.y) return ra.y - rb.y;
 				return ra.x - rb.x;
@@ -156,10 +152,10 @@ const groups = computed<SpriteGroup[]>(() => {
 
 function getFirstFrameRect(group: SpriteGroup): { width: number; height: number } | null {
 	const first = group.frames[0];
-	if (!first || !activeSpec.value) return null;
-	const previewName = getPreviewShapeName(first.annotation.entityType);
-	if (!previewName) return null;
-	return getShapeRect(first.annotation, activeSpec.value, previewName);
+	if (!first) return null;
+	const aabb = first.annotation.aabb;
+	if (!aabb) return null;
+	return { width: aabb.w, height: aabb.h };
 }
 
 function loadImage(sheetFile: string): Promise<HTMLImageElement> {
@@ -178,14 +174,11 @@ function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 }
 
 function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
-	if (!activeSpec.value) return;
-	const previewName = getPreviewShapeName(frame.annotation.entityType);
-	if (!previewName) return;
-	const rect = getShapeRect(frame.annotation, activeSpec.value, previewName);
-	if (!rect) return;
+	const aabb = frame.annotation.aabb;
+	if (!aabb) return;
 
-	const w = Math.max(1, rect.width);
-	const h = Math.max(1, rect.height);
+	const w = Math.max(1, aabb.w);
+	const h = Math.max(1, aabb.h);
 	canvas.width = w * previewScale.value;
 	canvas.height = h * previewScale.value;
 
@@ -196,8 +189,8 @@ function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 			sourceCtx.clearRect(0, 0, w, h);
 			sourceCtx.drawImage(
 				img,
-				rect.x,
-				rect.y,
+				aabb.x,
+				aabb.y,
 				w,
 				h,
 				0,

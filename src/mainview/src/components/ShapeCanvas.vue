@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import type { Annotation } from "../annotation";
-import { getShapeRect, getShapePosition, resolveAbsolutePosition } from "../annotation";
-import type { SpanSpec, ShapeSpecField } from "../spec/types";
-import { getEntityByLabel, getShapesForEntity } from "../spec/types";
-import { updateShapeData, markDirty, getPreviewShapeName } from "../state";
+import type { SpanSpec } from "../spec/types";
+import { getEntityByLabel } from "../spec/types";
+import { updateShapeData, markDirty } from "../state";
 
 const props = defineProps<{
 	annotation: Annotation;
@@ -24,18 +23,21 @@ const containerWidth = ref(200);
 // --- Derived spec info ---
 
 const entity = computed(() => getEntityByLabel(props.spec, props.annotation.entityType));
-const shapeField = computed(() => {
-	if (!entity.value) return null;
-	return getShapesForEntity(entity.value).find(s => s.name === props.shapeName) ?? null;
+const primaryShapeKind = computed(() => entity.value?.primaryShape.kind ?? null);
+
+// Whether this shape canvas is showing the primary shape
+const isPrimaryShape = computed(() => {
+	if (primaryShapeKind.value === "rect") return props.shapeName === "aabb";
+	if (primaryShapeKind.value === "point") return props.shapeName === "point";
+	return false;
 });
-const previewShapeName = computed(() => getPreviewShapeName(props.annotation.entityType));
-const isPreviewShape = computed(() => props.shapeName === previewShapeName.value);
 
 // --- Preview rect (the "master" crop region) ---
 
 const previewRect = computed(() => {
-	if (!previewShapeName.value) return null;
-	return getShapeRect(props.annotation, props.spec, previewShapeName.value);
+	const aabb = props.annotation.aabb;
+	if (!aabb) return null;
+	return { x: aabb.x, y: aabb.y, width: aabb.w, height: aabb.h };
 });
 
 // --- Viewport: what region of the spritesheet to show ---
@@ -68,59 +70,28 @@ const canvasHeight = computed(() => {
 // --- Shape position within the mini-canvas ---
 
 const shapeStyle = computed(() => {
-	const sf = shapeField.value;
 	const vp = viewport.value;
-	if (!sf?.mapping || !vp) return {};
+	if (!vp) return {};
 
-	if (sf.mapping.type === "rect") {
-		const rect = getShapeRect(props.annotation, props.spec, props.shapeName);
-		if (!rect) return {};
+	if (props.shapeName === "aabb" && props.annotation.aabb) {
+		const aabb = props.annotation.aabb;
 		return {
-			left: `${(rect.x - vp.x) * scale.value}px`,
-			top: `${(rect.y - vp.y) * scale.value}px`,
-			width: `${rect.width * scale.value}px`,
-			height: `${rect.height * scale.value}px`,
+			left: `${(aabb.x - vp.x) * scale.value}px`,
+			top: `${(aabb.y - vp.y) * scale.value}px`,
+			width: `${aabb.w * scale.value}px`,
+			height: `${aabb.h * scale.value}px`,
 		};
 	}
 
-	if (sf.mapping.type === "point") {
-		const pos = getShapePosition(props.annotation, props.spec, props.shapeName);
-		if (!pos) return {};
+	if (props.shapeName === "point" && props.annotation.point) {
+		const pt = props.annotation.point;
 		return {
-			left: `${(pos.x - vp.x) * scale.value}px`,
-			top: `${(pos.y - vp.y) * scale.value}px`,
-		};
-	}
-
-	if (sf.mapping.type === "circle") {
-		const pos = getShapePosition(props.annotation, props.spec, props.shapeName);
-		if (!pos) return {};
-		const shapeData = props.annotation.shapes[props.shapeName];
-		const r = shapeData?.[sf.mapping.radius] ?? 0;
-		const diameter = r * 2 * scale.value;
-		return {
-			left: `${(pos.x - r - vp.x) * scale.value}px`,
-			top: `${(pos.y - r - vp.y) * scale.value}px`,
-			width: `${diameter}px`,
-			height: `${diameter}px`,
+			left: `${(pt.x - vp.x) * scale.value}px`,
+			top: `${(pt.y - vp.y) * scale.value}px`,
 		};
 	}
 
 	return {};
-});
-
-const radiusHandleStyle = computed(() => {
-	const sf = shapeField.value;
-	const vp = viewport.value;
-	if (!sf?.mapping || sf.mapping.type !== "circle" || !vp) return {};
-	const pos = getShapePosition(props.annotation, props.spec, props.shapeName);
-	if (!pos) return {};
-	const shapeData = props.annotation.shapes[props.shapeName];
-	const r = shapeData?.[sf.mapping.radius] ?? 0;
-	return {
-		left: `${(pos.x + r - vp.x) * scale.value}px`,
-		top: `${(pos.y - vp.y) * scale.value}px`,
-	};
 });
 
 // --- Background image rendering ---
@@ -166,7 +137,7 @@ function drawBackground() {
 	ctx.scale(dpr, dpr);
 	ctx.clearRect(0, 0, w, h);
 
-	if (isPreviewShape.value) {
+	if (isPrimaryShape.value) {
 		// Preview shape: draw the full padded spritesheet region
 		ctx.imageSmoothingEnabled = false;
 		ctx.drawImage(
@@ -215,14 +186,15 @@ onUnmounted(() => {
 watch(() => props.sheetImageSrc, loadSheetImage);
 watch([viewport, () => containerWidth.value], drawBackground);
 watch(() => [
-	props.annotation.shapes[props.shapeName],
+	props.annotation.aabb,
+	props.annotation.point,
 	previewRect.value,
 ], drawBackground, { deep: true });
 
 // --- Drag handling ---
 
 interface DragState {
-	mode: "move" | "resize" | "radius";
+	mode: "move" | "resize";
 	startX: number;
 	startY: number;
 	startData: Record<string, number>;
@@ -233,31 +205,22 @@ const drag = ref<DragState | null>(null);
 function onShapePointerDown(event: PointerEvent) {
 	event.preventDefault();
 	event.stopPropagation();
-	const sf = shapeField.value;
-	if (!sf?.mapping) return;
 
 	const target = event.target as HTMLElement;
 	const isResize = target.dataset.resize === "true";
+
+	let startData: Record<string, number> = {};
+	if (props.shapeName === "aabb" && props.annotation.aabb) {
+		startData = { ...props.annotation.aabb };
+	} else if (props.shapeName === "point" && props.annotation.point) {
+		startData = { ...props.annotation.point };
+	}
 
 	drag.value = {
 		mode: isResize ? "resize" : "move",
 		startX: event.clientX,
 		startY: event.clientY,
-		startData: { ...props.annotation.shapes[props.shapeName] },
-	};
-
-	(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-}
-
-function onRadiusPointerDown(event: PointerEvent) {
-	event.preventDefault();
-	event.stopPropagation();
-
-	drag.value = {
-		mode: "radius",
-		startX: event.clientX,
-		startY: event.clientY,
-		startData: { ...props.annotation.shapes[props.shapeName] },
+		startData,
 	};
 
 	(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -265,37 +228,20 @@ function onRadiusPointerDown(event: PointerEvent) {
 
 function onPointerMove(event: PointerEvent) {
 	const d = drag.value;
-	const sf = shapeField.value;
-	if (!d || !sf?.mapping) return;
+	if (!d) return;
 
 	const s = scale.value;
 	const deltaX = (event.clientX - d.startX) / s;
 	const deltaY = (event.clientY - d.startY) / s;
 
-	const mapping = sf.mapping;
 	const patch: Record<string, number> = {};
 
 	if (d.mode === "move") {
-		if (mapping.type === "rect" || mapping.type === "point" || mapping.type === "circle") {
-			patch[mapping.x] = Math.round(d.startData[mapping.x] + deltaX);
-			patch[mapping.y] = Math.round(d.startData[mapping.y] + deltaY);
-		}
-	} else if (d.mode === "resize" && mapping.type === "rect") {
-		patch[mapping.width] = Math.max(1, Math.round(d.startData[mapping.width] + deltaX));
-		patch[mapping.height] = Math.max(1, Math.round(d.startData[mapping.height] + deltaY));
-	} else if (d.mode === "radius" && mapping.type === "circle") {
-		const vp = viewport.value;
-		if (!vp) return;
-		const el = container.value;
-		if (!el) return;
-		const rect = el.getBoundingClientRect();
-		const pointerX = (event.clientX - rect.left) / s + vp.x;
-		const pointerY = (event.clientY - rect.top) / s + vp.y;
-
-		const absPos = resolveAbsolutePosition(props.annotation, props.spec, props.shapeName);
-		if (!absPos) return;
-		const dist = Math.sqrt((pointerX - absPos.x) ** 2 + (pointerY - absPos.y) ** 2);
-		patch[mapping.radius] = Math.max(1, Math.round(dist));
+		patch.x = Math.round(d.startData.x + deltaX);
+		patch.y = Math.round(d.startData.y + deltaY);
+	} else if (d.mode === "resize" && props.shapeName === "aabb") {
+		patch.w = Math.max(1, Math.round(d.startData.w + deltaX));
+		patch.h = Math.max(1, Math.round(d.startData.h + deltaY));
 	}
 
 	if (Object.keys(patch).length > 0) {
@@ -320,7 +266,7 @@ function onPointerUp(event: PointerEvent) {
 		<div class="shape-canvas-overlay" :style="{ width: '100%', height: canvasHeight + 'px' }">
 			<!-- Rect shape -->
 			<div
-				v-if="shapeField?.mapping?.type === 'rect'"
+				v-if="props.shapeName === 'aabb' && annotation.aabb"
 				class="annotation-box selected"
 				:style="shapeStyle"
 				@pointerdown="onShapePointerDown"
@@ -333,7 +279,7 @@ function onPointerUp(event: PointerEvent) {
 
 			<!-- Point shape -->
 			<div
-				v-else-if="shapeField?.mapping?.type === 'point'"
+				v-else-if="props.shapeName === 'point' && annotation.point"
 				class="annotation-point selected"
 				:style="shapeStyle"
 				@pointerdown="onShapePointerDown"
@@ -341,26 +287,6 @@ function onPointerUp(event: PointerEvent) {
 				@pointerup="onPointerUp"
 				@pointercancel="onPointerUp"
 			></div>
-
-			<!-- Circle shape -->
-			<template v-else-if="shapeField?.mapping?.type === 'circle'">
-				<div
-					class="annotation-circle selected"
-					:style="shapeStyle"
-					@pointerdown="onShapePointerDown"
-					@pointermove="onPointerMove"
-					@pointerup="onPointerUp"
-					@pointercancel="onPointerUp"
-				></div>
-				<div
-					class="radius-handle"
-					:style="radiusHandleStyle"
-					@pointerdown="onRadiusPointerDown"
-					@pointermove="onPointerMove"
-					@pointerup="onPointerUp"
-					@pointercancel="onPointerUp"
-				></div>
-			</template>
 		</div>
 	</div>
 </template>

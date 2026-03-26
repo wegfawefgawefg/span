@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import type { Annotation } from "../annotation";
-import { getShapeRect, getShapePosition } from "../annotation";
-import {
-	getEntityByLabel,
-	getShapesForEntity,
-} from "../spec/types";
-import type { ShapeSpecField } from "../spec/types";
+import { getEntityByLabel } from "../spec/types";
 import {
 	zoom,
 	annotations,
@@ -23,7 +18,6 @@ import {
 	duplicateSelected,
 	deleteSelected,
 	selectedAnnotation,
-	getPreviewShapeName,
 } from "../state";
 import { ZOOM_STEP } from "../state";
 import { useCanvas } from "../composables/useCanvas";
@@ -42,7 +36,7 @@ interface DrawingState {
 	currentX: number;
 	currentY: number;
 	entityType: string;
-	shapeType: "rect" | "circle";
+	shapeType: "rect" | "point";
 }
 
 const drawing = ref<DrawingState | null>(null);
@@ -173,38 +167,13 @@ function handleZoomOut() {
 	zoomTo(zoom.value - ZOOM_STEP, scroller.value!, stage.value!);
 }
 
-// --- Multi-shape helpers ---
+// --- Primary shape helper ---
 
-interface ShapeRenderInfo {
-	annotation: Annotation;
-	shapeName: string;
-	shapeField: ShapeSpecField;
-	shapeIndex: number;
-	isPrimary: boolean;
-}
-
-function getShapesForAnnotation(annotation: Annotation): ShapeRenderInfo[] {
-	if (!activeSpec.value) return [];
+function getPrimaryShapeKind(annotation: Annotation): "rect" | "point" | null {
+	if (!activeSpec.value) return null;
 	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
-	if (!entity) return [];
-	const shapes = getShapesForEntity(entity);
-	const previewName = getPreviewShapeName(annotation.entityType);
-
-	// Only show the preview shape on the main canvas
-	return shapes
-		.filter((sf) => sf.name === previewName)
-		.map((sf, index) => ({
-			annotation,
-			shapeName: sf.name,
-			shapeField: sf,
-			shapeIndex: index,
-			isPrimary: true,
-		}));
-}
-
-function shapeColorClass(shapeIndex: number): string {
-	if (shapeIndex === 0) return "";
-	return `shape-color-${shapeIndex}`;
+	if (!entity) return null;
+	return entity.primaryShape.kind;
 }
 
 // --- Annotation display helpers ---
@@ -214,9 +183,9 @@ function getAnnotationLabel(annotation: Annotation): string {
 	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
 	if (!entity) return annotation.entityType;
 	// Use first string scalar property as display name
-	for (const field of entity.fields) {
+	for (const field of entity.properties) {
 		if (field.kind === "scalar" && field.type === "string") {
-			const val = annotation.propertyData[field.name];
+			const val = annotation.properties[field.name];
 			if (val && typeof val === "string") return val;
 		}
 	}
@@ -225,34 +194,16 @@ function getAnnotationLabel(annotation: Annotation): string {
 
 // --- Shape geometry helpers ---
 
-function getShapeRectForShape(annotation: Annotation, shapeName: string) {
-	if (!activeSpec.value) return null;
-	return getShapeRect(annotation, activeSpec.value, shapeName);
-}
-
-function getShapePositionForShape(annotation: Annotation, shapeName: string) {
-	if (!activeSpec.value) return null;
-	return getShapePosition(annotation, activeSpec.value, shapeName);
-}
-
-function getCircleRadiusForShape(annotation: Annotation, shapeName: string): number {
-	if (!activeSpec.value) return 0;
-	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
-	if (!entity) return 0;
-	const sf = getShapesForEntity(entity).find((s) => s.name === shapeName);
-	if (!sf?.mapping || sf.mapping.type !== "circle") return 0;
-	return annotation.shapes[shapeName]?.[sf.mapping.radius] ?? 0;
-}
-
 // --- Box (rect) handlers ---
 
-function handleShapePointerDown(event: PointerEvent, annotation: Annotation, shapeName: string) {
+function handleShapePointerDown(event: PointerEvent, annotation: Annotation) {
 	if (isPanning.value || spaceHeld.value) return;
 	event.preventDefault();
 	event.stopPropagation();
 
 	const target = event.target as HTMLElement;
 	const isResize = target.dataset.resize === "true";
+	const shapeName = annotation.aabb ? "aabb" : "point";
 
 	// Alt/Option+drag: duplicate first, then drag the copy
 	if (event.altKey && !isResize) {
@@ -272,20 +223,6 @@ function handleShapePointerDown(event: PointerEvent, annotation: Annotation, sha
 
 	const box = event.currentTarget as HTMLElement;
 	box.setPointerCapture(event.pointerId);
-}
-
-// --- Circle radius drag handler ---
-
-function handleRadiusPointerDown(event: PointerEvent, annotation: Annotation, shapeName: string) {
-	if (isPanning.value || spaceHeld.value) return;
-	event.preventDefault();
-	event.stopPropagation();
-
-	selectAnnotation(annotation.id);
-	startDrag(event, annotation, shapeName, "radius");
-
-	const el = event.currentTarget as HTMLElement;
-	el.setPointerCapture(event.pointerId);
 }
 
 function handleBoxPointerMove(event: PointerEvent) {
@@ -319,17 +256,13 @@ function handleLayerPointerDown(event: PointerEvent) {
 	const x = Math.round((event.clientX - rect.left) / zoom.value);
 	const y = Math.round((event.clientY - rect.top) / zoom.value);
 
-	const shapes = getShapesForEntity(entity);
-	if (shapes.length === 0) return;
+	const shapeKind = entity.primaryShape.kind;
 
-	const primaryShape = shapes[0];
-	const shapeType = primaryShape.shapeType;
-
-	if (shapeType === "point") {
+	if (shapeKind === "point") {
 		event.preventDefault();
 		event.stopPropagation();
 		addAnnotation(x, y);
-	} else if (shapeType === "rect" || shapeType === "circle") {
+	} else if (shapeKind === "rect") {
 		event.preventDefault();
 		event.stopPropagation();
 		drawing.value = {
@@ -338,12 +271,11 @@ function handleLayerPointerDown(event: PointerEvent) {
 			currentX: x,
 			currentY: y,
 			entityType: activeTool.value,
-			shapeType,
+			shapeType: "rect",
 		};
 		const layerEl = event.currentTarget as HTMLElement;
 		layerEl.setPointerCapture(event.pointerId);
 	}
-	// polygon: no-op
 }
 
 function handleLayerPointerMove(event: PointerEvent) {
@@ -391,13 +323,6 @@ function commitDrawing() {
 		const x = Math.min(d.originX, d.currentX);
 		const y = Math.min(d.originY, d.currentY);
 		addAnnotationWithSize(d.entityType, x, y, w, h);
-	} else if (d.shapeType === "circle") {
-		const r = Math.round(Math.sqrt(
-			(d.currentX - d.originX) ** 2 + (d.currentY - d.originY) ** 2,
-		));
-		if (r < DRAW_MIN_THRESHOLD) return;
-
-		addAnnotationWithSize(d.entityType, d.originX, d.originY, r);
 	}
 }
 
@@ -421,70 +346,30 @@ const drawPreviewStyle = computed(() => {
 		};
 	}
 
-	if (d.shapeType === "circle") {
-		const r = Math.sqrt(
-			(d.currentX - d.originX) ** 2 + (d.currentY - d.originY) ** 2,
-		);
-		const diameter = r * 2 * zoom.value;
-		return {
-			left: `${(d.originX - r) * zoom.value}px`,
-			top: `${(d.originY - r) * zoom.value}px`,
-			width: `${diameter}px`,
-			height: `${diameter}px`,
-			borderRadius: '50%',
-		};
-	}
-
 	return {};
 });
 
-function boxStyle(annotation: Annotation, shapeName: string, annIndex: number) {
+function boxStyle(annotation: Annotation, annIndex: number) {
 	const isSelected = annotation.id === selectedId.value;
-	const rect = getShapeRectForShape(annotation, shapeName);
-	if (!rect) return {};
+	const aabb = annotation.aabb;
+	if (!aabb) return {};
 	return {
-		left: `${rect.x * zoom.value}px`,
-		top: `${rect.y * zoom.value}px`,
-		width: `${rect.width * zoom.value}px`,
-		height: `${rect.height * zoom.value}px`,
+		left: `${aabb.x * zoom.value}px`,
+		top: `${aabb.y * zoom.value}px`,
+		width: `${aabb.w * zoom.value}px`,
+		height: `${aabb.h * zoom.value}px`,
 		zIndex: isSelected ? annotations.value.length + 10 : annIndex + 1,
 	};
 }
 
-function pointStyle(annotation: Annotation, shapeName: string, annIndex: number) {
+function pointStyle(annotation: Annotation, annIndex: number) {
 	const isSelected = annotation.id === selectedId.value;
-	const pos = getShapePositionForShape(annotation, shapeName);
-	if (!pos) return {};
+	const pt = annotation.point;
+	if (!pt) return {};
 	return {
-		left: `${pos.x * zoom.value}px`,
-		top: `${pos.y * zoom.value}px`,
+		left: `${pt.x * zoom.value}px`,
+		top: `${pt.y * zoom.value}px`,
 		zIndex: isSelected ? annotations.value.length + 10 : annIndex + 1,
-	};
-}
-
-function circleStyle(annotation: Annotation, shapeName: string, annIndex: number) {
-	const isSelected = annotation.id === selectedId.value;
-	const pos = getShapePositionForShape(annotation, shapeName);
-	const r = getCircleRadiusForShape(annotation, shapeName);
-	if (!pos) return {};
-	const diameter = r * 2 * zoom.value;
-	return {
-		left: `${(pos.x - r) * zoom.value}px`,
-		top: `${(pos.y - r) * zoom.value}px`,
-		width: `${diameter}px`,
-		height: `${diameter}px`,
-		zIndex: isSelected ? annotations.value.length + 10 : annIndex + 1,
-	};
-}
-
-function radiusHandleStyle(annotation: Annotation, shapeName: string) {
-	const pos = getShapePositionForShape(annotation, shapeName);
-	const r = getCircleRadiusForShape(annotation, shapeName);
-	if (!pos) return {};
-	// Position handle at the right edge of the circle
-	return {
-		left: `${(pos.x + r) * zoom.value}px`,
-		top: `${pos.y * zoom.value}px`,
 	};
 }
 
@@ -556,68 +441,33 @@ function onCanvasContextMenu(event: MouseEvent) {
 					@pointerup="handleLayerPointerUp"
 					@pointercancel="handleLayerPointerCancel">
 						<template v-for="(annotation, annIndex) in annotations" :key="annotation.id">
-							<template v-for="shape in getShapesForAnnotation(annotation)" :key="`${annotation.id}-${shape.shapeName}`">
-								<!-- Rect shape -->
-								<button v-if="shape.shapeField.shapeType === 'rect'"
-									type="button"
-									class="annotation-box"
-									:class="[
-										{ selected: annotation.id === selectedId },
-										shapeColorClass(shape.shapeIndex),
-									]"
-									:style="boxStyle(annotation, shape.shapeName, annIndex)"
-									@pointerdown="handleShapePointerDown($event, annotation, shape.shapeName)"
-									@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
-									@pointercancel="handleBoxPointerUp"
-									@contextmenu.stop="onBoxContextMenu($event, annotation)">
-									<div class="annotation-label">
-										{{ shape.isPrimary ? getAnnotationLabel(annotation) : shape.shapeName }}
-									</div>
-									<div class="resize-handle" data-resize="true"></div>
-								</button>
+							<!-- Rect shape (aabb) -->
+							<button v-if="getPrimaryShapeKind(annotation) === 'rect' && annotation.aabb"
+								type="button"
+								class="annotation-box"
+								:class="{ selected: annotation.id === selectedId }"
+								:style="boxStyle(annotation, annIndex)"
+								@pointerdown="handleShapePointerDown($event, annotation)"
+								@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
+								@pointercancel="handleBoxPointerUp"
+								@contextmenu.stop="onBoxContextMenu($event, annotation)">
+								<div class="annotation-label">
+									{{ getAnnotationLabel(annotation) }}
+								</div>
+								<div class="resize-handle" data-resize="true"></div>
+							</button>
 
-								<!-- Point shape -->
-								<button v-else-if="shape.shapeField.shapeType === 'point'"
-									type="button"
-									class="annotation-point"
-									:class="[
-										{ selected: annotation.id === selectedId },
-										shapeColorClass(shape.shapeIndex),
-									]"
-									:style="pointStyle(annotation, shape.shapeName, annIndex)"
-									@pointerdown="handleShapePointerDown($event, annotation, shape.shapeName)"
-									@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
-									@pointercancel="handleBoxPointerUp"
-									@contextmenu.stop="onBoxContextMenu($event, annotation)">
-								</button>
-
-								<!-- Circle shape -->
-								<button v-else-if="shape.shapeField.shapeType === 'circle'"
-									type="button"
-									class="annotation-circle"
-									:class="[
-										{ selected: annotation.id === selectedId },
-										shapeColorClass(shape.shapeIndex),
-									]"
-									:style="circleStyle(annotation, shape.shapeName, annIndex)"
-									@pointerdown="handleShapePointerDown($event, annotation, shape.shapeName)"
-									@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
-									@pointercancel="handleBoxPointerUp"
-									@contextmenu.stop="onBoxContextMenu($event, annotation)">
-									<div class="annotation-label">
-										{{ shape.isPrimary ? getAnnotationLabel(annotation) : shape.shapeName }}
-									</div>
-									<div class="radius-handle"
-										:style="radiusHandleStyle(annotation, shape.shapeName)"
-										@pointerdown.stop="handleRadiusPointerDown($event, annotation, shape.shapeName)"
-										@pointermove="handleBoxPointerMove"
-										@pointerup="handleBoxPointerUp"
-										@pointercancel="handleBoxPointerUp"
-									></div>
-								</button>
-
-								<!-- Polygon shape: placeholder -->
-							</template>
+							<!-- Point shape -->
+							<button v-else-if="getPrimaryShapeKind(annotation) === 'point' && annotation.point"
+								type="button"
+								class="annotation-point"
+								:class="{ selected: annotation.id === selectedId }"
+								:style="pointStyle(annotation, annIndex)"
+								@pointerdown="handleShapePointerDown($event, annotation)"
+								@pointermove="handleBoxPointerMove" @pointerup="handleBoxPointerUp"
+								@pointercancel="handleBoxPointerUp"
+								@contextmenu.stop="onBoxContextMenu($event, annotation)">
+							</button>
 						</template>
 						<!-- Drawing preview -->
 						<div

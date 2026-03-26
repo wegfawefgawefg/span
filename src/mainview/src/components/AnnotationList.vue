@@ -28,9 +28,9 @@ function getDisplayName(ann: Annotation): string {
 	if (!activeSpec.value) return ann.id;
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return ann.id;
-	const firstString = entity.fields.find(f => f.kind === "scalar" && f.type === "string");
+	const firstString = entity.properties.find(f => f.kind === "scalar" && f.type === "string");
 	if (firstString) {
-		const val = ann.propertyData[firstString.name];
+		const val = ann.properties[firstString.name];
 		return typeof val === "string" && val ? val : ann.entityType;
 	}
 	return ann.entityType;
@@ -40,8 +40,8 @@ function groupKey(a: Annotation): string {
 	if (!activeSpec.value) return a.entityType;
 	const entity = getEntityByLabel(activeSpec.value, a.entityType);
 	if (!entity) return a.entityType;
-	const firstString = entity.fields.find(f => f.kind === "scalar" && f.type === "string");
-	const nameVal = firstString ? (a.propertyData[firstString.name] ?? "") : "";
+	const firstString = entity.properties.find(f => f.kind === "scalar" && f.type === "string");
+	const nameVal = firstString ? (a.properties[firstString.name] ?? "") : "";
 	return `${a.entityType}|${nameVal}`;
 }
 

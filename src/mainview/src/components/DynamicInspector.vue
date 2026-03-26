@@ -2,19 +2,13 @@
 import { ref } from "vue";
 import type { Annotation } from "../annotation";
 import { migrateEntityType } from "../annotation";
-import type { SpanSpec, ScalarSpecField } from "../spec/types";
-import {
-	getEntityByLabel,
-	getShapesForEntity,
-	getScalarsForEntity,
-} from "../spec/types";
+import type { SpanSpec, PropertyField, ScalarPropertyField, EnumPropertyField, ColorPropertyField, ShapePropertyField } from "../spec/types";
+import { getEntityByLabel } from "../spec/types";
 import {
 	annotations,
 	updateShapeData,
 	updatePropertyData,
 	markDirty,
-	getPreviewShapeName,
-	setPreviewShape,
 	currentSheetImageSrc,
 } from "../state";
 import ShapeCanvas from "./ShapeCanvas.vue";
@@ -59,37 +53,44 @@ function onShapeInput(shapeName: string, fieldName: string, value: string) {
 	updateShapeData(shapeName, { [fieldName]: Number(value) || 0 });
 }
 
-function onPropertyInput(def: ScalarSpecField, value: string | boolean) {
+function onPropertyInput(def: PropertyField, value: string | boolean) {
 	let converted: unknown = value;
-	switch (def.type) {
-		case "integer":
-			converted = Math.round(Number(value) || 0);
-			break;
-		case "number":
-			converted = Number(value) || 0;
-			break;
-		case "boolean":
-			converted = value;
-			break;
-		case "string[]":
-			converted = (value as string)
-				.split(",")
-				.map((s) => s.trim())
-				.filter(Boolean);
-			break;
-		case "string":
-		case "enum":
-			converted = value;
-			break;
+	if (def.kind === "scalar") {
+		switch (def.type) {
+			case "integer":
+				converted = Math.round(Number(value) || 0);
+				break;
+			case "number":
+				converted = Number(value) || 0;
+				break;
+			case "boolean":
+				converted = value;
+				break;
+			case "string[]":
+				converted = (value as string)
+					.split(",")
+					.map((s) => s.trim())
+					.filter(Boolean);
+				break;
+			case "string":
+				converted = value;
+				break;
+		}
+	} else if (def.kind === "enum" || def.kind === "color") {
+		converted = value;
 	}
 	updatePropertyData({ [def.name]: converted });
 }
 
-function displayValue(def: ScalarSpecField, value: unknown): string {
+function displayValue(def: ScalarPropertyField, value: unknown): string {
 	if (def.type === "string[]" && Array.isArray(value)) {
 		return value.join(", ");
 	}
 	return String(value ?? "");
+}
+
+function getEntity() {
+	return getEntityByLabel(props.spec, props.annotation.entityType);
 }
 </script>
 
@@ -119,80 +120,69 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 			</select>
 		</label>
 
-		<!-- Shape sections — one collapsible section per named shape -->
-		<template
-			v-if="getEntityByLabel(spec, annotation.entityType)"
-			v-for="(shape, shapeIndex) in getShapesForEntity(getEntityByLabel(spec, annotation.entityType)!)"
-			:key="shape.name"
-		>
+		<!-- Primary shape section -->
+		<template v-if="getEntity()">
 			<div class="flex flex-col gap-2">
-				<!-- Shape section header -->
 				<button
 					type="button"
 					class="flex items-center gap-2 text-[10px] font-medium text-text-faint uppercase tracking-wider cursor-pointer hover:text-text-dim transition-colors text-left"
-					@click="toggleShapeSection(shape.name)"
+					@click="toggleShapeSection('primary')"
 				>
-					<!-- Colored dot -->
 					<span
 						class="inline-block w-2 h-2 rounded-full flex-shrink-0"
-						:style="{ backgroundColor: SHAPE_COLORS[shapeIndex] ?? SHAPE_COLORS[SHAPE_COLORS.length - 1] }"
+						:style="{ backgroundColor: SHAPE_COLORS[0] }"
 					/>
-					{{ shape.name }} ({{ shape.shapeType }})
-					<span v-if="shape.reference" class="normal-case tracking-normal text-text-faint">
-						relative to {{ shape.reference }}
-					</span>
-					<span
-						v-if="shape.shapeType === 'rect'"
-						class="normal-case tracking-normal cursor-pointer transition-colors"
-						:class="getPreviewShapeName(annotation.entityType) === shape.name ? 'text-copper-bright' : 'text-text-faint hover:text-text-dim'"
-						title="Use this shape for gallery preview"
-						@click.stop="setPreviewShape(annotation.entityType, shape.name)"
-					>⊞</span>
+					{{ getEntity()!.primaryShape.kind === 'rect' ? 'aabb' : 'point' }} ({{ getEntity()!.primaryShape.kind }})
 					<span class="ml-auto text-text-faint">
-						{{ collapsedShapes.has(shape.name) ? "▶" : "▼" }}
+						{{ collapsedShapes.has('primary') ? "▶" : "▼" }}
 					</span>
 				</button>
 
 				<!-- Mini-canvas for shape editing -->
 				<ShapeCanvas
-					v-if="!collapsedShapes.has(shape.name) && currentSheetImageSrc"
+					v-if="!collapsedShapes.has('primary') && currentSheetImageSrc"
 					:annotation="annotation"
 					:spec="spec"
-					:shape-name="shape.name"
+					:shape-name="getEntity()!.primaryShape.kind === 'rect' ? 'aabb' : 'point'"
 					:sheet-image-src="currentSheetImageSrc"
-					:shape-color="SHAPE_COLORS[shapeIndex] ?? SHAPE_COLORS[SHAPE_COLORS.length - 1]"
+					:shape-color="SHAPE_COLORS[0]"
 				/>
 
-				<!-- Shape fields -->
+				<!-- Shape fields for rect -->
 				<div
-					v-if="!collapsedShapes.has(shape.name)"
+					v-if="!collapsedShapes.has('primary') && getEntity()!.primaryShape.kind === 'rect' && annotation.aabb"
 					class="grid grid-cols-2 gap-2"
 				>
-					<label
-						v-for="field in shape.shapeFields"
-						:key="field.name"
-						:class="labelClass"
-					>
-						{{ field.name }}
+					<label v-for="field in ['x', 'y', 'w', 'h']" :key="field" :class="labelClass">
+						{{ field }}
 						<input
 							type="number"
-							:value="annotation.shapes[shape.name]?.[field.name] ?? 0"
-							@input="
-								onShapeInput(
-									shape.name,
-									field.name,
-									($event.target as HTMLInputElement).value,
-								)
-							"
+							:value="(annotation.aabb as any)[field] ?? 0"
+							@input="onShapeInput('aabb', field, ($event.target as HTMLInputElement).value)"
+						/>
+					</label>
+				</div>
+
+				<!-- Shape fields for point -->
+				<div
+					v-if="!collapsedShapes.has('primary') && getEntity()!.primaryShape.kind === 'point' && annotation.point"
+					class="grid grid-cols-2 gap-2"
+				>
+					<label v-for="field in ['x', 'y']" :key="field" :class="labelClass">
+						{{ field }}
+						<input
+							type="number"
+							:value="(annotation.point as any)[field] ?? 0"
+							@input="onShapeInput('point', field, ($event.target as HTMLInputElement).value)"
 						/>
 					</label>
 				</div>
 			</div>
 		</template>
 
-		<!-- Properties section (scalar fields) -->
+		<!-- Properties section -->
 		<div
-			v-if="getEntityByLabel(spec, annotation.entityType) && getScalarsForEntity(getEntityByLabel(spec, annotation.entityType)!).length > 0"
+			v-if="getEntity() && getEntity()!.properties.length > 0"
 			class="flex flex-col gap-2"
 		>
 			<span class="text-[10px] font-medium text-text-faint uppercase tracking-wider">
@@ -200,17 +190,17 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 			</span>
 			<div class="flex flex-col gap-2">
 				<template
-					v-for="def in getScalarsForEntity(getEntityByLabel(spec, annotation.entityType)!)"
+					v-for="def in getEntity()!.properties"
 					:key="def.name"
 				>
-					<!-- Boolean checkbox -->
+					<!-- Scalar: Boolean checkbox -->
 					<label
-						v-if="def.type === 'boolean'"
+						v-if="def.kind === 'scalar' && def.type === 'boolean'"
 						:class="[labelClass, 'flex-row items-center']"
 					>
 						<input
 							type="checkbox"
-							:checked="!!annotation.propertyData[def.name]"
+							:checked="!!annotation.properties[def.name]"
 							@change="
 								onPropertyInput(
 									def,
@@ -223,12 +213,12 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 
 					<!-- Enum select -->
 					<label
-						v-else-if="def.type === 'enum'"
+						v-else-if="def.kind === 'enum'"
 						:class="labelClass"
 					>
 						{{ def.name }}
 						<select
-							:value="annotation.propertyData[def.name]"
+							:value="annotation.properties[def.name]"
 							@change="
 								onPropertyInput(
 									def,
@@ -237,7 +227,7 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 							"
 						>
 							<option
-								v-for="opt in def.enumValues"
+								v-for="opt in (def as any).values"
 								:key="opt"
 								:value="opt"
 							>
@@ -246,27 +236,27 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 						</select>
 					</label>
 
-					<!-- Color picker (ColorHEX) -->
+					<!-- Color picker -->
 					<label
-						v-else-if="def.type === 'ColorHEX'"
+						v-else-if="def.kind === 'color'"
 						:class="labelClass"
 					>
 						{{ def.name }}
 						<div class="flex items-center gap-1.5">
 							<span
 								class="w-7 h-7 shrink-0 rounded-sm border border-border cursor-pointer relative overflow-hidden"
-								:style="{ backgroundColor: annotation.propertyData[def.name] || '#000000' }"
+								:style="{ backgroundColor: (annotation.properties[def.name] as string) || '#000000' }"
 							>
 								<input
 									type="color"
-									:value="annotation.propertyData[def.name] || '#000000'"
+									:value="(annotation.properties[def.name] as string) || '#000000'"
 									class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
 									@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
 								/>
 							</span>
 							<input
 								type="text"
-								:value="annotation.propertyData[def.name] ?? ''"
+								:value="annotation.properties[def.name] ?? ''"
 								placeholder="#000000"
 								class="flex-1 min-w-0"
 								@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
@@ -274,17 +264,15 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 						</div>
 					</label>
 
-					<!-- Number input -->
+					<!-- Scalar: Number input -->
 					<label
-						v-else-if="
-							def.type === 'integer' || def.type === 'number'
-						"
+						v-else-if="def.kind === 'scalar' && (def.type === 'integer' || def.type === 'number')"
 						:class="labelClass"
 					>
 						{{ def.name }}
 						<input
 							type="number"
-							:value="annotation.propertyData[def.name]"
+							:value="annotation.properties[def.name]"
 							@input="
 								onPropertyInput(
 									def,
@@ -294,19 +282,19 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 						/>
 					</label>
 
-					<!-- String / string[] text input -->
-					<label v-else :class="labelClass">
+					<!-- Scalar: String / string[] text input -->
+					<label v-else-if="def.kind === 'scalar'" :class="labelClass">
 						{{ def.name }}
 						<input
 							type="text"
 							:value="
 								displayValue(
-									def,
-									annotation.propertyData[def.name],
+									def as any,
+									annotation.properties[def.name],
 								)
 							"
 							:placeholder="
-								def.type === 'string[]'
+								(def as any).type === 'string[]'
 									? 'comma-separated values'
 									: ''
 							"
@@ -318,6 +306,11 @@ function displayValue(def: ScalarSpecField, value: unknown): string {
 							"
 						/>
 					</label>
+
+					<!-- Shape property (display as numbers) -->
+					<template v-else-if="def.kind === 'shape'">
+						<span :class="labelClass">{{ def.name }} ({{ (def as any).shapeType }})</span>
+					</template>
 				</template>
 			</div>
 		</div>

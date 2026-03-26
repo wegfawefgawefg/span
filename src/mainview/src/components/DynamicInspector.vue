@@ -59,6 +59,7 @@ function onPropertyInput(def: PropertyField, value: string | boolean) {
 	if (def.kind === "scalar") {
 		switch (def.type) {
 			case "integer":
+			case "ainteger":
 				converted = Math.round(Number(value) || 0);
 				break;
 			case "number":
@@ -290,7 +291,7 @@ function getEntity() {
 
 					<!-- Scalar: Number input -->
 					<label
-						v-else-if="def.kind === 'scalar' && (def.type === 'integer' || def.type === 'number')"
+						v-else-if="def.kind === 'scalar' && (def.type === 'integer' || def.type === 'number' || def.type === 'ainteger')"
 						:class="labelClass"
 					>
 						{{ def.name }}

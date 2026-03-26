@@ -2,7 +2,7 @@
 
 export type PrimaryShapeKind = "rect" | "point";
 export type PropertyShapeType = "rect" | "point";
-export type ScalarType = "string" | "integer" | "number" | "boolean" | "string[]";
+export type ScalarType = "string" | "integer" | "number" | "boolean" | "string[]" | "ainteger";
 
 // --- Spec ---
 
@@ -95,6 +95,7 @@ export function defaultForScalar(field: ScalarPropertyField): unknown {
 		number: 0,
 		boolean: false,
 		"string[]": [],
+		ainteger: 0,
 	};
 	const d = defaults[field.type];
 	return Array.isArray(d) ? [] : d;

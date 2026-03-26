@@ -164,6 +164,10 @@ describe("validateSpec", () => {
 		}
 	});
 
+	test("ainteger type is valid", () => {
+		expect(errors(validateSpec([entity({ properties: { seq: "ainteger" } })]))).toHaveLength(0);
+	});
+
 	test("unknown type → error", () => {
 		expect(errors(validateSpec([entity({ properties: { f: "blob" } })])).some((e) => e.message.includes("blob"))).toBe(true);
 	});

@@ -117,6 +117,21 @@ describe("duplicateAnnotation", () => {
 		expect(copy.point!.y).toBe(24);
 	});
 
+	test("auto-increments ainteger fields on duplicate", () => {
+		const specWithAint = spec(`
+- label: Sprite
+  group: sprites
+  aabb: rect
+  properties:
+    name: string
+    seq: ainteger
+`);
+		const ann = createAnnotation(specWithAint, "Sprite", { x: 0, y: 0 });
+		ann.properties.seq = 1;
+		const copy = duplicateAnnotation(ann, specWithAint);
+		expect(copy.properties.seq).toBe(2);
+	});
+
 	test("deep copies properties", () => {
 		const ann = createAnnotation(TEST_SPEC, "Sprite", { x: 0, y: 0 });
 		ann.properties.tags = ["a", "b"];

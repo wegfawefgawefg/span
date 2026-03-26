@@ -250,7 +250,7 @@ export function duplicateSelected() {
 	const ann = selectedAnnotation.value;
 	const sheet = currentSheet.value;
 	if (!ann || !sheet) return;
-	const copy = duplicateAnnotation(ann);
+	const copy = duplicateAnnotation(ann, activeSpec.value ?? undefined);
 	sheet.annotations.push(copy);
 	selectedId.value = copy.id;
 	markDirty(true);

@@ -10,7 +10,7 @@ import type {
 import { validateSpec } from "./validate";
 
 const SCALAR_TYPES = new Set<string>([
-	"string", "integer", "number", "boolean", "string[]",
+	"string", "integer", "number", "boolean", "string[]", "ainteger",
 ]);
 const SHAPE_TYPES = new Set<string>(["rect", "point"]);
 const ENUM_RE = /^enum\[(.+)\]$/;

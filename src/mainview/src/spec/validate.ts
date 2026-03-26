@@ -2,7 +2,7 @@
 import type { SpecError } from "./types";
 
 const VALID_SCALAR_TYPES = new Set<string>([
-	"string", "integer", "number", "boolean", "string[]",
+	"string", "integer", "number", "boolean", "string[]", "ainteger",
 ]);
 const VALID_SHAPE_TYPES = new Set<string>(["rect", "point"]);
 const LABEL_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;

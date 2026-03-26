@@ -72,7 +72,7 @@ export function createAnnotationWithSize(
 	return annotation;
 }
 
-export function duplicateAnnotation(annotation: Annotation): Annotation {
+export function duplicateAnnotation(annotation: Annotation, spec?: SpanSpec): Annotation {
 	const aabb = annotation.aabb
 		? { ...annotation.aabb, x: annotation.aabb.x + 4, y: annotation.aabb.y + 4 }
 		: null;
@@ -80,12 +80,27 @@ export function duplicateAnnotation(annotation: Annotation): Annotation {
 		? { ...annotation.point, x: annotation.point.x + 4, y: annotation.point.y + 4 }
 		: null;
 
+	const properties = JSON.parse(JSON.stringify(annotation.properties));
+
+	// Auto-increment ainteger fields
+	if (spec) {
+		const entity = getEntityByLabel(spec, annotation.entityType);
+		if (entity) {
+			for (const field of entity.properties) {
+				if (field.kind === "scalar" && field.type === "ainteger") {
+					const current = properties[field.name];
+					properties[field.name] = (typeof current === "number" ? current : 0) + 1;
+				}
+			}
+		}
+	}
+
 	return {
 		id: makeId(),
 		entityType: annotation.entityType,
 		aabb,
 		point,
-		properties: JSON.parse(JSON.stringify(annotation.properties)),
+		properties,
 		...(annotation._stash
 			? { _stash: JSON.parse(JSON.stringify(annotation._stash)) }
 			: {}),

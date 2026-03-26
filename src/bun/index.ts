@@ -71,7 +71,9 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 				return await file.text();
 			},
 			writeFile: async ({ path, contents }) => {
+				console.log("[writeFile] path:", path, "length:", contents.length);
 				await Bun.write(path, contents);
+				console.log("[writeFile] done:", path);
 				return { ok: true };
 			},
 			readImageAsDataUrl: async ({ path }) => {

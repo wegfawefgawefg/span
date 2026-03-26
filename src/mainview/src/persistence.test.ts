@@ -13,6 +13,7 @@ function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation {
 		entityType: "Sprite",
 		aabb: { x: 10, y: 20, w: 32, h: 32 },
 		point: null,
+		chromaKey: null,
 		properties: { name: "hero" },
 		...overrides,
 	};

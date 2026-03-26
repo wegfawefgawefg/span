@@ -1,76 +1,13 @@
 {
-  "version": 1,
+  "version": 2,
   "spec": {
-    "raw": "---\n__properties:\n  version: 0.1.0\n---\n- label: Sprite\n  group: sprites\n  properties:\n    name: string\n    path: FileName\n    slice:\n      __shape: rect\n      x: integer\n      y: integer\n      width: integer\n      height: integer\n    collision:\n      __shape: rect\n      __reference: slice\n      x: integer\n      y: integer\n      width: integer\n      height: integer\n    origin:\n      __shape: point\n      __reference: slice\n      x: integer\n      y: integer\n    chroma_key: ColorHEX\n    frame: integer\n    direction: { enum: [up, down, left, right] }\n    variant: string\n    tags: string[]\n\n- label: Tile\n  group: tiles\n  properties:\n    name: string\n    path: FileName\n    slice:\n      __shape: rect\n      x: integer\n      y: integer\n      width: integer\n      height: integer\n    solid: boolean\n    layer: { enum: [background, foreground, overlay] }\n    chroma_key: ColorHEX\n    tags: string[]\n\n- label: Waypoint\n  group: waypoints\n  properties:\n    name: string\n    point:\n      __shape: point\n      x: integer\n      y: integer\n    order: integer\n    type: { enum: [spawn, entrance, exit, warp] }\n",
+    "raw": "- label: Sprite\n  group: sprites\n  aabb: rect\n  path: file_name\n  chroma_key: color\n  properties:\n    name: string\n    frame: ainteger\n    collision: rect[]\n    origin: point\n    direction: enum[up, down, left, right]\n    variant: string\n    tags: string[]\n\n- label: Tile\n  group: tiles\n  aabb: rect\n  path: file_name\n  chroma_key: color\n  properties:\n    name: string\n    solid: boolean\n    layer: enum[background, foreground, overlay]\n    tags: string[]\n\n- label: Waypoint\n  group: waypoints\n  point: point\n  properties:\n    name: string\n    order: integer\n    type: enum[spawn, entrance, exit, warp]\n",
     "format": "yaml"
   },
   "sheets": [
     {
       "path": "01 - Link.png",
-      "annotations": [
-        {
-          "id": "a6ddc77f-dd54-4fa4-9a31-1374197e5579",
-          "entityType": "Sprite",
-          "shapes": {
-            "slice": {
-              "x": 1,
-              "y": 11,
-              "width": 16,
-              "height": 16
-            },
-            "collision": {
-              "x": 0,
-              "y": 0,
-              "width": 15,
-              "height": 16
-            },
-            "origin": {
-              "x": 8,
-              "y": 7
-            }
-          },
-          "propertyData": {
-            "name": "link_idle",
-            "path": "",
-            "chroma_key": "#747474",
-            "frame": 0,
-            "direction": "down",
-            "variant": "",
-            "tags": []
-          }
-        },
-        {
-          "id": "6b953fd0-1a5b-4ed5-91ac-e802107d68e2",
-          "entityType": "Sprite",
-          "shapes": {
-            "slice": {
-              "x": 18,
-              "y": 11,
-              "width": 16,
-              "height": 16
-            },
-            "collision": {
-              "x": 0,
-              "y": 0,
-              "width": 15,
-              "height": 16
-            },
-            "origin": {
-              "x": 8,
-              "y": 7
-            }
-          },
-          "propertyData": {
-            "name": "link_idle",
-            "path": "",
-            "chroma_key": "#747474",
-            "frame": 0,
-            "direction": "down",
-            "variant": "",
-            "tags": []
-          }
-        }
-      ]
+      "annotations": []
     }
   ]
 }

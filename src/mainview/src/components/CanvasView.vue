@@ -18,6 +18,7 @@ import {
 	duplicateSelected,
 	deleteSelected,
 	selectedAnnotation,
+	activeEyedropper,
 } from "../state";
 import { ZOOM_STEP } from "../state";
 import { useCanvas } from "../composables/useCanvas";
@@ -46,6 +47,7 @@ const stageHeight = computed(() => Math.round(imageHeight.value * zoom.value));
 const zoomLabel = computed(() => `${Math.round(zoom.value * 100)}%`);
 
 const layerCursorClass = computed(() => {
+	if (activeEyedropper.value) return 'cursor-crosshair';
 	if (spaceHeld.value && !isPanning.value) return '';
 	if (isPanning.value) return '';
 	if (activeTool.value) return 'cursor-crosshair';
@@ -64,6 +66,12 @@ const spaceHeld = ref(false);
 let panStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
 
 function onKeyDown(e: KeyboardEvent) {
+	if (e.code === "Escape" && activeEyedropper.value) {
+		const original = activeEyedropper.value.originalValue;
+		activeEyedropper.value.callback(original);
+		activeEyedropper.value = null;
+		return;
+	}
 	if (e.code === "Space") {
 		const tag = (document.activeElement?.tagName ?? "").toUpperCase();
 		if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
@@ -144,6 +152,20 @@ function onImageLoad() {
 	sampleCanvas.height = img.naturalHeight;
 	sampleCtx.clearRect(0, 0, img.naturalWidth, img.naturalHeight);
 	sampleCtx.drawImage(img, 0, 0);
+}
+
+function samplePixelAt(clientX: number, clientY: number): string | null {
+	const stageEl = stage.value;
+	if (!stageEl || !sampleCanvas.width) return null;
+	const rect = stageEl.getBoundingClientRect();
+	const imgX = Math.floor((clientX - rect.left) / zoom.value);
+	const imgY = Math.floor((clientY - rect.top) / zoom.value);
+	if (imgX < 0 || imgY < 0 || imgX >= imageWidth.value || imgY >= imageHeight.value) return null;
+	const pixel = sampleCtx.getImageData(imgX, imgY, 1, 1).data;
+	const hex = "#" + [pixel[0], pixel[1], pixel[2]]
+		.map((c) => c.toString(16).padStart(2, "0"))
+		.join("");
+	return hex;
 }
 
 function handleWheel(event: WheelEvent) {
@@ -236,6 +258,17 @@ function handleBoxPointerUp(event: PointerEvent) {
 }
 
 function handleLayerPointerDown(event: PointerEvent) {
+	// Eyedropper mode: click to confirm color
+	if (activeEyedropper.value) {
+		event.preventDefault();
+		event.stopPropagation();
+		const hex = samplePixelAt(event.clientX, event.clientY);
+		if (hex) {
+			activeEyedropper.value.callback(hex);
+		}
+		activeEyedropper.value = null;
+		return;
+	}
 	if (isPanning.value || spaceHeld.value) return;
 
 	// Select mode: click empty canvas to deselect
@@ -279,6 +312,14 @@ function handleLayerPointerDown(event: PointerEvent) {
 }
 
 function handleLayerPointerMove(event: PointerEvent) {
+	// Eyedropper mode: live preview on hover
+	if (activeEyedropper.value) {
+		const hex = samplePixelAt(event.clientX, event.clientY);
+		if (hex) {
+			activeEyedropper.value.callback(hex);
+		}
+		return;
+	}
 	// Drawing preview takes priority
 	if (drawing.value) {
 		const stageEl = stage.value;
@@ -387,6 +428,13 @@ function onBoxContextMenu(event: MouseEvent, annotation: Annotation) {
 }
 
 function onCanvasContextMenu(event: MouseEvent) {
+	if (activeEyedropper.value) {
+		event.preventDefault();
+		const original = activeEyedropper.value.originalValue;
+		activeEyedropper.value.callback(original);
+		activeEyedropper.value = null;
+		return;
+	}
 	const el = scroller.value;
 	if (!el) return;
 	const cx = (el.scrollLeft + el.clientWidth / 2) / zoom.value;

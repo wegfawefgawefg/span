@@ -10,6 +10,7 @@ function makeSpriteEntity(extraProperties: EntityDef["properties"] = []): Entity
 		group: "sprites",
 		primaryShape: { kind: "rect" },
 		hasPath: true,
+		hasChromaKey: false,
 		properties: [
 			{ kind: "scalar", name: "name", type: "string" },
 			...extraProperties,
@@ -28,7 +29,7 @@ function makeAnnotation(
 	properties: Record<string, unknown> = {},
 	extra: Partial<Annotation> = {},
 ): Annotation {
-	return { id: "test-id", entityType, aabb, point, properties, ...extra };
+	return { id: "test-id", entityType, aabb, point, chromaKey: null, properties, ...extra };
 }
 
 function entry(ann: Annotation, sheetFile = "sheet.png"): ExportEntry {
@@ -59,7 +60,7 @@ describe("buildExportData", () => {
 	it("exports point as top-level field", () => {
 		const waypointEntity: EntityDef = {
 			label: "Waypoint", group: "waypoints",
-			primaryShape: { kind: "point" }, hasPath: false,
+			primaryShape: { kind: "point" }, hasPath: false, hasChromaKey: false,
 			properties: [{ kind: "scalar", name: "name", type: "string" }],
 		};
 		const spec = makeSpec([waypointEntity]);
@@ -80,7 +81,7 @@ describe("buildExportData", () => {
 	it("does not export path when entity has no hasPath", () => {
 		const entity: EntityDef = {
 			label: "Waypoint", group: "waypoints",
-			primaryShape: { kind: "point" }, hasPath: false, properties: [],
+			primaryShape: { kind: "point" }, hasPath: false, hasChromaKey: false, properties: [],
 		};
 		const spec = makeSpec([entity]);
 		const ann = makeAnnotation("Waypoint", null, { x: 5, y: 10 });
@@ -104,7 +105,7 @@ describe("buildExportData", () => {
 	it("exports shape properties as objects (single) or arrays", () => {
 		const entity: EntityDef = {
 			label: "Sprite", group: "sprites",
-			primaryShape: { kind: "rect" }, hasPath: false,
+			primaryShape: { kind: "rect" }, hasPath: false, hasChromaKey: false,
 			properties: [
 				{ kind: "shape", name: "origin", shapeType: "point", array: false },
 				{ kind: "shape", name: "collision", shapeType: "rect", array: true },
@@ -135,7 +136,7 @@ describe("buildExportData", () => {
 	it("applies workspace point field overrides on export", () => {
 		const waypointEntity: EntityDef = {
 			label: "Waypoint", group: "waypoints",
-			primaryShape: { kind: "point" }, hasPath: false, properties: [],
+			primaryShape: { kind: "point" }, hasPath: false, hasChromaKey: false, properties: [],
 		};
 		const spec = makeSpec([waypointEntity]);
 		const ann = makeAnnotation("Waypoint", null, { x: 5, y: 10 });
@@ -158,7 +159,7 @@ describe("buildExportData", () => {
 	it("omits group key when entity type has no annotations", () => {
 		const tileEntity: EntityDef = {
 			label: "Tile", group: "tiles",
-			primaryShape: { kind: "rect" }, hasPath: false, properties: [],
+			primaryShape: { kind: "rect" }, hasPath: false, hasChromaKey: false, properties: [],
 		};
 		const spec = makeSpec([makeSpriteEntity(), tileEntity]);
 		const ann = makeAnnotation("Sprite", { x: 0, y: 0, w: 16, h: 16 }, null, { name: "hero" });

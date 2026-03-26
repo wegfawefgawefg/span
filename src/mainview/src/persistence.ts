@@ -37,6 +37,7 @@ export function serializeWorkspace(
 				entityType: a.entityType,
 				aabb: a.aabb ? { ...a.aabb } : null,
 				point: a.point ? { ...a.point } : null,
+				chromaKey: a.chromaKey ?? null,
 				properties: JSON.parse(JSON.stringify(a.properties)),
 				...(a._stash && Object.keys(a._stash).length > 0
 					? { _stash: { ...a._stash } }
@@ -75,6 +76,7 @@ export function deserializeWorkspace(raw: string): SpanFile {
 				entityType: a.entityType ?? "",
 				aabb: a.aabb ?? null,
 				point: a.point ?? null,
+				chromaKey: a.chromaKey ?? null,
 				properties: a.properties ?? {},
 				...(a._stash ? { _stash: a._stash } : {}),
 			})),

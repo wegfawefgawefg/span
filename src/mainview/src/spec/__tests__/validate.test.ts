@@ -137,6 +137,16 @@ describe("validateSpec", () => {
 		expect(errors(validateSpec([entity({ path: "something_else" })])).some((e) => e.message.includes("file_name"))).toBe(true);
 	});
 
+	// --- chroma_key ---
+
+	test("chroma_key: color is valid", () => {
+		expect(errors(validateSpec([entity({ chroma_key: "color" })]))).toHaveLength(0);
+	});
+
+	test("chroma_key with invalid value → error", () => {
+		expect(errors(validateSpec([entity({ chroma_key: "hex" })])).some((e) => e.message.includes("color"))).toBe(true);
+	});
+
 	// --- properties ---
 
 	test("entity with no properties key is valid", () => {

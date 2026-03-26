@@ -82,6 +82,13 @@ export function validateSpec(raw: unknown): SpecError[] {
 			}
 		}
 
+		// --- chroma_key ---
+		if ("chroma_key" in ent) {
+			if (ent.chroma_key !== "color") {
+				errors.push({ path: `${ePath}.chroma_key`, severity: "error", message: `chroma_key value must be "color"` });
+			}
+		}
+
 		// --- properties ---
 		if (ent.properties !== undefined && (typeof ent.properties !== "object" || ent.properties === null || Array.isArray(ent.properties))) {
 			errors.push({ path: `${ePath}.properties`, severity: "error", message: "Properties must be an object" });

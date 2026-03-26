@@ -67,12 +67,7 @@ function getFrameValue(ann: Annotation): number {
 }
 
 function getChromaKey(ann: Annotation): string | undefined {
-	if (!activeSpec.value) return undefined;
-	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
-	if (!entity) return undefined;
-	const chromaProp = entity.properties.find(f => f.name === "chroma_key");
-	if (!chromaProp) return undefined;
-	return ann.properties["chroma_key"] as string | undefined;
+	return ann.chromaKey || undefined;
 }
 
 function groupKey(ann: Annotation): string {

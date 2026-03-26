@@ -53,6 +53,7 @@ export function parseSpec(
 			: { kind: "point" as const };
 
 		const hasPath = rawEntity.path === "file_name";
+		const hasChromaKey = rawEntity.chroma_key === "color";
 
 		const properties: PropertyField[] = [];
 		const rawProps = (rawEntity.properties ?? {}) as Record<string, unknown>;
@@ -69,6 +70,7 @@ export function parseSpec(
 			group: rawEntity.group as string,
 			primaryShape,
 			hasPath,
+			hasChromaKey,
 			properties,
 		});
 	}

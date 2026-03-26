@@ -19,12 +19,12 @@ const EXAMPLE_SPEC_YAML = `
   group: sprites
   aabb: rect
   path: file_name
+  chroma_key: color
   properties:
     name: string
     frame: integer
     collision: rect[]
     origin: point
-    chroma_key: color
     direction: enum[up, down, left, right]
     variant: string
     tags: string[]
@@ -33,11 +33,11 @@ const EXAMPLE_SPEC_YAML = `
   group: tiles
   aabb: rect
   path: file_name
+  chroma_key: color
   properties:
     name: string
     solid: boolean
     layer: enum[background, foreground, overlay]
-    chroma_key: color
     tags: string[]
 
 - label: Waypoint
@@ -81,7 +81,7 @@ describe("parseSpec", () => {
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
 		const names = sprite.properties.map((p) => p.name);
-		expect(names).toEqual(["name", "frame", "collision", "origin", "chroma_key", "direction", "variant", "tags"]);
+		expect(names).toEqual(["name", "frame", "collision", "origin", "direction", "variant", "tags"]);
 	});
 
 	test("scalar properties parsed correctly", () => {
@@ -110,20 +110,19 @@ describe("parseSpec", () => {
 		expect(origin.array).toBe(false);
 	});
 
-	test("color property parsed correctly", () => {
+	test("hasChromaKey is true when chroma_key: color is set", () => {
 		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		if (!isSpec(result)) return;
-		const sprite = result.entities[0];
-		const chroma = sprite.properties[4] as ColorPropertyField;
-		expect(chroma.kind).toBe("color");
-		expect(chroma.name).toBe("chroma_key");
+		expect(result.entities[0].hasChromaKey).toBe(true);
+		expect(result.entities[1].hasChromaKey).toBe(true);
+		expect(result.entities[2].hasChromaKey).toBe(false);
 	});
 
 	test("enum property parsed correctly", () => {
 		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
-		const dir = sprite.properties[5] as EnumPropertyField;
+		const dir = sprite.properties[4] as EnumPropertyField;
 		expect(dir.kind).toBe("enum");
 		expect(dir.values).toEqual(["up", "down", "left", "right"]);
 	});
@@ -132,7 +131,7 @@ describe("parseSpec", () => {
 		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
-		const tags = sprite.properties[7] as ScalarPropertyField;
+		const tags = sprite.properties[6] as ScalarPropertyField;
 		expect(tags.kind).toBe("scalar");
 		expect(tags.type).toBe("string[]");
 	});
@@ -221,6 +220,37 @@ describe("parseSpec", () => {
 		expect(Array.isArray(result)).toBe(true);
 		if (Array.isArray(result)) {
 			expect(result.some((e) => e.severity === "error")).toBe(true);
+		}
+	});
+
+	test("entity with chroma_key has hasChromaKey true", () => {
+		const yaml = `
+- label: Sprite
+  group: sprites
+  aabb: rect
+  chroma_key: color
+  properties:
+    name: string
+`;
+		const result = parseSpec(yaml, "yaml");
+		expect(isSpec(result)).toBe(true);
+		if (isSpec(result)) {
+			expect(result.entities[0].hasChromaKey).toBe(true);
+		}
+	});
+
+	test("entity without chroma_key has hasChromaKey false", () => {
+		const yaml = `
+- label: Waypoint
+  group: waypoints
+  point: point
+  properties:
+    name: string
+`;
+		const result = parseSpec(yaml, "yaml");
+		expect(isSpec(result)).toBe(true);
+		if (isSpec(result)) {
+			expect(result.entities[0].hasChromaKey).toBe(false);
 		}
 	});
 

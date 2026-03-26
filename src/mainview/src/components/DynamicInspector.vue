@@ -158,6 +158,12 @@ function onShapeCanvasUpdate(propName: string, index: number | null, patch: Reco
 	}
 }
 
+function onChromaKeyInput(value: string) {
+	const ann = props.annotation;
+	ann.chromaKey = value;
+	markDirty(true);
+}
+
 function getEntity() {
 	return getEntityByLabel(props.spec, props.annotation.entityType);
 }
@@ -248,6 +254,20 @@ function getEntity() {
 				</div>
 			</div>
 		</template>
+
+		<!-- Chroma Key (top-level) -->
+		<label
+			v-if="getEntity()?.hasChromaKey"
+			:class="labelClass"
+		>
+			chroma_key
+			<ColorPicker
+				:model-value="annotation.chromaKey ?? ''"
+				:image-source="currentSheetImageSrc"
+				:aabb="annotation.aabb"
+				@update:model-value="onChromaKeyInput($event)"
+			/>
+		</label>
 
 		<!-- Properties section -->
 		<div

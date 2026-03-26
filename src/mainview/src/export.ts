@@ -81,6 +81,11 @@ export function buildExportData(
 			flat["point"] = remapPoint(ann.point, shapeFields?.point);
 		}
 
+		// Chroma key
+		if (entityDef.hasChromaKey && ann.chromaKey) {
+			flat["chroma_key"] = ann.chromaKey;
+		}
+
 		// Properties in spec order
 		for (const field of entityDef.properties) {
 			const value = ann.properties[field.name];

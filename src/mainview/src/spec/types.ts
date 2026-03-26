@@ -16,6 +16,7 @@ export interface EntityDef {
 	group: string;
 	primaryShape: PrimaryShape;
 	hasPath: boolean;
+	hasChromaKey: boolean;
 	properties: PropertyField[];
 }
 

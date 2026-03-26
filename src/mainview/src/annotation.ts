@@ -18,6 +18,7 @@ export interface Annotation {
 	entityType: string;
 	aabb: { x: number; y: number; w: number; h: number } | null;
 	point: { x: number; y: number } | null;
+	chromaKey: string | null;
 	properties: Record<string, unknown>;
 	_stash?: Record<string, unknown>;
 }
@@ -37,6 +38,8 @@ export function createAnnotation(
 		? { x: position.x, y: position.y }
 		: null;
 
+	const chromaKey = entity.hasChromaKey ? "" : null;
+
 	const properties: Record<string, unknown> = {};
 	for (const field of entity.properties) {
 		switch (field.kind) {
@@ -55,7 +58,7 @@ export function createAnnotation(
 		}
 	}
 
-	return { id: makeId(), entityType, aabb, point, properties };
+	return { id: makeId(), entityType, aabb, point, chromaKey, properties };
 }
 
 export function createAnnotationWithSize(
@@ -100,6 +103,7 @@ export function duplicateAnnotation(annotation: Annotation, spec?: SpanSpec): An
 		entityType: annotation.entityType,
 		aabb,
 		point,
+		chromaKey: annotation.chromaKey,
 		properties,
 		...(annotation._stash
 			? { _stash: JSON.parse(JSON.stringify(annotation._stash)) }
@@ -128,6 +132,11 @@ export function migrateEntityType(
 			? { ...annotation.point }
 			: { x: annotation.aabb?.x ?? 0, y: annotation.aabb?.y ?? 0 };
 	}
+
+	// Chroma key
+	const chromaKey = newEntity.hasChromaKey
+		? (annotation.chromaKey ?? "")
+		: null;
 
 	// Migrate properties
 	const oldProps = { ...annotation.properties };
@@ -165,6 +174,7 @@ export function migrateEntityType(
 		entityType: newType,
 		aabb,
 		point,
+		chromaKey,
 		properties: newProperties,
 		...(Object.keys(stash).length > 0 ? { _stash: stash } : {}),
 	};

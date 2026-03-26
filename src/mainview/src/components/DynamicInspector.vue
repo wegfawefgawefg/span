@@ -384,10 +384,13 @@ function getEntity() {
 
 					<!-- Shape property -->
 					<template v-else-if="def.kind === 'shape'">
-						<div class="flex flex-col gap-1">
-							<span :class="labelClass">{{ def.name }} ({{ (def as ShapePropertyField).shapeType }}{{ (def as ShapePropertyField).array ? '[]' : '' }})</span>
+						<div class="flex flex-col gap-1.5">
+							<span :class="labelClass">
+								{{ def.name }}
+								<span class="text-text-faint font-normal normal-case tracking-normal">{{ (def as ShapePropertyField).shapeType }}{{ (def as ShapePropertyField).array ? '[]' : '' }}</span>
+							</span>
 
-							<!-- Mini-canvas preview showing shapes relative to aabb -->
+							<!-- Mini-canvas preview -->
 							<ShapeCanvas
 								v-if="currentSheetImageSrc && annotation.aabb"
 								:annotation="annotation"
@@ -401,8 +404,8 @@ function getEntity() {
 
 							<!-- Single point -->
 							<template v-if="!(def as ShapePropertyField).array && (def as ShapePropertyField).shapeType === 'point'">
-								<div class="grid grid-cols-2 gap-2">
-									<label v-for="field in ['x', 'y']" :key="field" :class="labelClass">
+								<div class="grid grid-cols-2 gap-1.5">
+									<label v-for="field in ['x', 'y']" :key="field" class="flex flex-col gap-0.5 text-[10px] font-mono text-text-faint">
 										{{ field }}
 										<input
 											type="number"
@@ -415,8 +418,8 @@ function getEntity() {
 
 							<!-- Single rect -->
 							<template v-if="!(def as ShapePropertyField).array && (def as ShapePropertyField).shapeType === 'rect'">
-								<div class="grid grid-cols-2 gap-2">
-									<label v-for="field in ['x', 'y', 'w', 'h']" :key="field" :class="labelClass">
+								<div class="grid grid-cols-2 gap-1.5">
+									<label v-for="field in ['x', 'y', 'w', 'h']" :key="field" class="flex flex-col gap-0.5 text-[10px] font-mono text-text-faint">
 										{{ field }}
 										<input
 											type="number"
@@ -435,15 +438,15 @@ function getEntity() {
 									class="flex flex-col gap-1 pl-2 border-l-2 border-border"
 								>
 									<div class="flex items-center justify-between">
-										<span class="text-[10px] text-text-faint">#{{ idx + 1 }}</span>
+										<span class="text-[10px] font-mono text-text-faint">#{{ idx + 1 }}</span>
 										<button
 											type="button"
-											class="text-[10px] text-danger hover:text-danger/80 cursor-pointer bg-transparent border-none p-0"
+											class="text-[10px] text-text-faint hover:text-danger transition-colors cursor-pointer bg-transparent border-none p-0"
 											@click="removeShapeArrayItem(def.name, idx)"
 										>remove</button>
 									</div>
-									<div class="grid grid-cols-2 gap-2" v-if="(def as ShapePropertyField).shapeType === 'point'">
-										<label v-for="field in ['x', 'y']" :key="field" :class="labelClass">
+									<div class="grid grid-cols-2 gap-1.5" v-if="(def as ShapePropertyField).shapeType === 'point'">
+										<label v-for="field in ['x', 'y']" :key="field" class="flex flex-col gap-0.5 text-[10px] font-mono text-text-faint">
 											{{ field }}
 											<input
 												type="number"
@@ -452,8 +455,8 @@ function getEntity() {
 											/>
 										</label>
 									</div>
-									<div class="grid grid-cols-2 gap-2" v-else>
-										<label v-for="field in ['x', 'y', 'w', 'h']" :key="field" :class="labelClass">
+									<div class="grid grid-cols-2 gap-1.5" v-else>
+										<label v-for="field in ['x', 'y', 'w', 'h']" :key="field" class="flex flex-col gap-0.5 text-[10px] font-mono text-text-faint">
 											{{ field }}
 											<input
 												type="number"
@@ -465,9 +468,9 @@ function getEntity() {
 								</div>
 								<button
 									type="button"
-									class="text-[11px] text-text-dim hover:text-copper cursor-pointer bg-transparent border border-border rounded px-2 py-1 self-start"
+									class="text-[11px] text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border border-border rounded px-2 py-1 self-start"
 									@click="addShapeArrayItem(def.name, (def as ShapePropertyField).shapeType)"
-								>+ Add {{ (def as ShapePropertyField).shapeType }}</button>
+								>Add {{ (def as ShapePropertyField).shapeType }}</button>
 							</template>
 						</div>
 					</template>

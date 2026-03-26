@@ -183,7 +183,7 @@ const isSelected = (hex: string) => hex.toLowerCase() === (props.modelValue || "
 		<!-- Collapsed row: swatch + hex + eyedropper + chevron -->
 		<div class="flex items-center gap-1.5">
 			<span
-				class="w-7 h-7 shrink-0 rounded-sm border border-border"
+				class="w-7 h-7 shrink-0 rounded-sm border border-border transition-colors"
 				:style="{ backgroundColor: displayColor }"
 			/>
 			<input
@@ -205,11 +205,14 @@ const isSelected = (hex: string) => hex.toLowerCase() === (props.modelValue || "
 			</button>
 			<button
 				type="button"
-				class="w-6 h-6 flex items-center justify-center text-text-faint hover:text-text-dim transition-colors cursor-pointer bg-transparent border-none p-0"
+				class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border-none p-0"
 				title="Toggle palette"
 				@click="toggleExpanded"
 			>
-				{{ expanded ? "\u25B2" : "\u25BC" }}
+				<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+					<path v-if="expanded" d="M1 7L5 3L9 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+					<path v-else d="M1 3L5 7L9 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+				</svg>
 			</button>
 		</div>
 
@@ -221,26 +224,28 @@ const isSelected = (hex: string) => hex.toLowerCase() === (props.modelValue || "
 			<!-- Palette grid -->
 			<div
 				v-if="palette.length > 0"
-				class="grid gap-1"
+				class="grid gap-0.5"
 				style="grid-template-columns: repeat(8, 1fr);"
 			>
 				<button
 					v-for="hex in palette"
 					:key="hex"
 					type="button"
-					class="aspect-square rounded-sm cursor-pointer border p-0 bg-transparent"
-					:class="isSelected(hex) ? 'border-copper border-2' : 'border-border'"
+					class="aspect-square rounded-sm cursor-pointer p-0 transition-all"
+					:class="isSelected(hex)
+						? 'ring-2 ring-copper ring-offset-1 ring-offset-surface-2 scale-110'
+						: 'ring-1 ring-border hover:ring-border-strong hover:scale-105'"
 					:style="{ backgroundColor: hex }"
 					:title="hex"
 					@click="selectColor(hex)"
 				/>
 			</div>
 			<div v-else class="text-text-faint text-[11px] text-center py-2">
-				No colors extracted
+				No palette available
 			</div>
 
 			<!-- Bottom row: eyedropper + custom -->
-			<div class="flex items-center gap-2">
+			<div class="flex items-center gap-2 pt-0.5 border-t border-border">
 				<button
 					type="button"
 					class="flex items-center gap-1 text-[11px] text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border-none p-0"
@@ -257,7 +262,7 @@ const isSelected = (hex: string) => hex.toLowerCase() === (props.modelValue || "
 					@click="openNativePicker"
 				>
 					<div
-						class="w-4 h-4 rounded-sm border border-border"
+						class="w-3.5 h-3.5 rounded-sm border border-border"
 						style="background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);"
 					/>
 					custom

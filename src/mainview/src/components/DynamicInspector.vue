@@ -83,6 +83,43 @@ function onPropertyInput(def: PropertyField, value: string | boolean) {
 	updatePropertyData({ [def.name]: converted });
 }
 
+function onShapePropertyInput(propName: string, index: number | null, field: string, value: string) {
+	const numValue = Number(value) || 0;
+	const current = props.annotation.properties[propName];
+
+	if (index === null) {
+		// Single shape
+		const shape = (current as Record<string, number>) ?? {};
+		const updated = { ...shape, [field]: numValue };
+		updatePropertyData({ [propName]: updated });
+	} else {
+		// Array shape
+		const arr = Array.isArray(current) ? [...current] : [];
+		if (index < arr.length) {
+			arr[index] = { ...arr[index], [field]: numValue };
+			updatePropertyData({ [propName]: arr });
+		}
+	}
+}
+
+function addShapeArrayItem(propName: string, shapeType: "rect" | "point") {
+	const current = props.annotation.properties[propName];
+	const arr = Array.isArray(current) ? [...current] : [];
+	const newItem = shapeType === "rect"
+		? { x: 0, y: 0, w: 16, h: 16 }
+		: { x: 0, y: 0 };
+	arr.push(newItem);
+	updatePropertyData({ [propName]: arr });
+}
+
+function removeShapeArrayItem(propName: string, index: number) {
+	const current = props.annotation.properties[propName];
+	if (!Array.isArray(current)) return;
+	const arr = [...current];
+	arr.splice(index, 1);
+	updatePropertyData({ [propName]: arr });
+}
+
 function displayValue(def: ScalarPropertyField, value: unknown): string {
 	if (def.type === "string[]" && Array.isArray(value)) {
 		return value.join(", ");
@@ -294,9 +331,82 @@ function getEntity() {
 						/>
 					</label>
 
-					<!-- Shape property (display as numbers) -->
+					<!-- Shape property -->
 					<template v-else-if="def.kind === 'shape'">
-						<span :class="labelClass">{{ def.name }} ({{ (def as any).shapeType }})</span>
+						<div class="flex flex-col gap-1">
+							<span :class="labelClass">{{ def.name }} ({{ (def as ShapePropertyField).shapeType }}{{ (def as ShapePropertyField).array ? '[]' : '' }})</span>
+
+							<!-- Single point -->
+							<template v-if="!(def as ShapePropertyField).array && (def as ShapePropertyField).shapeType === 'point'">
+								<div class="grid grid-cols-2 gap-2">
+									<label v-for="field in ['x', 'y']" :key="field" :class="labelClass">
+										{{ field }}
+										<input
+											type="number"
+											:value="((annotation.properties[def.name] as any)?.[field]) ?? 0"
+											@input="onShapePropertyInput(def.name, null, field, ($event.target as HTMLInputElement).value)"
+										/>
+									</label>
+								</div>
+							</template>
+
+							<!-- Single rect -->
+							<template v-if="!(def as ShapePropertyField).array && (def as ShapePropertyField).shapeType === 'rect'">
+								<div class="grid grid-cols-2 gap-2">
+									<label v-for="field in ['x', 'y', 'w', 'h']" :key="field" :class="labelClass">
+										{{ field }}
+										<input
+											type="number"
+											:value="((annotation.properties[def.name] as any)?.[field]) ?? 0"
+											@input="onShapePropertyInput(def.name, null, field, ($event.target as HTMLInputElement).value)"
+										/>
+									</label>
+								</div>
+							</template>
+
+							<!-- Array shapes -->
+							<template v-if="(def as ShapePropertyField).array">
+								<div
+									v-for="(item, idx) in (annotation.properties[def.name] as any[] ?? [])"
+									:key="idx"
+									class="flex flex-col gap-1 pl-2 border-l-2 border-border"
+								>
+									<div class="flex items-center justify-between">
+										<span class="text-[10px] text-text-faint">#{{ idx + 1 }}</span>
+										<button
+											type="button"
+											class="text-[10px] text-danger hover:text-danger/80 cursor-pointer bg-transparent border-none p-0"
+											@click="removeShapeArrayItem(def.name, idx)"
+										>remove</button>
+									</div>
+									<div class="grid grid-cols-2 gap-2" v-if="(def as ShapePropertyField).shapeType === 'point'">
+										<label v-for="field in ['x', 'y']" :key="field" :class="labelClass">
+											{{ field }}
+											<input
+												type="number"
+												:value="(item as any)?.[field] ?? 0"
+												@input="onShapePropertyInput(def.name, idx, field, ($event.target as HTMLInputElement).value)"
+											/>
+										</label>
+									</div>
+									<div class="grid grid-cols-2 gap-2" v-else>
+										<label v-for="field in ['x', 'y', 'w', 'h']" :key="field" :class="labelClass">
+											{{ field }}
+											<input
+												type="number"
+												:value="(item as any)?.[field] ?? 0"
+												@input="onShapePropertyInput(def.name, idx, field, ($event.target as HTMLInputElement).value)"
+											/>
+										</label>
+									</div>
+								</div>
+								<button
+									type="button"
+									class="text-[11px] text-text-dim hover:text-copper cursor-pointer bg-transparent border border-border rounded px-2 py-1 self-start"
+									@click="addShapeArrayItem(def.name, (def as ShapePropertyField).shapeType)"
+								>+ Add {{ (def as ShapePropertyField).shapeType }}</button>
+							</template>
+						</div>
 					</template>
 				</template>
 			</div>

@@ -12,6 +12,7 @@ import {
 	currentSheetImageSrc,
 } from "../state";
 import ShapeCanvas from "./ShapeCanvas.vue";
+import ColorPicker from "./ColorPicker.vue";
 import { triggerRef } from "vue";
 
 const props = defineProps<{
@@ -242,26 +243,12 @@ function getEntity() {
 						:class="labelClass"
 					>
 						{{ def.name }}
-						<div class="flex items-center gap-1.5">
-							<span
-								class="w-7 h-7 shrink-0 rounded-sm border border-border cursor-pointer relative overflow-hidden"
-								:style="{ backgroundColor: (annotation.properties[def.name] as string) || '#000000' }"
-							>
-								<input
-									type="color"
-									:value="(annotation.properties[def.name] as string) || '#000000'"
-									class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-									@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
-								/>
-							</span>
-							<input
-								type="text"
-								:value="annotation.properties[def.name] ?? ''"
-								placeholder="#000000"
-								class="flex-1 min-w-0"
-								@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
-							/>
-						</div>
+						<ColorPicker
+							:model-value="(annotation.properties[def.name] as string) ?? ''"
+							:image-source="currentSheetImageSrc"
+							:aabb="annotation.aabb"
+							@update:model-value="onPropertyInput(def, $event)"
+						/>
 					</label>
 
 					<!-- Scalar: Number input -->

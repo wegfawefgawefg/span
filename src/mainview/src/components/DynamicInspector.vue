@@ -140,6 +140,24 @@ function getPropertyShapeData(def: ShapePropertyField): { type: "rect" | "point"
 	return { type: def.shapeType, items: [] };
 }
 
+function onShapeCanvasUpdate(propName: string, index: number | null, patch: Record<string, number>) {
+	const current = props.annotation.properties[propName];
+
+	if (index === null) {
+		// Single shape
+		const shape = (current as Record<string, number>) ?? {};
+		const updated = { ...shape, ...patch };
+		updatePropertyData({ [propName]: updated });
+	} else {
+		// Array shape
+		const arr = Array.isArray(current) ? [...current] : [];
+		if (index < arr.length) {
+			arr[index] = { ...arr[index], ...patch };
+			updatePropertyData({ [propName]: arr });
+		}
+	}
+}
+
 function getEntity() {
 	return getEntityByLabel(props.spec, props.annotation.entityType);
 }
@@ -358,6 +376,7 @@ function getEntity() {
 								:sheet-image-src="currentSheetImageSrc"
 								:shape-color="SHAPE_COLORS[1]"
 								:property-shapes="getPropertyShapeData(def as ShapePropertyField)"
+								@update:property-shape="onShapeCanvasUpdate"
 							/>
 
 							<!-- Single point -->

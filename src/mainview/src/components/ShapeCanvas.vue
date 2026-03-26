@@ -15,6 +15,10 @@ const props = defineProps<{
 	propertyShapes?: { type: "rect" | "point"; items: Array<{ x: number; y: number; w?: number; h?: number }> };
 }>();
 
+const emit = defineEmits<{
+	"update:propertyShape": [propName: string, index: number | null, patch: Record<string, number>];
+}>();
+
 const PADDING = 8;
 const MIN_CANVAS_HEIGHT = 48;
 
@@ -227,6 +231,9 @@ interface DragState {
 	startX: number;
 	startY: number;
 	startData: Record<string, number>;
+	// For property shapes
+	propertyIndex: number | null;
+	isPropertyShape: boolean;
 }
 
 const drag = ref<DragState | null>(null);
@@ -250,6 +257,8 @@ function onShapePointerDown(event: PointerEvent) {
 		startX: event.clientX,
 		startY: event.clientY,
 		startData,
+		propertyIndex: null,
+		isPropertyShape: false,
 	};
 
 	(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -283,6 +292,89 @@ function onPointerUp(event: PointerEvent) {
 	(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
 	drag.value = null;
 }
+
+function onPropertyShapePointerDown(event: PointerEvent, idx: number) {
+	event.preventDefault();
+	event.stopPropagation();
+
+	const target = event.target as HTMLElement;
+	const isResize = target.dataset.resize === "true";
+	const items = props.propertyShapes?.items ?? [];
+	const item = items[idx];
+	if (!item) return;
+
+	const startData: Record<string, number> = { x: item.x, y: item.y };
+	if (item.w !== undefined) startData.w = item.w;
+	if (item.h !== undefined) startData.h = item.h;
+
+	drag.value = {
+		mode: isResize ? "resize" : "move",
+		startX: event.clientX,
+		startY: event.clientY,
+		startData,
+		propertyIndex: idx,
+		isPropertyShape: true,
+	};
+
+	(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+}
+
+function onPropertyPointerMove(event: PointerEvent) {
+	const d = drag.value;
+	if (!d || !d.isPropertyShape) return;
+
+	const s = scale.value;
+	const deltaX = (event.clientX - d.startX) / s;
+	const deltaY = (event.clientY - d.startY) / s;
+
+	const patch: Record<string, number> = {};
+
+	if (d.mode === "move") {
+		patch.x = Math.round(d.startData.x + deltaX);
+		patch.y = Math.round(d.startData.y + deltaY);
+	} else if (d.mode === "resize") {
+		patch.w = Math.max(1, Math.round(d.startData.w + deltaX));
+		patch.h = Math.max(1, Math.round(d.startData.h + deltaY));
+	}
+
+	if (Object.keys(patch).length > 0) {
+		emit("update:propertyShape", props.shapeName, d.propertyIndex, patch);
+	}
+}
+
+function onPropertyPointerUp(event: PointerEvent) {
+	if (!drag.value) return;
+	(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+	drag.value = null;
+}
+
+function onOverlayClick(event: PointerEvent) {
+	// Only handle if we have property shapes and they're points
+	if (!props.propertyShapes || props.propertyShapes.type !== "point") return;
+	// Don't place if clicking on an existing shape element
+	const target = event.target as HTMLElement;
+	if (target.classList.contains("annotation-point") || target.classList.contains("annotation-box")) return;
+
+	const vp = viewport.value;
+	const aabb = props.annotation.aabb;
+	if (!vp || !aabb) return;
+
+	const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+	const canvasX = event.clientX - rect.left;
+	const canvasY = event.clientY - rect.top;
+
+	// Convert canvas coords to image coords, then to aabb-relative
+	const imgX = canvasX / scale.value + vp.x;
+	const imgY = canvasY / scale.value + vp.y;
+	const relX = Math.round(imgX - aabb.x);
+	const relY = Math.round(imgY - aabb.y);
+
+	// For single point, update it; for array, this is handled by the parent's add button
+	if (props.propertyShapes.items.length === 0 || !Array.isArray(props.annotation.properties[props.shapeName])) {
+		// Single point — just update position
+		emit("update:propertyShape", props.shapeName, null, { x: relX, y: relY });
+	}
+}
 </script>
 
 <template>
@@ -292,7 +384,7 @@ function onPointerUp(event: PointerEvent) {
 		:style="{ height: canvasHeight + 'px' }"
 	>
 		<canvas ref="bgCanvas" class="shape-canvas-bg" />
-		<div class="shape-canvas-overlay" :style="{ width: '100%', height: canvasHeight + 'px' }">
+		<div class="shape-canvas-overlay" :style="{ width: '100%', height: canvasHeight + 'px', pointerEvents: propertyShapes?.type === 'point' ? 'auto' : undefined }" @pointerdown.self="onOverlayClick">
 			<!-- Rect shape -->
 			<div
 				v-if="props.shapeName === 'aabb' && annotation.aabb"
@@ -317,18 +409,28 @@ function onPointerUp(event: PointerEvent) {
 				@pointercancel="onPointerUp"
 			></div>
 
-			<!-- Property shapes (relative to aabb) -->
+			<!-- Property shapes (relative to aabb) — interactive -->
 			<template v-if="propertyShapes">
 				<template v-for="(style, idx) in propertyShapeStyles" :key="idx">
 					<div
 						v-if="propertyShapes.type === 'rect'"
 						class="annotation-box selected"
 						:style="{ ...style, borderColor: shapeColor }"
-					></div>
+						@pointerdown="onPropertyShapePointerDown($event, idx)"
+						@pointermove="onPropertyPointerMove"
+						@pointerup="onPropertyPointerUp"
+						@pointercancel="onPropertyPointerUp"
+					>
+						<div class="resize-handle" data-resize="true"></div>
+					</div>
 					<div
 						v-else
 						class="annotation-point selected"
 						:style="style"
+						@pointerdown="onPropertyShapePointerDown($event, idx)"
+						@pointermove="onPropertyPointerMove"
+						@pointerup="onPropertyPointerUp"
+						@pointercancel="onPropertyPointerUp"
 					></div>
 				</template>
 			</template>

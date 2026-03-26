@@ -1,59 +1,32 @@
----
-__properties:
-  version: 0.1.0
----
 - label: Sprite
   group: sprites
+  aabb: rect
+  path: file_name
   properties:
     name: string
-    path: FileName
-    slice:
-      __shape: rect
-      x: integer
-      y: integer
-      width: integer
-      height: integer
-    collision:
-      __shape: rect
-      __reference: slice
-      x: integer
-      y: integer
-      width: integer
-      height: integer
-    origin:
-      __shape: point
-      __reference: slice
-      x: integer
-      y: integer
-    chroma_key: ColorHEX
     frame: integer
-    direction: { enum: [up, down, left, right] }
+    collision: rect[]
+    origin: point
+    chroma_key: color
+    direction: enum[up, down, left, right]
     variant: string
     tags: string[]
 
 - label: Tile
   group: tiles
+  aabb: rect
+  path: file_name
   properties:
     name: string
-    path: FileName
-    slice:
-      __shape: rect
-      x: integer
-      y: integer
-      width: integer
-      height: integer
     solid: boolean
-    layer: { enum: [background, foreground, overlay] }
-    chroma_key: ColorHEX
+    layer: enum[background, foreground, overlay]
+    chroma_key: color
     tags: string[]
 
 - label: Waypoint
   group: waypoints
+  point: point
   properties:
     name: string
-    point:
-      __shape: point
-      x: integer
-      y: integer
     order: integer
-    type: { enum: [spawn, entrance, exit, warp] }
+    type: enum[spawn, entrance, exit, warp]

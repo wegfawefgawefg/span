@@ -64,7 +64,8 @@ export function createWebAdapter(): WebPlatformAdapter {
 			a.href = url;
 			a.download = _path.split("/").pop() ?? "export";
 			a.click();
-			URL.revokeObjectURL(url);
+			// Delay revoke to ensure download starts
+			setTimeout(() => URL.revokeObjectURL(url), 1000);
 			return { ok: true };
 		},
 

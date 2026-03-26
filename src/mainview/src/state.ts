@@ -149,19 +149,24 @@ export function addAnnotationAtViewportCenter() {
 
 function performSave() {
 	const spec = activeSpec.value;
-	if (!spec) return;
+	if (!spec) {
+		console.log("[performSave] no spec, skipping");
+		return;
+	}
 
 	const data = serializeWorkspace(
 		sheets.value,
 		activeSpecRaw.value,
 	);
 
+	console.log("[performSave] platform:", platform.value, "spanFilePath:", spanFilePath.value, "data length:", data.length);
+
 	if (platform.value === "desktop" && spanFilePath.value) {
 		api.writeFile(spanFilePath.value, data).then(() => {
 			markDirty(false);
-			console.log("Saved to", spanFilePath.value);
+			console.log("[performSave] saved to", spanFilePath.value);
 		}).catch((e) => {
-			console.error("Save failed:", e);
+			console.error("[performSave] save failed:", e);
 			statusText.value = "Save failed";
 		});
 	} else if (platform.value === "web") {
@@ -357,8 +362,10 @@ export async function importSheetFromPath(path: string) {
 // --- Export ---
 
 export async function exportWorkspace(dialogPath?: string) {
+	console.log("[exportWorkspace] called, dialogPath:", dialogPath);
 	const spec = activeSpec.value;
 	if (!spec) {
+		console.log("[exportWorkspace] no spec loaded");
 		statusText.value = "No spec loaded — cannot export";
 		return;
 	}
@@ -369,7 +376,9 @@ export async function exportWorkspace(dialogPath?: string) {
 			sheetFile: s.path.split("/").pop() ?? s.path,
 		})),
 	);
+	console.log("[exportWorkspace] entries:", entries.length, "format:", spec.format);
 	const output = exportToString(entries, spec);
+	console.log("[exportWorkspace] output length:", output.length);
 
 	const ext = spec.format === "yaml" ? "yaml" : "json";
 	const defaultName = `annotations.${ext}`;
@@ -403,6 +412,11 @@ export async function doExportWrite(output: string, defaultName: string, dialogP
 // --- Save / Save As / Open ---
 
 export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
+	// On web, always save to localStorage (no file path needed)
+	if (platform.value === "web") {
+		performSave();
+		return { needsSaveAs: false };
+	}
 	if (!spanFilePath.value) {
 		return { needsSaveAs: true };
 	}
@@ -411,26 +425,34 @@ export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
 }
 
 export async function saveWorkspaceAs(dialogPath?: string) {
+	console.log("[saveWorkspaceAs] called, dialogPath:", dialogPath);
 	let savePath = dialogPath;
 	if (!savePath) {
-		// On web or when called without a path, show save dialog
-		const selected = await api.showSaveDialog("workspace.span", [
-			{ name: "Span files", extensions: ["span"] },
-		]);
-		if (!selected) return;
-		savePath = selected;
+		if (platform.value === "web") {
+			// Web: trigger download with default name
+			savePath = "workspace.span";
+		} else {
+			const selected = await api.showSaveDialog("workspace.span", [
+				{ name: "Span files", extensions: ["span"] },
+			]);
+			if (!selected) return;
+			savePath = selected;
+		}
 	}
 
 	savePath = savePath.endsWith(".span") ? savePath : savePath + ".span";
 	spanFilePath.value = savePath;
+	console.log("[saveWorkspaceAs] saving to:", savePath);
 
 	const data = serializeWorkspace(
 		sheets.value,
 		activeSpecRaw.value,
 	);
+	console.log("[saveWorkspaceAs] data length:", data.length);
 
 	try {
 		await api.writeFile(savePath, data);
+		console.log("[saveWorkspaceAs] write succeeded");
 		markDirty(false);
 		statusText.value = `Saved to ${savePath.split("/").pop()}`;
 	} catch (e) {

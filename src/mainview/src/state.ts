@@ -53,6 +53,12 @@ export const activeSpec = ref<SpanSpec | null>(null);
 export const activeSpecRaw = ref<SpanFileSpec | null>(null);
 export const activeTool = ref<string>("");
 
+// Eyedropper state: when non-null, the canvas is in eyedropper mode
+export const activeEyedropper = ref<{
+	callback: (hex: string) => void;
+	originalValue: string;
+} | null>(null);
+
 // Per-entity preview shape override (entityLabel → shapeName)
 // Used by GalleryPanel to know which shape to clip for thumbnails
 export const previewShapeOverride = ref<Record<string, string>>({});

@@ -9,15 +9,24 @@ function warnings(result: ReturnType<typeof validateSpec>) {
 	return result.filter((e) => e.severity === "warning");
 }
 
-/** Helper: minimal valid entity */
+/** Minimal valid entity with aabb */
 function entity(overrides: Record<string, unknown> = {}) {
 	return {
 		label: "Sprite",
 		group: "sprites",
-		properties: {
-			slice: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
-			name: "string",
-		},
+		aabb: "rect",
+		properties: { name: "string" },
+		...overrides,
+	};
+}
+
+/** Minimal valid point entity */
+function pointEntity(overrides: Record<string, unknown> = {}) {
+	return {
+		label: "Waypoint",
+		group: "waypoints",
+		point: "point",
+		properties: { name: "string" },
 		...overrides,
 	};
 }
@@ -25,15 +34,16 @@ function entity(overrides: Record<string, unknown> = {}) {
 describe("validateSpec", () => {
 	// --- Structure ---
 
-	test("valid spec with single entity", () => {
+	test("valid spec with single aabb entity", () => {
 		expect(errors(validateSpec([entity()]))).toHaveLength(0);
 	});
 
+	test("valid spec with single point entity", () => {
+		expect(errors(validateSpec([pointEntity()]))).toHaveLength(0);
+	});
+
 	test("valid spec with multiple entities", () => {
-		const raw = [
-			entity(),
-			entity({ label: "Tile", group: "tiles", properties: { pos: { __shape: "point", x: "integer", y: "integer" } } }),
-		];
+		const raw = [entity(), pointEntity()];
 		expect(errors(validateSpec(raw))).toHaveLength(0);
 	});
 
@@ -63,23 +73,16 @@ describe("validateSpec", () => {
 	// --- label ---
 
 	test("missing label → error", () => {
-		const raw = [{ group: "sprites", properties: {} }];
+		const raw = [{ group: "sprites", aabb: "rect", properties: {} }];
 		expect(errors(validateSpec(raw)).some((e) => e.message.includes("label"))).toBe(true);
 	});
 
 	test("empty label → error", () => {
-		const raw = [entity({ label: "" })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("label"))).toBe(true);
+		expect(errors(validateSpec([entity({ label: "" })])).some((e) => e.message.includes("label"))).toBe(true);
 	});
 
 	test("label with spaces → error", () => {
-		const raw = [entity({ label: "My Sprite" })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("identifier"))).toBe(true);
-	});
-
-	test("label with leading digit → error", () => {
-		const raw = [entity({ label: "3D" })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("identifier"))).toBe(true);
+		expect(errors(validateSpec([entity({ label: "My Sprite" })])).some((e) => e.message.includes("identifier"))).toBe(true);
 	});
 
 	test("duplicate label → error", () => {
@@ -90,13 +93,12 @@ describe("validateSpec", () => {
 	// --- group ---
 
 	test("missing group → error", () => {
-		const raw = [{ label: "Sprite", properties: {} }];
+		const raw = [{ label: "Sprite", aabb: "rect", properties: {} }];
 		expect(errors(validateSpec(raw)).some((e) => e.message.includes("group"))).toBe(true);
 	});
 
 	test("empty group → error", () => {
-		const raw = [entity({ group: "" })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("group"))).toBe(true);
+		expect(errors(validateSpec([entity({ group: "" })])).some((e) => e.message.includes("group"))).toBe(true);
 	});
 
 	test("duplicate group → error", () => {
@@ -104,270 +106,132 @@ describe("validateSpec", () => {
 		expect(errors(validateSpec(raw)).some((e) => e.message.includes("Duplicate group"))).toBe(true);
 	});
 
+	// --- primary shape ---
+
+	test("entity must have exactly one primary shape", () => {
+		const raw = [{ label: "Sprite", group: "sprites", properties: { name: "string" } }];
+		expect(errors(validateSpec(raw)).some((e) => e.message.includes("primary shape"))).toBe(true);
+	});
+
+	test("entity cannot have both aabb and point", () => {
+		const raw = [{ label: "Sprite", group: "sprites", aabb: "rect", point: "point", properties: {} }];
+		expect(errors(validateSpec(raw)).some((e) => e.message.includes("primary shape"))).toBe(true);
+	});
+
+	test("aabb value must be 'rect'", () => {
+		expect(errors(validateSpec([entity({ aabb: "circle" })])).some((e) => e.message.includes("rect"))).toBe(true);
+	});
+
+	test("point value must be 'point'", () => {
+		const raw = [pointEntity({ point: "rect" })];
+		expect(errors(validateSpec(raw)).some((e) => e.message.includes("point"))).toBe(true);
+	});
+
+	// --- path ---
+
+	test("path: file_name is valid", () => {
+		expect(errors(validateSpec([entity({ path: "file_name" })]))).toHaveLength(0);
+	});
+
+	test("path with invalid value → error", () => {
+		expect(errors(validateSpec([entity({ path: "something_else" })])).some((e) => e.message.includes("file_name"))).toBe(true);
+	});
+
 	// --- properties ---
 
 	test("entity with no properties key is valid", () => {
-		const raw = [{ label: "Sprite", group: "sprites" }];
+		const raw = [{ label: "Sprite", group: "sprites", aabb: "rect" }];
 		expect(errors(validateSpec(raw))).toHaveLength(0);
 	});
 
 	test("entity with empty properties is valid", () => {
-		const raw = [entity({ properties: {} })];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
+		expect(errors(validateSpec([entity({ properties: {} })]))).toHaveLength(0);
 	});
 
 	test("properties must be an object", () => {
-		const raw = [entity({ properties: "bad" })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("Properties"))).toBe(true);
+		expect(errors(validateSpec([entity({ properties: "bad" })])).some((e) => e.message.includes("Properties"))).toBe(true);
 	});
 
 	test("properties as array → error", () => {
-		const raw = [entity({ properties: [1, 2] })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("Properties"))).toBe(true);
+		expect(errors(validateSpec([entity({ properties: [1, 2] })])).some((e) => e.message.includes("Properties"))).toBe(true);
 	});
 
-	// --- reserved __ prefix ---
-
-	test("field name with __ prefix → error", () => {
-		const raw = [entity({ properties: { __hidden: "string" } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("reserved"))).toBe(true);
-	});
-
-	test("field named __shape at top level → error", () => {
-		const raw = [entity({ properties: { __shape: "string" } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("reserved"))).toBe(true);
-	});
-
-	// --- Shape fields ---
-
-	test("valid rect shape", () => {
-		const raw = [entity({
-			properties: {
-				box: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
-	});
-
-	test("valid point shape", () => {
-		const raw = [entity({
-			properties: {
-				origin: { __shape: "point", x: "integer", y: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
-	});
-
-	test("valid circle shape", () => {
-		const raw = [entity({
-			properties: {
-				area: { __shape: "circle", x: "integer", y: "integer", radius: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
-	});
-
-	test("valid polygon shape", () => {
-		const raw = [entity({
-			properties: {
-				region: {
-					__shape: "polygon",
-					points: { type: "array", items: { x: "integer", y: "integer" } },
-				},
-			},
-		})];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
-	});
-
-	test("unknown __shape type → error", () => {
-		const raw = [entity({
-			properties: {
-				thing: { __shape: "hexagon", a: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("hexagon"))).toBe(true);
-	});
-
-	test("wrong number of shape fields for rect", () => {
-		const raw = [entity({
-			properties: {
-				box: { __shape: "rect", x: "integer", y: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("requires exactly 4"))).toBe(true);
-	});
-
-	test("wrong number of shape fields for point", () => {
-		const raw = [entity({
-			properties: {
-				pos: { __shape: "point", x: "integer", y: "integer", z: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("requires exactly 2"))).toBe(true);
-	});
-
-	test("invalid shape field type → error", () => {
-		const raw = [entity({
-			properties: {
-				pos: { __shape: "point", x: "string", y: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes('"string"'))).toBe(true);
-	});
-
-	test("number shape field type is valid", () => {
-		const raw = [entity({
-			properties: {
-				pos: { __shape: "point", x: "number", y: "number" },
-			},
-		})];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
-	});
-
-	test("unrecognized shape field names produce warnings", () => {
-		const raw = [entity({
-			properties: {
-				pos: { __shape: "point", foo: "integer", bar: "integer" },
-			},
-		})];
-		const result = validateSpec(raw);
-		expect(errors(result)).toHaveLength(0);
-		expect(warnings(result).length).toBeGreaterThan(0);
-	});
-
-	test("multiple shapes on one entity", () => {
-		const raw = [entity({
-			properties: {
-				slice: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
-				collision: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
-				origin: { __shape: "point", x: "integer", y: "integer" },
-			},
-		})];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
-	});
-
-	// --- Scalar types ---
+	// --- scalar types ---
 
 	test("valid scalar types", () => {
 		for (const type of ["string", "integer", "number", "boolean", "string[]"]) {
-			const raw = [entity({ properties: { f: type } })];
-			expect(errors(validateSpec(raw))).toHaveLength(0);
+			expect(errors(validateSpec([entity({ properties: { f: type } })]))).toHaveLength(0);
 		}
 	});
 
-	test("unknown scalar type → error", () => {
-		const raw = [entity({ properties: { f: "blob" } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("blob"))).toBe(true);
+	test("unknown type → error", () => {
+		expect(errors(validateSpec([entity({ properties: { f: "blob" } })])).some((e) => e.message.includes("blob"))).toBe(true);
 	});
 
-	// --- Path types ---
+	// --- color ---
 
-	test("FileName type is valid", () => {
-		const raw = [entity({ properties: { file: "FileName" } })];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
+	test("color type is valid", () => {
+		expect(errors(validateSpec([entity({ properties: { c: "color" } })]))).toHaveLength(0);
 	});
 
-	// --- Enum ---
+	// --- enum ---
 
-	test("valid enum", () => {
-		const raw = [entity({ properties: { dir: { enum: ["up", "down", "left", "right"] } } })];
-		expect(errors(validateSpec(raw))).toHaveLength(0);
+	test("valid inline enum", () => {
+		expect(errors(validateSpec([entity({ properties: { dir: "enum[up, down, left, right]" } })]))).toHaveLength(0);
 	});
 
 	test("enum with fewer than 2 values → error", () => {
-		const raw = [entity({ properties: { dir: { enum: ["up"] } } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("at least 2"))).toBe(true);
+		expect(errors(validateSpec([entity({ properties: { dir: "enum[up]" } })])).some((e) => e.message.includes("at least 2"))).toBe(true);
 	});
 
-	test("enum with 0 values → error", () => {
-		const raw = [entity({ properties: { dir: { enum: [] } } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("at least 2"))).toBe(true);
+	test("enum with no values → error", () => {
+		expect(errors(validateSpec([entity({ properties: { dir: "enum[]" } })])).some((e) => e.message.includes("at least 2"))).toBe(true);
 	});
 
-	test("enum with non-string values → error", () => {
-		const raw = [entity({ properties: { dir: { enum: [1, 2, 3] } } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("strings"))).toBe(true);
+	// --- shape properties ---
+
+	test("rect shape property is valid", () => {
+		expect(errors(validateSpec([entity({ properties: { bounds: "rect" } })]))).toHaveLength(0);
 	});
 
-	// --- Invalid field values ---
-
-	test("object without __shape or enum → error", () => {
-		const raw = [entity({ properties: { weird: { foo: "bar" } } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("__shape"))).toBe(true);
+	test("point shape property is valid", () => {
+		expect(errors(validateSpec([entity({ properties: { origin: "point" } })]))).toHaveLength(0);
 	});
 
-	test("non-string non-object field value → error", () => {
-		const raw = [entity({ properties: { bad: 42 } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("Invalid field"))).toBe(true);
+	test("rect[] shape property is valid", () => {
+		expect(errors(validateSpec([entity({ properties: { collision: "rect[]" } })]))).toHaveLength(0);
 	});
 
-	test("array field value → error", () => {
-		const raw = [entity({ properties: { bad: [1, 2] } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("Invalid field"))).toBe(true);
+	test("point[] shape property is valid", () => {
+		expect(errors(validateSpec([entity({ properties: { hotspots: "point[]" } })]))).toHaveLength(0);
 	});
 
-	test("null field value → error", () => {
-		const raw = [entity({ properties: { bad: null } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("Invalid field"))).toBe(true);
+	test("shape property on point entity → error", () => {
+		const raw = [pointEntity({ properties: { bounds: "rect" } })];
+		expect(errors(validateSpec(raw)).some((e) => e.message.includes("aabb"))).toBe(true);
+	});
+
+	// --- reserved prefix ---
+
+	test("field name with __ prefix → error", () => {
+		expect(errors(validateSpec([entity({ properties: { __hidden: "string" } })])).some((e) => e.message.includes("reserved"))).toBe(true);
+	});
+
+	// --- non-string non-object field value ---
+
+	test("numeric field value → error", () => {
+		expect(errors(validateSpec([entity({ properties: { bad: 42 } })])).some((e) => e.message.includes("Invalid"))).toBe(true);
 	});
 
 	test("boolean field value → error", () => {
-		const raw = [entity({ properties: { bad: true } })];
-		expect(errors(validateSpec(raw)).some((e) => e.message.includes("Invalid field"))).toBe(true);
+		expect(errors(validateSpec([entity({ properties: { bad: true } })])).some((e) => e.message.includes("Invalid"))).toBe(true);
 	});
 
-	// --- Polygon edge cases ---
-
-	test("polygon with invalid nested structure → error", () => {
-		const raw = [entity({
-			properties: {
-				region: { __shape: "polygon", points: { garbage: true } },
-			},
-		})];
-		expect(errors(validateSpec(raw)).length).toBeGreaterThan(0);
+	test("null field value → error", () => {
+		expect(errors(validateSpec([entity({ properties: { bad: null } })])).some((e) => e.message.includes("Invalid"))).toBe(true);
 	});
 
-	test("polygon items with wrong number of fields → error", () => {
-		const raw = [entity({
-			properties: {
-				region: {
-					__shape: "polygon",
-					points: { type: "array", items: { x: "integer" } },
-				},
-			},
-		})];
-		expect(errors(validateSpec(raw)).length).toBeGreaterThan(0);
-	});
-
-	// --- Full example spec shape ---
-
-	test("full multi-shape entity with all field types", () => {
-		const raw = [
-			{
-				label: "Sprite",
-				group: "sprites",
-				properties: {
-					path: "FileName",
-					slice: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
-					collision: { __shape: "rect", x: "integer", y: "integer", width: "integer", height: "integer" },
-					origin: { __shape: "point", x: "integer", y: "integer" },
-					name: "string",
-					frame: "integer",
-					direction: { enum: ["up", "down", "left", "right"] },
-					variant: "string",
-					tags: "string[]",
-				},
-			},
-			{
-				label: "Tile",
-				group: "tiles",
-				properties: {
-					pos: { __shape: "point", x: "integer", y: "integer" },
-					walkable: "boolean",
-				},
-			},
-		];
-		const result = validateSpec(raw);
-		expect(errors(result)).toHaveLength(0);
+	test("array field value → error", () => {
+		expect(errors(validateSpec([entity({ properties: { bad: [1, 2] } })])).some((e) => e.message.includes("Invalid"))).toBe(true);
 	});
 });

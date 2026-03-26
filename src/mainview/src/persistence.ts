@@ -28,17 +28,16 @@ export function serializeWorkspace(
 	spec: SpanFileSpec | null,
 ): string {
 	const data: SpanFile = {
-		version: 1,
+		version: 2,
 		spec,
 		sheets: sheets.map((s) => ({
 			path: s.path,
 			annotations: s.annotations.map((a) => ({
 				id: a.id,
 				entityType: a.entityType,
-				shapes: Object.fromEntries(
-					Object.entries(a.shapes).map(([name, data]) => [name, { ...data }]),
-				),
-				propertyData: { ...a.propertyData },
+				aabb: a.aabb ? { ...a.aabb } : null,
+				point: a.point ? { ...a.point } : null,
+				properties: JSON.parse(JSON.stringify(a.properties)),
 				...(a._stash && Object.keys(a._stash).length > 0
 					? { _stash: { ...a._stash } }
 					: {}),
@@ -55,13 +54,12 @@ export function deserializeWorkspace(raw: string): SpanFile {
 	if (typeof data.version !== "number") {
 		throw new Error("Invalid .span file: missing version");
 	}
-	if (data.version > 1) {
+	if (data.version > 2) {
 		throw new Error(
-			`Unsupported .span file version: ${data.version}. This version of Span supports version 1.`,
+			`Unsupported .span file version: ${data.version}. This version of Span supports version 2.`,
 		);
 	}
 
-	// Handle spec: inline object (v1+) or legacy path string (ignored)
 	let spec: SpanFileSpec | null = null;
 	if (data.spec && typeof data.spec === "object" && data.spec.raw) {
 		spec = { format: data.spec.format ?? "yaml", raw: data.spec.raw };
@@ -75,8 +73,9 @@ export function deserializeWorkspace(raw: string): SpanFile {
 			annotations: (s.annotations ?? []).map((a: any) => ({
 				id: a.id ?? "",
 				entityType: a.entityType ?? "",
-				shapes: a.shapes ?? (a.shapeData !== undefined ? { default: a.shapeData } : {}),
-				propertyData: a.propertyData ?? {},
+				aabb: a.aabb ?? null,
+				point: a.point ?? null,
+				properties: a.properties ?? {},
 				...(a._stash ? { _stash: a._stash } : {}),
 			})),
 		})),

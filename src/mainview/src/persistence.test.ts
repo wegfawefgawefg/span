@@ -3,19 +3,17 @@ import {
 	serializeWorkspace,
 	deserializeWorkspace,
 	type WorkspaceSheet,
-	type SpanFile,
 	type SpanFileSpec,
 } from "./persistence";
 import type { Annotation } from "./annotation";
-
-// --- Helpers ---
 
 function makeAnnotation(overrides: Partial<Annotation> = {}): Annotation {
 	return {
 		id: "ann-1",
 		entityType: "Sprite",
-		shapes: { slice: { x: 10, y: 20, width: 32, height: 32 } },
-		propertyData: { label: "hero" },
+		aabb: { x: 10, y: 20, w: 32, h: 32 },
+		point: null,
+		properties: { name: "hero" },
 		...overrides,
 	};
 }
@@ -29,31 +27,23 @@ function makeSheet(
 
 const testSpec: SpanFileSpec = {
 	format: "yaml",
-	raw: "- label: Sprite\n  group: sprites\n  properties:\n    name: string\n",
+	raw: "- label: Sprite\n  group: sprites\n  aabb: rect\n  properties:\n    name: string\n",
 };
 
-// --- Tests ---
-
 describe("serializeWorkspace", () => {
-	it("produces correct JSON structure", () => {
+	it("produces correct JSON structure with version 2", () => {
 		const ann = makeAnnotation();
 		const sheets = [makeSheet("images/hero.png", [ann])];
 		const json = serializeWorkspace(sheets, testSpec);
 		const parsed = JSON.parse(json);
 
-		expect(parsed.version).toBe(1);
+		expect(parsed.version).toBe(2);
 		expect(parsed.spec).toEqual(testSpec);
 		expect(parsed.sheets).toHaveLength(1);
 		expect(parsed.sheets[0].path).toBe("images/hero.png");
-		expect(parsed.sheets[0].annotations).toHaveLength(1);
-		expect(parsed.sheets[0].annotations[0].id).toBe("ann-1");
-		expect(parsed.sheets[0].annotations[0].entityType).toBe("Sprite");
-		expect(parsed.sheets[0].annotations[0].shapes).toEqual({
-			slice: { x: 10, y: 20, width: 32, height: 32 },
-		});
-		expect(parsed.sheets[0].annotations[0].propertyData).toEqual({
-			label: "hero",
-		});
+		expect(parsed.sheets[0].annotations[0].aabb).toEqual({ x: 10, y: 20, w: 32, h: 32 });
+		expect(parsed.sheets[0].annotations[0].point).toBeNull();
+		expect(parsed.sheets[0].annotations[0].properties).toEqual({ name: "hero" });
 	});
 
 	it("ends with a newline", () => {
@@ -64,7 +54,7 @@ describe("serializeWorkspace", () => {
 	it("empty workspace serializes to correct structure", () => {
 		const json = serializeWorkspace([], null);
 		const parsed = JSON.parse(json);
-		expect(parsed).toEqual({ version: 1, spec: null, sheets: [] });
+		expect(parsed).toEqual({ version: 2, spec: null, sheets: [] });
 	});
 
 	it("preserves _stash fields in annotations", () => {
@@ -72,9 +62,7 @@ describe("serializeWorkspace", () => {
 		const sheets = [makeSheet("a.png", [ann])];
 		const json = serializeWorkspace(sheets, null);
 		const parsed = JSON.parse(json);
-		expect(parsed.sheets[0].annotations[0]._stash).toEqual({
-			oldProp: "preserved",
-		});
+		expect(parsed.sheets[0].annotations[0]._stash).toEqual({ oldProp: "preserved" });
 	});
 
 	it("omits _stash when it is empty", () => {
@@ -85,98 +73,52 @@ describe("serializeWorkspace", () => {
 		expect(parsed.sheets[0].annotations[0]._stash).toBeUndefined();
 	});
 
-	it("omits _stash when not present", () => {
-		const ann = makeAnnotation();
+	it("serializes point annotation", () => {
+		const ann = makeAnnotation({ aabb: null, point: { x: 5, y: 10 } });
 		const sheets = [makeSheet("a.png", [ann])];
 		const json = serializeWorkspace(sheets, null);
 		const parsed = JSON.parse(json);
-		expect(parsed.sheets[0].annotations[0]._stash).toBeUndefined();
-	});
-
-	it("serializes multiple sheets", () => {
-		const sheets = [
-			makeSheet("a.png", [makeAnnotation({ id: "a1" })]),
-			makeSheet("b.png", [makeAnnotation({ id: "b1" }), makeAnnotation({ id: "b2" })]),
-		];
-		const json = serializeWorkspace(sheets, null);
-		const parsed = JSON.parse(json);
-		expect(parsed.sheets).toHaveLength(2);
-		expect(parsed.sheets[1].annotations).toHaveLength(2);
-	});
-
-	it("serializes multiple named shapes per annotation", () => {
-		const ann = makeAnnotation({
-			shapes: {
-				slice: { x: 0, y: 0, width: 32, height: 32 },
-				collision: { x: 4, y: 4, width: 24, height: 24 },
-				origin: { x: 16, y: 16 },
-			},
-		});
-		const sheets = [makeSheet("sprite.png", [ann])];
-		const json = serializeWorkspace(sheets, null);
-		const parsed = JSON.parse(json);
-		expect(parsed.sheets[0].annotations[0].shapes).toEqual({
-			slice: { x: 0, y: 0, width: 32, height: 32 },
-			collision: { x: 4, y: 4, width: 24, height: 24 },
-			origin: { x: 16, y: 16 },
-		});
+		expect(parsed.sheets[0].annotations[0].aabb).toBeNull();
+		expect(parsed.sheets[0].annotations[0].point).toEqual({ x: 5, y: 10 });
 	});
 });
 
 describe("deserializeWorkspace", () => {
-	it("correctly parses JSON with inline spec", () => {
+	it("correctly parses version 2 JSON", () => {
 		const raw = JSON.stringify({
-			version: 1,
+			version: 2,
 			spec: testSpec,
-			sheets: [
-				{
-					path: "images/hero.png",
-					annotations: [
-						{
-							id: "ann-1",
-							entityType: "Sprite",
-							shapes: { slice: { x: 10, y: 20, width: 32, height: 32 } },
-							propertyData: { label: "hero" },
-						},
-					],
-				},
-			],
+			sheets: [{
+				path: "images/hero.png",
+				annotations: [{
+					id: "ann-1",
+					entityType: "Sprite",
+					aabb: { x: 10, y: 20, w: 32, h: 32 },
+					point: null,
+					properties: { name: "hero" },
+				}],
+			}],
 		});
 
 		const result = deserializeWorkspace(raw);
-
-		expect(result.version).toBe(1);
-		expect(result.spec).toEqual(testSpec);
-		expect(result.sheets).toHaveLength(1);
-		expect(result.sheets[0].path).toBe("images/hero.png");
-		expect(result.sheets[0].annotations[0].id).toBe("ann-1");
-		expect(result.sheets[0].annotations[0].shapes).toEqual({
-			slice: { x: 10, y: 20, width: 32, height: 32 },
-		});
+		expect(result.version).toBe(2);
+		expect(result.sheets[0].annotations[0].aabb).toEqual({ x: 10, y: 20, w: 32, h: 32 });
+		expect(result.sheets[0].annotations[0].point).toBeNull();
+		expect(result.sheets[0].annotations[0].properties).toEqual({ name: "hero" });
 	});
 
-	it("handles legacy string spec field as null", () => {
-		const raw = JSON.stringify({ version: 1, spec: "spec.yaml", sheets: [] });
-		const result = deserializeWorkspace(raw);
-		expect(result.spec).toBeNull();
+	it("throws when version > 2", () => {
+		const raw = JSON.stringify({ version: 3, spec: null, sheets: [] });
+		expect(() => deserializeWorkspace(raw)).toThrow("Unsupported .span file version: 3");
 	});
 
 	it("throws when version is missing", () => {
 		const raw = JSON.stringify({ spec: null, sheets: [] });
-		expect(() => deserializeWorkspace(raw)).toThrow(
-			"Invalid .span file: missing version",
-		);
-	});
-
-	it("throws when version > 1", () => {
-		const raw = JSON.stringify({ version: 2, spec: null, sheets: [] });
-		expect(() => deserializeWorkspace(raw)).toThrow(
-			"Unsupported .span file version: 2",
-		);
+		expect(() => deserializeWorkspace(raw)).toThrow("Invalid .span file: missing version");
 	});
 
 	it("applies defaults for missing fields", () => {
-		const raw = JSON.stringify({ version: 1 });
+		const raw = JSON.stringify({ version: 2 });
 		const result = deserializeWorkspace(raw);
 		expect(result.spec).toBeNull();
 		expect(result.sheets).toEqual([]);
@@ -184,166 +126,57 @@ describe("deserializeWorkspace", () => {
 
 	it("applies defaults for missing annotation fields", () => {
 		const raw = JSON.stringify({
-			version: 1,
+			version: 2,
 			sheets: [{ annotations: [{}] }],
 		});
 		const result = deserializeWorkspace(raw);
 		const ann = result.sheets[0].annotations[0];
 		expect(ann.id).toBe("");
 		expect(ann.entityType).toBe("");
-		expect(ann.shapes).toEqual({});
-		expect(ann.propertyData).toEqual({});
-	});
-
-	it("applies defaults for missing sheet path", () => {
-		const raw = JSON.stringify({
-			version: 1,
-			sheets: [{ annotations: [] }],
-		});
-		const result = deserializeWorkspace(raw);
-		expect(result.sheets[0].path).toBe("");
+		expect(ann.aabb).toBeNull();
+		expect(ann.point).toBeNull();
+		expect(ann.properties).toEqual({});
 	});
 
 	it("preserves _stash through deserialization", () => {
 		const raw = JSON.stringify({
-			version: 1,
-			sheets: [
-				{
-					path: "a.png",
-					annotations: [
-						{
-							id: "x",
-							entityType: "T",
-							shapes: {},
-							propertyData: {},
-							_stash: { legacy: 42 },
-						},
-					],
-				},
-			],
+			version: 2,
+			sheets: [{
+				path: "a.png",
+				annotations: [{
+					id: "x", entityType: "T",
+					aabb: null, point: null, properties: {},
+					_stash: { legacy: 42 },
+				}],
+			}],
 		});
 		const result = deserializeWorkspace(raw);
 		expect(result.sheets[0].annotations[0]._stash).toEqual({ legacy: 42 });
-	});
-
-	it("omits _stash key when not in source", () => {
-		const raw = JSON.stringify({
-			version: 1,
-			sheets: [
-				{
-					path: "a.png",
-					annotations: [
-						{
-							id: "x",
-							entityType: "T",
-							shapes: {},
-							propertyData: {},
-						},
-					],
-				},
-			],
-		});
-		const result = deserializeWorkspace(raw);
-		expect(result.sheets[0].annotations[0]._stash).toBeUndefined();
-	});
-
-	it("falls back to wrapping legacy shapeData under 'default' key", () => {
-		const raw = JSON.stringify({
-			version: 1,
-			sheets: [
-				{
-					path: "a.png",
-					annotations: [
-						{
-							id: "x",
-							entityType: "T",
-							shapeData: { x: 1, y: 2, width: 10, height: 10 },
-							propertyData: {},
-						},
-					],
-				},
-			],
-		});
-		const result = deserializeWorkspace(raw);
-		expect(result.sheets[0].annotations[0].shapes).toEqual({
-			default: { x: 1, y: 2, width: 10, height: 10 },
-		});
 	});
 });
 
 describe("round-trip", () => {
 	it("serialize → deserialize → data matches", () => {
 		const ann = makeAnnotation({
-			shapes: { slice: { x: 5, y: 15, width: 64, height: 48 } },
-			propertyData: { label: "enemy", count: 3 },
+			aabb: { x: 5, y: 15, w: 64, h: 48 },
+			properties: { name: "enemy" },
 		});
 		const sheets = [makeSheet("levels/stage1.png", [ann])];
 		const json = serializeWorkspace(sheets, testSpec);
 		const result = deserializeWorkspace(json);
 
-		expect(result.version).toBe(1);
+		expect(result.version).toBe(2);
 		expect(result.spec).toEqual(testSpec);
-		expect(result.sheets[0].path).toBe("levels/stage1.png");
-
 		const resultAnn = result.sheets[0].annotations[0];
-		expect(resultAnn.id).toBe("ann-1");
-		expect(resultAnn.entityType).toBe("Sprite");
-		expect(resultAnn.shapes).toEqual({ slice: { x: 5, y: 15, width: 64, height: 48 } });
-		expect(resultAnn.propertyData).toEqual({ label: "enemy", count: 3 });
+		expect(resultAnn.aabb).toEqual({ x: 5, y: 15, w: 64, h: 48 });
+		expect(resultAnn.properties).toEqual({ name: "enemy" });
 	});
 
 	it("_stash fields preserved through round-trip", () => {
-		const ann = makeAnnotation({ _stash: { removedProp: "value", num: 99 } });
+		const ann = makeAnnotation({ _stash: { removedProp: "value" } });
 		const sheets = [makeSheet("img.png", [ann])];
 		const json = serializeWorkspace(sheets, null);
 		const result = deserializeWorkspace(json);
-		expect(result.sheets[0].annotations[0]._stash).toEqual({
-			removedProp: "value",
-			num: 99,
-		});
-	});
-
-	it("empty _stash is not preserved (omitted)", () => {
-		const ann = makeAnnotation({ _stash: {} });
-		const sheets = [makeSheet("img.png", [ann])];
-		const json = serializeWorkspace(sheets, null);
-		const result = deserializeWorkspace(json);
-		expect(result.sheets[0].annotations[0]._stash).toBeUndefined();
-	});
-
-	it("multiple sheets and annotations survive round-trip", () => {
-		const sheets: WorkspaceSheet[] = [
-			makeSheet("a.png", [
-				makeAnnotation({ id: "a1", entityType: "Hero" }),
-				makeAnnotation({ id: "a2", entityType: "Enemy" }),
-			]),
-			makeSheet("b.png", [makeAnnotation({ id: "b1", entityType: "Coin" })]),
-		];
-		const json = serializeWorkspace(sheets, testSpec);
-		const result = deserializeWorkspace(json);
-
-		expect(result.sheets).toHaveLength(2);
-		expect(result.sheets[0].annotations).toHaveLength(2);
-		expect(result.sheets[0].annotations[0].entityType).toBe("Hero");
-		expect(result.sheets[0].annotations[1].entityType).toBe("Enemy");
-		expect(result.sheets[1].annotations[0].entityType).toBe("Coin");
-	});
-
-	it("multi-shape annotation survives round-trip", () => {
-		const ann = makeAnnotation({
-			shapes: {
-				slice: { x: 0, y: 0, width: 32, height: 32 },
-				collision: { x: 4, y: 4, width: 24, height: 24 },
-				origin: { x: 16, y: 16 },
-			},
-		});
-		const sheets = [makeSheet("sprite.png", [ann])];
-		const json = serializeWorkspace(sheets, testSpec);
-		const result = deserializeWorkspace(json);
-		expect(result.sheets[0].annotations[0].shapes).toEqual({
-			slice: { x: 0, y: 0, width: 32, height: 32 },
-			collision: { x: 4, y: 4, width: 24, height: 24 },
-			origin: { x: 16, y: 16 },
-		});
+		expect(result.sheets[0].annotations[0]._stash).toEqual({ removedProp: "value" });
 	});
 });

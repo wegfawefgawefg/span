@@ -400,14 +400,10 @@ textarea {
 .annotation-point::after {
 	content: "";
 	position: absolute;
-	background: var(--shape-color, var(--color-copper));
+	background: white;
 	border-radius: 0;
 	image-rendering: pixelated;
-	box-shadow:
-		-1px 0 0 rgba(0, 0, 0, 0.7),
-		1px 0 0 rgba(0, 0, 0, 0.7),
-		0 -1px 0 rgba(0, 0, 0, 0.7),
-		0 1px 0 rgba(0, 0, 0, 0.7);
+	mix-blend-mode: difference;
 }
 
 .annotation-point::before {
@@ -426,8 +422,7 @@ textarea {
 
 .annotation-point.selected::before,
 .annotation-point.selected::after {
-	background: var(--shape-color-bright, var(--color-copper-bright));
-	box-shadow: 0 0 6px var(--shape-glow, var(--color-copper-glow));
+	background: white;
 }
 
 /* --- Circle annotations --- */

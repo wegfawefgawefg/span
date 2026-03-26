@@ -293,9 +293,18 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 		case "deleteSprite":
 			mainWindow.webview.rpc.request.deleteSprite({});
 			break;
-		case "triggerExport":
-			mainWindow.webview.rpc.request.triggerExport({});
+		case "triggerExport": {
+			const script = `set f to POSIX path of (choose file name with prompt "Export" default name "annotations.yaml")\nreturn f`;
+			try {
+				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+				const out = await new Response(proc.stdout).text();
+				const code = await proc.exited;
+				if (code === 0 && out.trim()) {
+					mainWindow.webview.rpc.request.triggerExport({ path: out.trim() });
+				}
+			} catch {}
 			break;
+		}
 		case "importSpec": {
 			const script = `set f to POSIX path of (choose file of type {"yaml", "yml", "json"} with prompt "Import Spec")\nreturn f`;
 			try {

@@ -21,6 +21,7 @@ import {
 	saveWorkspaceAs,
 	openWorkspace,
 	exportWorkspace,
+	doExportWrite,
 	importSpecFromPath,
 	importSheetFromPath,
 } from "./src/state";
@@ -41,7 +42,7 @@ wireDesktopMenuHandlers({
 	triggerSave: () => saveWorkspace(),
 	triggerSaveAs: (path: string) => saveWorkspaceAs(path),
 	triggerOpen: (path: string) => openWorkspace(path),
-	triggerExport: () => exportWorkspace(),
+	triggerExport: (path: string) => exportWorkspace(path),
 	triggerImportSpec: (path: string) => importSpecFromPath(path),
 	triggerImportSheet: (path: string) => importSheetFromPath(path),
 });

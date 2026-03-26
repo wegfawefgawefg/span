@@ -70,7 +70,7 @@ export function createWebAdapter(): WebPlatformAdapter {
 
 		async readImageAsDataUrl(path: string): Promise<string> {
 			const file = fileRegistry.get(path);
-			if (!file) return "";
+			if (!file) throw new Error(`File not found: ${path}`);
 			return new Promise((resolve) => {
 				const reader = new FileReader();
 				reader.onload = () => resolve(reader.result as string);

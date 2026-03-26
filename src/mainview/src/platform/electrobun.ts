@@ -16,7 +16,7 @@ let deleteSpriteHandler: () => void = () => {};
 let triggerSaveHandler: () => Promise<{ needsSaveAs: boolean }> = async () => ({ needsSaveAs: false });
 let triggerSaveAsHandler: (path: string) => void = () => {};
 let triggerOpenHandler: (path: string) => void = () => {};
-let triggerExportHandler: () => void = () => {};
+let triggerExportHandler: (path: string) => void = () => {};
 let triggerImportSpecHandler: (path: string) => void = () => {};
 let triggerImportSheetHandler: (path: string) => void = () => {};
 
@@ -30,7 +30,7 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			triggerSave: () => triggerSaveHandler(),
 			triggerSaveAs: ({ path }) => { setTimeout(() => triggerSaveAsHandler(path), 0); },
 			triggerOpen: ({ path }) => { setTimeout(() => triggerOpenHandler(path), 0); },
-			triggerExport: () => { setTimeout(triggerExportHandler, 0); },
+			triggerExport: ({ path }) => { setTimeout(() => triggerExportHandler(path), 0); },
 			triggerImportSpec: ({ path }) => { setTimeout(() => triggerImportSpecHandler(path), 0); },
 			triggerImportSheet: ({ path }) => { setTimeout(() => triggerImportSheetHandler(path), 0); },
 			resetLayout: () => getResetLayoutHandler()(),
@@ -75,7 +75,7 @@ export function wireDesktopMenuHandlers(handlers: {
 	triggerSave: () => Promise<{ needsSaveAs: boolean }>;
 	triggerSaveAs: (path: string) => void;
 	triggerOpen: (path: string) => void;
-	triggerExport: () => void;
+	triggerExport: (path: string) => void;
 	triggerImportSpec: (path: string) => void;
 	triggerImportSheet: (path: string) => void;
 }) {

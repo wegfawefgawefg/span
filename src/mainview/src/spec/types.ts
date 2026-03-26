@@ -1,73 +1,59 @@
 // src/mainview/src/spec/types.ts
 
-export type ShapeType = "rect" | "point" | "circle" | "polygon";
-
-export type ScalarType =
-	| "string"
-	| "integer"
-	| "number"
-	| "boolean"
-	| "string[]"
-	| "enum"
-	| "ColorHEX";
-
-export type PathType = "FileName";
+export type PrimaryShapeKind = "rect" | "point";
+export type PropertyShapeType = "rect" | "point";
+export type ScalarType = "string" | "integer" | "number" | "boolean" | "string[]";
 
 // --- Spec ---
 
 export interface SpanSpec {
 	format: "json" | "yaml";
-	frontmatter: Record<string, unknown>; // __properties values
 	entities: EntityDef[];
 }
 
 export interface EntityDef {
-	label: string;    // display name + annotation key
-	group: string;    // top-level output key
-	fields: SpecField[];  // ordered list preserving spec property order
+	label: string;
+	group: string;
+	primaryShape: PrimaryShape;
+	hasPath: boolean;
+	properties: PropertyField[];
 }
 
-// Discriminated union for spec fields
-export type SpecField =
-	| ShapeSpecField
-	| ScalarSpecField
-	| PathSpecField;
-
-export interface ShapeSpecField {
-	kind: "shape";
-	name: string;          // field name in output (e.g., "slice", "collision")
-	shapeType: ShapeType;
-	shapeFields: ShapeField[];
-	mapping: ShapeMapping | null;
-	reference: string | null;
-	warnings: string[];
+export interface PrimaryShape {
+	kind: PrimaryShapeKind;
 }
 
-export interface ScalarSpecField {
+// --- Property fields (discriminated union) ---
+
+export type PropertyField =
+	| ScalarPropertyField
+	| EnumPropertyField
+	| ColorPropertyField
+	| ShapePropertyField;
+
+export interface ScalarPropertyField {
 	kind: "scalar";
 	name: string;
 	type: ScalarType;
-	enumValues?: string[];
 }
 
-export interface PathSpecField {
-	kind: "path";
+export interface EnumPropertyField {
+	kind: "enum";
 	name: string;
-	pathType: PathType;
+	values: string[];
 }
 
-// --- Shape sub-types (unchanged) ---
-
-export interface ShapeField {
+export interface ColorPropertyField {
+	kind: "color";
 	name: string;
-	valueType: "integer" | "number";
 }
 
-export type ShapeMapping =
-	| { type: "rect"; x: string; y: string; width: string; height: string }
-	| { type: "point"; x: string; y: string }
-	| { type: "circle"; x: string; y: string; radius: string }
-	| { type: "polygon"; points: string };
+export interface ShapePropertyField {
+	kind: "shape";
+	name: string;
+	shapeType: PropertyShapeType;
+	array: boolean;
+}
 
 // --- Errors ---
 
@@ -90,7 +76,7 @@ export type SpecChangeKind =
 	| "field_added"
 	| "field_removed"
 	| "field_type_changed"
-	| "shape_type_changed";
+	| "primary_shape_changed";
 
 export interface SpecChange {
 	entity: string;
@@ -102,17 +88,30 @@ export interface SpecChange {
 
 // --- Defaults ---
 
-export function defaultForScalar(field: ScalarSpecField): unknown {
-	if (field.type === "enum") return field.enumValues?.[0] ?? "";
+export function defaultForScalar(field: ScalarPropertyField): unknown {
 	const defaults: Record<ScalarType, unknown> = {
-		string: "", integer: 0, number: 0, boolean: false, "string[]": [], enum: null, ColorHEX: "",
+		string: "",
+		integer: 0,
+		number: 0,
+		boolean: false,
+		"string[]": [],
 	};
 	const d = defaults[field.type];
 	return Array.isArray(d) ? [] : d;
 }
 
-export function defaultForShapeField(): number {
-	return 0;
+export function defaultForEnum(field: EnumPropertyField): string {
+	return field.values[0] ?? "";
+}
+
+export function defaultForColor(): string {
+	return "";
+}
+
+export function defaultForShape(field: ShapePropertyField): unknown {
+	if (field.array) return [];
+	if (field.shapeType === "rect") return { x: 0, y: 0, w: 0, h: 0 };
+	return { x: 0, y: 0 };
 }
 
 // --- Helpers ---
@@ -121,19 +120,14 @@ export function getEntityByLabel(spec: SpanSpec, label: string): EntityDef | und
 	return spec.entities.find((e) => e.label === label);
 }
 
-export function getShapesForEntity(entity: EntityDef): ShapeSpecField[] {
-	return entity.fields.filter((f): f is ShapeSpecField => f.kind === "shape");
+export function getShapeProperties(entity: EntityDef): ShapePropertyField[] {
+	return entity.properties.filter((f): f is ShapePropertyField => f.kind === "shape");
 }
 
-export function getScalarsForEntity(entity: EntityDef): ScalarSpecField[] {
-	return entity.fields.filter((f): f is ScalarSpecField => f.kind === "scalar");
+export function getScalarProperties(entity: EntityDef): ScalarPropertyField[] {
+	return entity.properties.filter((f): f is ScalarPropertyField => f.kind === "scalar");
 }
 
-export function getPathFieldForEntity(entity: EntityDef): PathSpecField | undefined {
-	return entity.fields.find((f): f is PathSpecField => f.kind === "path");
-}
-
-export function getPrimaryShapeName(entity: EntityDef): string | null {
-	const shapes = getShapesForEntity(entity);
-	return shapes.length > 0 ? shapes[0].name : null;
+export function getEnumProperties(entity: EntityDef): EnumPropertyField[] {
+	return entity.properties.filter((f): f is EnumPropertyField => f.kind === "enum");
 }

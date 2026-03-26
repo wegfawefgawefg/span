@@ -306,6 +306,7 @@ export function loadSpec(raw: string, format: "json" | "yaml") {
 	activeSpecRaw.value = { raw, format };
 	activeTool.value = "";
 	statusText.value = "Spec loaded";
+	markDirty(true);
 }
 
 export async function importSpecFromPath(path: string) {

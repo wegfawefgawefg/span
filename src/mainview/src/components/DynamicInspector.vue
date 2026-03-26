@@ -128,6 +128,18 @@ function displayValue(def: ScalarPropertyField, value: unknown): string {
 	return String(value ?? "");
 }
 
+function getPropertyShapeData(def: ShapePropertyField): { type: "rect" | "point"; items: Array<{ x: number; y: number; w?: number; h?: number }> } {
+	const value = props.annotation.properties[def.name];
+	if (def.array) {
+		const arr = Array.isArray(value) ? value : [];
+		return { type: def.shapeType, items: arr as any[] };
+	}
+	if (value && typeof value === "object") {
+		return { type: def.shapeType, items: [value as any] };
+	}
+	return { type: def.shapeType, items: [] };
+}
+
 function getEntity() {
 	return getEntityByLabel(props.spec, props.annotation.entityType);
 }
@@ -336,6 +348,17 @@ function getEntity() {
 					<template v-else-if="def.kind === 'shape'">
 						<div class="flex flex-col gap-1">
 							<span :class="labelClass">{{ def.name }} ({{ (def as ShapePropertyField).shapeType }}{{ (def as ShapePropertyField).array ? '[]' : '' }})</span>
+
+							<!-- Mini-canvas preview showing shapes relative to aabb -->
+							<ShapeCanvas
+								v-if="currentSheetImageSrc && annotation.aabb"
+								:annotation="annotation"
+								:spec="spec"
+								:shape-name="def.name"
+								:sheet-image-src="currentSheetImageSrc"
+								:shape-color="SHAPE_COLORS[1]"
+								:property-shapes="getPropertyShapeData(def as ShapePropertyField)"
+							/>
 
 							<!-- Single point -->
 							<template v-if="!(def as ShapePropertyField).array && (def as ShapePropertyField).shapeType === 'point'">

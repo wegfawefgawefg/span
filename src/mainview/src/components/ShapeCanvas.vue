@@ -11,6 +11,8 @@ const props = defineProps<{
 	shapeName: string;
 	sheetImageSrc: string;
 	shapeColor: string;
+	// Property shape support
+	propertyShapes?: { type: "rect" | "point"; items: Array<{ x: number; y: number; w?: number; h?: number }> };
 }>();
 
 const PADDING = 8;
@@ -191,6 +193,33 @@ watch(() => [
 	previewRect.value,
 ], drawBackground, { deep: true });
 
+// --- Property shape styles ---
+
+const propertyShapeStyles = computed(() => {
+	const vp = viewport.value;
+	if (!vp || !props.propertyShapes) return [];
+	const aabb = props.annotation.aabb;
+	if (!aabb) return [];
+
+	return props.propertyShapes.items.map((item) => {
+		const absX = aabb.x + item.x;
+		const absY = aabb.y + item.y;
+
+		if (props.propertyShapes!.type === "rect" && item.w !== undefined && item.h !== undefined) {
+			return {
+				left: `${(absX - vp.x) * scale.value}px`,
+				top: `${(absY - vp.y) * scale.value}px`,
+				width: `${item.w * scale.value}px`,
+				height: `${item.h * scale.value}px`,
+			};
+		}
+		return {
+			left: `${(absX - vp.x) * scale.value}px`,
+			top: `${(absY - vp.y) * scale.value}px`,
+		};
+	});
+});
+
 // --- Drag handling ---
 
 interface DragState {
@@ -287,6 +316,22 @@ function onPointerUp(event: PointerEvent) {
 				@pointerup="onPointerUp"
 				@pointercancel="onPointerUp"
 			></div>
+
+			<!-- Property shapes (relative to aabb) -->
+			<template v-if="propertyShapes">
+				<template v-for="(style, idx) in propertyShapeStyles" :key="idx">
+					<div
+						v-if="propertyShapes.type === 'rect'"
+						class="annotation-box selected"
+						:style="{ ...style, borderColor: shapeColor }"
+					></div>
+					<div
+						v-else
+						class="annotation-point selected"
+						:style="style"
+					></div>
+				</template>
+			</template>
 		</div>
 	</div>
 </template>

@@ -2,7 +2,7 @@ import { computed, ref, watch } from "vue";
 import type { Annotation } from "./annotation";
 import { createAnnotation, duplicateAnnotation, clampToImage, createAnnotationWithSize } from "./annotation";
 import type { SpanSpec } from "./spec/types";
-import { getEntityByLabel, getShapesForEntity } from "./spec/types";
+import { getEntityByLabel } from "./spec/types";
 import { parseSpec } from "./spec/parse";
 import { api, platform } from "./platform/adapter";
 import {
@@ -20,7 +20,7 @@ import {
 import type { WorkspaceSheet } from "./workspace";
 import { serializeWorkspace, deserializeWorkspace, debouncedSave } from "./persistence";
 import type { SpanFileSpec } from "./persistence";
-import { exportToString } from "./export";
+import { exportToString, type ExportEntry } from "./export";
 
 // Re-export workspace state for consumers
 export {
@@ -59,14 +59,11 @@ export const previewShapeOverride = ref<Record<string, string>>({});
 
 /** Get the preview shape name for an entity. Returns override if set, else first rect shape. */
 export function getPreviewShapeName(entityLabel: string): string | null {
-	const override = previewShapeOverride.value[entityLabel];
-	if (override) return override;
 	const spec = activeSpec.value;
 	if (!spec) return null;
 	const entity = getEntityByLabel(spec, entityLabel);
 	if (!entity) return null;
-	const firstRect = getShapesForEntity(entity).find(s => s.shapeType === "rect");
-	return firstRect?.name ?? null;
+	return entity.primaryShape.kind === "rect" ? "aabb" : null;
 }
 
 export function setPreviewShape(entityLabel: string, shapeName: string) {
@@ -226,17 +223,18 @@ export function addAnnotationWithSize(
 	if (!spec || !getEntityByLabel(spec, entityType) || !sheet) return;
 
 	const entity = getEntityByLabel(spec, entityType)!;
-	const shapes = getShapesForEntity(entity);
-	const shapeType = shapes[0]?.shapeType;
+	const isRect = entity.primaryShape.kind === "rect";
 
-	let size: { width?: number; height?: number; radius?: number } = {};
-	if (shapeType === "rect") {
-		size = { width: sizeArgs[0], height: sizeArgs[1] };
-	} else if (shapeType === "circle") {
-		size = { radius: sizeArgs[0] };
+	let annotation;
+	if (isRect && sizeArgs.length >= 2) {
+		annotation = createAnnotationWithSize(spec, entityType, { x, y }, {
+			width: sizeArgs[0],
+			height: sizeArgs[1],
+		});
+	} else {
+		annotation = createAnnotation(spec, entityType, { x, y });
 	}
 
-	const annotation = createAnnotationWithSize(spec, entityType, { x, y }, size);
 	sheet.annotations.push(annotation);
 	selectedId.value = annotation.id;
 	markDirty(true);
@@ -244,10 +242,9 @@ export function addAnnotationWithSize(
 
 export function duplicateSelected() {
 	const ann = selectedAnnotation.value;
-	const spec = activeSpec.value;
 	const sheet = currentSheet.value;
-	if (!ann || !spec || !sheet) return;
-	const copy = duplicateAnnotation(ann, spec);
+	if (!ann || !sheet) return;
+	const copy = duplicateAnnotation(ann);
 	sheet.annotations.push(copy);
 	selectedId.value = copy.id;
 	markDirty(true);
@@ -266,16 +263,18 @@ export function deleteSelected() {
 export function updateShapeData(shapeName: string, patch: Record<string, number>) {
 	const ann = selectedAnnotation.value;
 	if (!ann) return;
-	const shapeData = ann.shapes[shapeName];
-	if (!shapeData) return;
-	Object.assign(shapeData, patch);
+	if (shapeName === "aabb" && ann.aabb) {
+		Object.assign(ann.aabb, patch);
+	} else if (shapeName === "point" && ann.point) {
+		Object.assign(ann.point, patch);
+	}
 	markDirty(true);
 }
 
 export function updatePropertyData(patch: Record<string, unknown>) {
 	const ann = selectedAnnotation.value;
 	if (!ann) return;
-	Object.assign(ann.propertyData, patch);
+	Object.assign(ann.properties, patch);
 	markDirty(true);
 }
 
@@ -284,9 +283,7 @@ export function clampAnnotationToImage(
 	imgW: number = imageWidth.value,
 	imgH: number = imageHeight.value,
 ) {
-	const spec = activeSpec.value;
-	if (!spec) return;
-	clampToImage(annotation, spec, imgW, imgH);
+	clampToImage(annotation, imgW, imgH);
 }
 
 // --- Spec loading ---
@@ -352,28 +349,44 @@ export async function importSheetFromPath(path: string) {
 
 // --- Export ---
 
-export async function exportWorkspace() {
+export async function exportWorkspace(dialogPath?: string) {
 	const spec = activeSpec.value;
 	if (!spec) {
 		statusText.value = "No spec loaded — cannot export";
 		return;
 	}
 
-	const allAnnotations = sheets.value.flatMap((s) => s.annotations);
-	const output = exportToString(allAnnotations, spec);
+	const entries: ExportEntry[] = sheets.value.flatMap((s) =>
+		s.annotations.map((a) => ({
+			annotation: a,
+			sheetFile: s.path.split("/").pop() ?? s.path,
+		})),
+	);
+	const output = exportToString(entries, spec);
 
 	const ext = spec.format === "yaml" ? "yaml" : "json";
 	const defaultName = `annotations.${ext}`;
 
-	const path = await api.showSaveDialog(defaultName, [
-		{ name: `${ext.toUpperCase()} files`, extensions: [ext] },
-	]);
+	await doExportWrite(output, defaultName, dialogPath);
+}
 
-	if (!path) return; // user cancelled
+/** Write export output — on desktop uses a dialog path passed from backend, on web triggers download. */
+export async function doExportWrite(output: string, defaultName: string, dialogPath?: string) {
+	let savePath: string;
+	if (platform.value === "web") {
+		savePath = defaultName;
+	} else if (dialogPath) {
+		savePath = dialogPath;
+	} else {
+		// Fallback: show dialog from webview (used if called directly)
+		const path = await api.showSaveDialog(defaultName, []);
+		if (!path) return;
+		savePath = path;
+	}
 
 	try {
-		await api.writeFile(path, output);
-		statusText.value = `Exported to ${path}`;
+		await api.writeFile(savePath, output);
+		statusText.value = `Exported to ${savePath.split("/").pop()}`;
 	} catch (e) {
 		console.error("Export failed:", e);
 		statusText.value = "Export failed";

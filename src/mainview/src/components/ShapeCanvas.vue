@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import type { Annotation } from "../annotation";
 import type { SpanSpec } from "../spec/types";
 import { getEntityByLabel } from "../spec/types";
-import { updateShapeData, markDirty } from "../state";
+import { updateShapeData, markDirty, activeEyedropper } from "../state";
 
 const props = defineProps<{
 	annotation: Annotation;
@@ -269,6 +269,7 @@ interface DragState {
 const drag = ref<DragState | null>(null);
 
 function onShapePointerDown(event: PointerEvent) {
+	if (sampleColor(event)) { event.preventDefault(); return; }
 	event.preventDefault();
 	event.stopPropagation();
 
@@ -295,6 +296,7 @@ function onShapePointerDown(event: PointerEvent) {
 }
 
 function onPointerMove(event: PointerEvent) {
+	if (activeEyedropper.value) { onEyedropperMove(event); return; }
 	const d = drag.value;
 	if (!d) return;
 
@@ -324,6 +326,7 @@ function onPointerUp(event: PointerEvent) {
 }
 
 function onPropertyShapePointerDown(event: PointerEvent, idx: number) {
+	if (sampleColor(event)) { event.preventDefault(); return; }
 	event.preventDefault();
 	event.stopPropagation();
 
@@ -350,6 +353,7 @@ function onPropertyShapePointerDown(event: PointerEvent, idx: number) {
 }
 
 function onPropertyPointerMove(event: PointerEvent) {
+	if (activeEyedropper.value) { onEyedropperMove(event); return; }
 	const d = drag.value;
 	if (!d || !d.isPropertyShape) return;
 
@@ -378,7 +382,41 @@ function onPropertyPointerUp(event: PointerEvent) {
 	drag.value = null;
 }
 
+function samplePixelHex(event: PointerEvent): string | null {
+	const canvas = bgCanvas.value;
+	if (!canvas) return null;
+
+	const rect = canvas.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	const px = Math.round((event.clientX - rect.left) * dpr);
+	const py = Math.round((event.clientY - rect.top) * dpr);
+
+	const ctx = canvas.getContext("2d", { willReadFrequently: true });
+	if (!ctx) return null;
+
+	const pixel = ctx.getImageData(px, py, 1, 1).data;
+	return "#" + [pixel[0], pixel[1], pixel[2]].map(c => c.toString(16).padStart(2, "0")).join("");
+}
+
+/** Preview color on hover */
+function onEyedropperMove(event: PointerEvent) {
+	if (!activeEyedropper.value) return;
+	const hex = samplePixelHex(event);
+	if (hex) activeEyedropper.value.callback(hex);
+}
+
+/** Finalize color on click — returns true if eyedropper was active */
+function sampleColor(event: PointerEvent): boolean {
+	if (!activeEyedropper.value) return false;
+	const hex = samplePixelHex(event);
+	if (hex) activeEyedropper.value.callback(hex);
+	activeEyedropper.value = null;
+	return true;
+}
+
 function onOverlayClick(event: PointerEvent) {
+	// Eyedropper takes priority
+	if (sampleColor(event)) return;
 	// Only handle if we have property shapes and they're points
 	if (!props.propertyShapes || props.propertyShapes.type !== "point") return;
 	// Don't place if clicking on an existing shape element
@@ -414,7 +452,7 @@ function onOverlayClick(event: PointerEvent) {
 		:style="{ height: canvasHeight + 'px' }"
 	>
 		<canvas ref="bgCanvas" class="shape-canvas-bg" />
-		<div class="shape-canvas-overlay" :style="{ width: '100%', height: canvasHeight + 'px', pointerEvents: propertyShapes?.type === 'point' ? 'auto' : undefined }" @pointerdown.self="onOverlayClick">
+		<div class="shape-canvas-overlay" :style="{ width: '100%', height: canvasHeight + 'px', pointerEvents: (activeEyedropper || propertyShapes?.type === 'point') ? 'auto' : undefined, cursor: activeEyedropper ? 'crosshair' : undefined }" @pointerdown.self="onOverlayClick" @pointermove.self="onEyedropperMove">
 			<!-- Rect shape -->
 			<div
 				v-if="props.shapeName === 'aabb' && annotation.aabb"

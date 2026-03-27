@@ -4,6 +4,8 @@ import { createAnnotation, duplicateAnnotation, clampToImage, createAnnotationWi
 import type { SpanSpec } from "./spec/types";
 import { getEntityByLabel } from "./spec/types";
 import { parseSpec } from "./spec/parse";
+import { diffSpecs } from "./spec/diff";
+import type { SpecError, SpecDiff } from "./spec/types";
 import { DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT } from "./spec/default-spec";
 import { api, platform } from "./platform/adapter";
 import {
@@ -318,6 +320,45 @@ export function loadSpec(raw: string, format: "json" | "yaml") {
 	activeSpecRaw.value = { raw, format };
 	activeTool.value = "";
 	statusText.value = "Spec loaded";
+	markDirty(true);
+}
+
+/**
+ * Apply a spec edit from the in-app editor.
+ * Returns { applied: true } on success, { applied: false, errors } on parse failure,
+ * or { applied: false, destructive: true, diff } when confirmation is needed.
+ */
+export function applySpecFromEditor(
+	raw: string,
+	format: "json" | "yaml",
+): { applied: true } | { applied: false; errors: SpecError[] } | { applied: false; destructive: true; diff: SpecDiff } {
+	const result = parseSpec(raw, format);
+	if (Array.isArray(result)) {
+		return { applied: false, errors: result };
+	}
+
+	const currentSpec = activeSpec.value;
+	if (currentSpec) {
+		const diff = diffSpecs(currentSpec, result);
+		if (!diff.safe) {
+			return { applied: false, destructive: true, diff };
+		}
+	}
+
+	activeSpec.value = result;
+	activeSpecRaw.value = { raw, format };
+	activeTool.value = "";
+	markDirty(true);
+	return { applied: true };
+}
+
+/** Force-apply a spec even if it has destructive changes. Called after user confirms. */
+export function forceApplySpec(raw: string, format: "json" | "yaml") {
+	const result = parseSpec(raw, format);
+	if (Array.isArray(result)) return; // should not happen — caller already validated
+	activeSpec.value = result;
+	activeSpecRaw.value = { raw, format };
+	activeTool.value = "";
 	markDirty(true);
 }
 

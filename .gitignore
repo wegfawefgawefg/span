@@ -9,5 +9,8 @@ build/
 .claude/
 .worktrees/
 
+# Superpowers brainstorm artifacts
+.superpowers/
+
 # MacOS specific files
 .DS_Store

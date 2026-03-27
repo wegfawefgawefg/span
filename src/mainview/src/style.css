@@ -23,25 +23,9 @@
 @font-face {
 	font-family: "IBM Plex Sans";
 	font-style: normal;
-	font-weight: 400;
+	font-weight: 400 600;
 	font-display: swap;
-	src: url("https://fonts.gstatic.com/s/ibmplexsans/v19/zYXgKVElMYYaJe8bpLHnCwDKtdbUFI5NadY.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Sans";
-	font-style: normal;
-	font-weight: 500;
-	font-display: swap;
-	src: url("https://fonts.gstatic.com/s/ibmplexsans/v19/zYX9KVElMYYaJe8bpLHnCwDKjSL9AIFsdP3pBms.woff2") format("woff2");
-}
-
-@font-face {
-	font-family: "IBM Plex Sans";
-	font-style: normal;
-	font-weight: 600;
-	font-display: swap;
-	src: url("https://fonts.gstatic.com/s/ibmplexsans/v19/zYX9KVElMYYaJe8bpLHnCwDKjQ76AIFsdP3pBms.woff2") format("woff2");
+	src: url("./assets/fonts/ibm-plex-sans-400.woff2") format("woff2");
 }
 
 @font-face {
@@ -49,7 +33,7 @@
 	font-style: normal;
 	font-weight: 400;
 	font-display: swap;
-	src: url("https://fonts.gstatic.com/s/ibmplexmono/v19/-F63fjptAgt5VM-kVkqdyU8n5igy1MCzb9s.woff2") format("woff2");
+	src: url("./assets/fonts/ibm-plex-mono-400.woff2") format("woff2");
 }
 
 * {

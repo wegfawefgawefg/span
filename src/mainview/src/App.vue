@@ -31,6 +31,7 @@ const PANELS: Record<string, { component: string; title: string }> = {
 	inspector: { component: "inspector", title: "Inspector" },
 	annotations: { component: "annotations", title: "Sprites In Sheet" },
 	gallery: { component: "gallery", title: "Gallery" },
+	"spec-editor": { component: "spec-editor", title: "Spec Editor" },
 };
 
 let dockviewApi: DockviewApi | null = null;

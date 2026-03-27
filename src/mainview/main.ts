@@ -6,6 +6,7 @@ import CanvasView from "./src/components/CanvasView.vue";
 import Inspector from "./src/components/Inspector.vue";
 import AnnotationList from "./src/components/AnnotationList.vue";
 import GalleryPanel from "./src/components/GalleryPanel.vue";
+import SpecEditor from "./src/components/SpecEditor.vue";
 import { createApp } from "vue";
 import { setAdapter } from "./src/platform/adapter";
 import {
@@ -55,5 +56,6 @@ app.component("sprite-canvas", CanvasView);
 app.component("inspector", Inspector);
 app.component("annotations", AnnotationList);
 app.component("gallery", GalleryPanel);
+app.component("spec-editor", SpecEditor);
 
 app.mount("#app");

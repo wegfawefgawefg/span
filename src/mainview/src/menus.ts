@@ -46,6 +46,7 @@ export function getMenus(): MenuSection[] {
 				{ label: "Inspector", action: "addPanel:inspector" },
 				{ label: "Sprites In Sheet", action: "addPanel:annotations" },
 				{ label: "Gallery", action: "addPanel:gallery" },
+				{ label: "Spec Editor", action: "addPanel:spec-editor" },
 				{ separator: true },
 				{ label: "Reset Panel Layout", action: "resetLayout" },
 			],

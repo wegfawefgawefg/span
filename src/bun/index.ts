@@ -230,6 +230,7 @@ ApplicationMenu.setApplicationMenu([
 			{ label: "Inspector", action: "addPanel:inspector" },
 			{ label: "Sprites In Sheet", action: "addPanel:annotations" },
 			{ label: "Gallery", action: "addPanel:gallery" },
+			{ label: "Spec Editor", action: "addPanel:spec-editor" },
 			{ type: "separator" as const },
 			{ label: "Reset Panel Layout", action: "resetLayout" },
 			{ type: "separator" as const },

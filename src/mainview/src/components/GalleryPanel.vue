@@ -33,8 +33,11 @@ interface SpriteGroup {
 const previewScale = ref(3);
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
-// Invalidate cached images when sheets change (e.g. missing sheet fulfilled)
-watch(sheets, () => { imageCache.clear(); }, { deep: true });
+// Invalidate cached images only when sheets are added/removed or images change (not on annotation edits)
+watch(
+	() => sheets.value.map(s => s.path + "\0" + s.imageUrl + "\0" + s.status),
+	() => { imageCache.clear(); },
+);
 const sourceCanvas = document.createElement("canvas");
 const sourceCtx = sourceCanvas.getContext("2d", {
 	willReadFrequently: true,
@@ -61,8 +64,9 @@ function getFrameValue(ann: Annotation): number {
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return 0;
 	const scalars = entity.properties.filter(f => f.kind === "scalar");
-	const frameProp = scalars.find(f => f.kind === "scalar" && f.name === "frame" && (f.type === "integer" || f.type === "number"))
-		?? scalars.find(f => f.kind === "scalar" && (f.type === "integer" || f.type === "number"));
+	const numericTypes = new Set(["integer", "number", "ainteger"]);
+	const frameProp = scalars.find(f => f.kind === "scalar" && f.name === "frame" && numericTypes.has(f.type))
+		?? scalars.find(f => f.kind === "scalar" && numericTypes.has(f.type));
 	return frameProp ? (ann.properties[frameProp.name] as number ?? 0) : 0;
 }
 
@@ -88,6 +92,8 @@ const groups = computed<SpriteGroup[]>(() => {
 
 	const map = new Map<string, SpriteGroup>();
 	for (const sheet of sheets.value) {
+		// Skip missing sheets (no image data to render)
+		if (sheet.status === "missing") continue;
 		// For the active sheet, use live annotations for real-time updates
 		const anns =
 			sheet.path === currentFile ? liveAnnotations : (sheet.annotations ?? []);
@@ -157,15 +163,22 @@ function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 	const cached = imageCache.get(sheetFile);
 	if (cached) return cached;
 	const sheet = sheets.value.find(s => s.path === sheetFile);
-	if (!sheet) return Promise.reject(new Error(`Sheet not found: ${sheetFile}`));
+	if (!sheet || !sheet.imageUrl) {
+		return Promise.reject(new Error(`Sheet not found: ${sheetFile}`));
+	}
 	const p = new Promise<HTMLImageElement>((resolve, reject) => {
 		const img = new Image();
 		img.onload = () => resolve(img);
 		img.onerror = reject;
 		img.src = sheet.imageUrl;
 	});
-	imageCache.set(sheetFile, p);
-	return p;
+	// Only cache successful loads — failed loads should retry when sheet data changes
+	const cachedP = p.catch((err) => {
+		imageCache.delete(sheetFile);
+		throw err;
+	});
+	imageCache.set(sheetFile, cachedP);
+	return cachedP;
 }
 
 function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
@@ -195,7 +208,7 @@ function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 			);
 
 			const chromaValue = getChromaKey(frame.annotation);
-			const chroma = parseHexColor(chromaValue);
+			const chroma = chromaValue ? parseHexColor(chromaValue) : null;
 			if (chroma) {
 				const id = sourceCtx.getImageData(0, 0, w, h);
 				applyChromaKey(id, chroma);

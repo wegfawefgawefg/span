@@ -18,6 +18,11 @@ function layoutPath(): string {
 	return join(dir, "layout.json");
 }
 
+function lastWorkspacePath(): string {
+	const dir = typeof Utils.paths.userData === "function" ? Utils.paths.userData() : Utils.paths.userData;
+	return join(dir, "last-workspace.txt");
+}
+
 async function showSaveAsDialog(): Promise<string | null> {
 	const script = `set f to POSIX path of (choose file name with prompt "Save As" default name "workspace.span")\nreturn f`;
 	try {
@@ -74,6 +79,16 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 				console.log("[writeFile] path:", path, "length:", contents.length);
 				await Bun.write(path, contents);
 				console.log("[writeFile] done:", path);
+				// Remember last .span file for auto-reopen
+				if (path.endsWith(".span")) {
+					try {
+						const dir = lastWorkspacePath().replace(/\/[^/]+$/, "");
+						await mkdir(dir, { recursive: true });
+						await writeFile(lastWorkspacePath(), path);
+					} catch (e) {
+						console.error("Failed to save last workspace path:", e);
+					}
+				}
 				return { ok: true };
 			},
 			readImageAsDataUrl: async ({ path }) => {
@@ -365,3 +380,22 @@ Electrobun.events.on("before-quit", async (e) => {
 });
 
 console.log("Span started!");
+
+// --- Auto-reopen last workspace ---
+(async () => {
+	try {
+		const lwp = lastWorkspacePath();
+		const file = Bun.file(lwp);
+		if (!(await file.exists())) return;
+		const savedPath = (await file.text()).trim();
+		if (!savedPath) return;
+		const spanFile = Bun.file(savedPath);
+		if (!(await spanFile.exists())) return;
+		// Wait a moment for the window to be ready
+		setTimeout(() => {
+			mainWindow.webview.rpc.request.triggerOpen({ path: savedPath });
+		}, 500);
+	} catch (e) {
+		console.error("Auto-reopen failed:", e);
+	}
+})();

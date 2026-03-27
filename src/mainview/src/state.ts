@@ -8,6 +8,7 @@ import { diffSpecs } from "./spec/diff";
 import type { SpecError, SpecDiff } from "./spec/types";
 import { DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT } from "./spec/default-spec";
 import { api, platform } from "./platform/adapter";
+import { saveImage } from "./platform/image-store";
 import {
 	sheets,
 	currentSheet,
@@ -185,6 +186,21 @@ function performSave() {
 		} catch (e) {
 			console.error("localStorage save failed:", e);
 		}
+		// Sync sheet images to IndexedDB for persistence across reloads
+		syncImagesToIndexedDB();
+	}
+}
+
+/** Sync current sheet images to IndexedDB (web only). */
+async function syncImagesToIndexedDB() {
+	try {
+		for (const sheet of sheets.value) {
+			if (sheet.status === "loaded" && sheet.imageUrl) {
+				await saveImage(sheet.path, sheet.imageUrl);
+			}
+		}
+	} catch (e) {
+		console.error("IndexedDB image sync failed:", e);
 	}
 }
 

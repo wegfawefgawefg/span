@@ -395,7 +395,6 @@ onUnmounted(() => {
 		>
 			<div class="flex justify-between">
 				<span class="truncate">{{ statusText }}</span>
-				<span v-if="!activeSpec" class="text-danger shrink-0">No spec file</span>
 			</div>
 		</div>
 	</div>

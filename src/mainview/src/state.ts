@@ -4,6 +4,7 @@ import { createAnnotation, duplicateAnnotation, clampToImage, createAnnotationWi
 import type { SpanSpec } from "./spec/types";
 import { getEntityByLabel } from "./spec/types";
 import { parseSpec } from "./spec/parse";
+import { DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT } from "./spec/default-spec";
 import { api, platform } from "./platform/adapter";
 import {
 	sheets,
@@ -49,8 +50,14 @@ export const currentSheetImageSrc = ref<string>("");
 export const imageWidth = ref(0);
 export const imageHeight = ref(0);
 
-export const activeSpec = ref<SpanSpec | null>(null);
-export const activeSpecRaw = ref<SpanFileSpec | null>(null);
+// Initialize with built-in default spec
+const _defaultParsed = parseSpec(DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT);
+if (Array.isArray(_defaultParsed)) {
+	throw new Error("Built-in default spec is invalid: " + _defaultParsed.map((e) => e.message).join("; "));
+}
+
+export const activeSpec = ref<SpanSpec | null>(_defaultParsed);
+export const activeSpecRaw = ref<SpanFileSpec | null>({ raw: DEFAULT_SPEC_RAW, format: DEFAULT_SPEC_FORMAT });
 export const activeTool = ref<string>("");
 
 // Eyedropper state: when non-null, the canvas is in eyedropper mode

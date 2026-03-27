@@ -10,7 +10,8 @@ import SpecEditor from "./src/components/SpecEditor.vue";
 import { createApp } from "vue";
 import { setAdapter } from "./src/platform/adapter";
 import { createWebAdapter } from "./src/platform/web";
-import { dirty } from "./src/state";
+import { dirty, restoreWorkspace, fulfillSheet, sheets } from "./src/state";
+import { loadImage } from "./src/platform/image-store";
 
 // Initialize platform
 const adapter = createWebAdapter();
@@ -33,3 +34,35 @@ app.component("gallery", GalleryPanel);
 app.component("spec-editor", SpecEditor);
 
 app.mount("#app");
+
+// --- Auto-restore workspace from localStorage + IndexedDB ---
+async function autoRestore() {
+	try {
+		const raw = localStorage.getItem("span-workspace");
+		if (!raw) return;
+
+		await restoreWorkspace(raw);
+
+		// Fulfill missing sheets from IndexedDB
+		for (const sheet of sheets.value) {
+			if (sheet.status !== "missing") continue;
+			const dataUrl = await loadImage(sheet.path);
+			if (!dataUrl) continue;
+
+			const dims = await new Promise<{ width: number; height: number }>((resolve) => {
+				const img = new Image();
+				img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+				img.onerror = () => resolve({ width: 0, height: 0 });
+				img.src = dataUrl;
+			});
+
+			if (dims.width > 0) {
+				fulfillSheet(sheet, dataUrl, dims.width, dims.height);
+			}
+		}
+	} catch (e) {
+		console.error("Auto-restore failed:", e);
+	}
+}
+
+autoRestore();

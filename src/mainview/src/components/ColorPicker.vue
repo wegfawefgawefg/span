@@ -77,14 +77,7 @@ function extractPalette() {
 			const alpha = data[i + 3];
 			if (alpha < 128) continue;
 
-			const r = Math.round(data[i] / 8) * 8;
-			const g = Math.round(data[i + 1] / 8) * 8;
-			const b = Math.round(data[i + 2] / 8) * 8;
-			const hex = rgbToHex(
-				Math.min(r, 255),
-				Math.min(g, 255),
-				Math.min(b, 255),
-			);
+			const hex = rgbToHex(data[i], data[i + 1], data[i + 2]);
 			freq.set(hex, (freq.get(hex) ?? 0) + 1);
 		}
 

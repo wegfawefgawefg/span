@@ -5,9 +5,9 @@ import Electrobun, {
 	Updater,
 	Utils,
 } from "electrobun/bun";
-import type { SpanRPC } from "../shared/rpc-schema";
-import { join } from "path";
-import { writeFile, unlink, mkdir } from "fs/promises";
+import type { FileFilter, SpanRPC } from "../shared/rpc-schema";
+import { dirname, join } from "path";
+import { writeFile, unlink, mkdir, readdir } from "fs/promises";
 
 const DEV_SERVER_PORT_START = 5173;
 const DEV_SERVER_PORT_END = 5183;
@@ -23,75 +23,215 @@ function lastWorkspacePath(): string {
 	return join(dir, "last-workspace.txt");
 }
 
-async function showSaveAsDialog(): Promise<string | null> {
-	const script = `set f to POSIX path of (choose file name with prompt "Save As" default name "workspace.span")\nreturn f`;
+function projectWorkspacePath(directory: string): string {
+	return join(directory, ".span", "workspace.span");
+}
+
+async function rememberLastWorkspace(path: string) {
 	try {
-		const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
+		const dir = dirname(lastWorkspacePath());
+		await mkdir(dir, { recursive: true });
+		await writeFile(lastWorkspacePath(), path);
+	} catch (e) {
+		console.error("Failed to save last workspace path:", e);
+	}
+}
+
+async function runDialogCommand(cmd: string[]): Promise<string | null> {
+	console.log("[dialog] running:", cmd.join(" "));
+	try {
+		const proc = Bun.spawn(cmd, { stdout: "pipe", stderr: "pipe" });
 		const out = await new Response(proc.stdout).text();
+		const err = proc.stderr ? await new Response(proc.stderr).text() : "";
 		const code = await proc.exited;
-		if (code === 0 && out.trim()) return out.trim();
-	} catch {}
+		if (code !== 0) {
+			console.warn("[dialog] command exited non-zero:", code, err.trim());
+			return null;
+		}
+		const result = out.trim() || null;
+		console.log("[dialog] result:", result);
+		return result;
+	} catch (error) {
+		console.error("Dialog command failed:", error);
+	}
 	return null;
+}
+
+function buildZenityFilterArgs(filters: FileFilter[]): string[] {
+	return filters.flatMap((filter) => {
+		const patterns = filter.extensions.map((ext) => `*.${ext}`);
+		if (patterns.length === 0) return [];
+		return [`--file-filter=${filter.name} | ${patterns.join(" ")}`];
+	});
+}
+
+async function showSaveDialog(
+	defaultName: string,
+	filters: FileFilter[],
+	prompt = "Save As",
+): Promise<string | null> {
+	if (process.platform === "darwin") {
+		const script = `set f to POSIX path of (choose file name with prompt "${prompt}" default name "${defaultName}")\nreturn f`;
+		return runDialogCommand(["osascript", "-e", script]);
+	}
+
+	if (process.platform === "linux") {
+		const defaultPath = join(process.env.HOME ?? "/tmp", defaultName);
+		const args = [
+			"zenity",
+			"--file-selection",
+			"--save",
+			"--confirm-overwrite",
+			`--title=${prompt}`,
+			`--filename=${defaultPath}`,
+			...buildZenityFilterArgs(filters),
+		];
+		return runDialogCommand(args);
+	}
+
+	return null;
+}
+
+async function showOpenDialog(
+	filters: FileFilter[],
+	prompt = "Open",
+): Promise<string | null> {
+	if (process.platform === "darwin") {
+		const typeList = filters.flatMap((filter) => filter.extensions).map((ext) => `"${ext}"`).join(", ");
+		const script = `set f to POSIX path of (choose file of type {${typeList}} with prompt "${prompt}")\nreturn f`;
+		return runDialogCommand(["osascript", "-e", script]);
+	}
+
+	if (process.platform === "linux") {
+		const args = [
+			"zenity",
+			"--file-selection",
+			`--title=${prompt}`,
+			...buildZenityFilterArgs(filters),
+		];
+		return runDialogCommand(args);
+	}
+
+	return null;
+}
+
+async function showOpenDirectoryDialog(prompt = "Select Folder"): Promise<string | null> {
+	if (process.platform === "darwin") {
+		const script = `set f to POSIX path of (choose folder with prompt "${prompt}")\nreturn f`;
+		return runDialogCommand(["osascript", "-e", script]);
+	}
+
+	if (process.platform === "linux") {
+		return runDialogCommand([
+			"zenity",
+			"--file-selection",
+			"--directory",
+			`--title=${prompt}`,
+		]);
+	}
+
+	return null;
+}
+
+const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp"]);
+
+async function listImageFilesRecursive(directory: string): Promise<string[]> {
+	console.log("[images] scanning directory:", directory);
+	const entries = await readdir(directory, { withFileTypes: true });
+	const results: string[] = [];
+
+	for (const entry of entries) {
+		const fullPath = join(directory, entry.name);
+		if (entry.isDirectory()) {
+			results.push(...(await listImageFilesRecursive(fullPath)));
+			continue;
+		}
+
+		const lower = entry.name.toLowerCase();
+		const dot = lower.lastIndexOf(".");
+		const ext = dot >= 0 ? lower.slice(dot) : "";
+		if (IMAGE_EXTENSIONS.has(ext)) {
+			results.push(fullPath);
+		}
+	}
+
+	const sorted = results.sort();
+	console.log("[images] found image files:", sorted.length);
+	return sorted;
+}
+
+async function showSaveAsDialog(): Promise<string | null> {
+	return showSaveDialog("workspace.span", [{ name: "Span files", extensions: ["span"] }], "Save As");
+}
+
+async function openProjectFolder(prompt = "Select image folder") {
+	const directory = await showOpenDirectoryDialog(prompt);
+	if (!directory) {
+		console.log("[project] openProjectFolder cancelled");
+		return;
+	}
+	const workspacePath = projectWorkspacePath(directory);
+	const workspaceFile = Bun.file(workspacePath);
+	if (await workspaceFile.exists()) {
+		await rememberLastWorkspace(workspacePath);
+		await mainWindow.webview.rpc.request.triggerOpen({ path: workspacePath });
+		return;
+	}
+	const paths = await listImageFilesRecursive(directory);
+	console.log("[project] opening folder paths:", paths.length);
+	await mainWindow.webview.rpc.request.openProjectDirectory({ workspacePath, paths });
+	await rememberLastWorkspace(workspacePath);
 }
 
 // --- RPC ---
 const rpc = BrowserView.defineRPC<SpanRPC>({
 	handlers: {
 		requests: {
-			showSaveDialog: async ({ defaultName, filters }) => {
-				const exts = filters.flatMap(f => f.extensions).map(e => `"${e}"`).join(", ");
-				const script = `
-					set f to POSIX path of (choose file name with prompt "Save As" default name "${defaultName}")
-					return f
-				`;
-				try {
-					const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
-					const out = await new Response(proc.stdout).text();
-					const code = await proc.exited;
-					if (code !== 0) return null;
-					return out.trim() || null;
-				} catch {
-					return null;
-				}
+			showSaveDialog: ({ defaultName, filters }) => showSaveDialog(defaultName, filters),
+			showOpenDialog: ({ filters }) => showOpenDialog(filters),
+			showOpenDirectoryDialog: async ({ prompt }) => {
+				console.log("[rpc] showOpenDirectoryDialog prompt:", prompt ?? "Select Folder");
+				return showOpenDirectoryDialog(prompt);
 			},
-			showOpenDialog: async ({ filters }) => {
-				const types = filters.flatMap(f => f.extensions);
-				const typeList = types.map(t => `"${t}"`).join(", ");
-				const script = `
-					set f to POSIX path of (choose file of type {${typeList}} with prompt "Open")
-					return f
-				`;
-				try {
-					const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
-					const out = await new Response(proc.stdout).text();
-					const code = await proc.exited;
-					if (code !== 0) return null;
-					return out.trim() || null;
-				} catch {
+			importImageDirectory: async ({ prompt }) => {
+				console.log("[rpc] importImageDirectory prompt:", prompt ?? "Select image folder");
+				await openProjectFolder(prompt ?? "Select image folder");
+			},
+			pickImageDirectory: async ({ prompt }) => {
+				console.log("[rpc] pickImageDirectory prompt:", prompt ?? "Select image folder");
+				const directory = await showOpenDirectoryDialog(prompt ?? "Select image folder");
+				if (!directory) {
+					console.log("[rpc] pickImageDirectory cancelled");
 					return null;
 				}
+				const paths = await listImageFilesRecursive(directory);
+				console.log("[rpc] pickImageDirectory returning paths:", paths.length);
+				return { directory, paths };
+			},
+			debugLog: ({ message }) => {
+				console.log("[webview]", message);
 			},
 			readFile: async ({ path }) => {
 				const file = Bun.file(path);
 				return await file.text();
 			},
+			listImageFiles: async ({ directory }) => {
+				console.log("[rpc] listImageFiles directory:", directory);
+				return listImageFilesRecursive(directory);
+			},
 			writeFile: async ({ path, contents }) => {
 				console.log("[writeFile] path:", path, "length:", contents.length);
+				await mkdir(dirname(path), { recursive: true });
 				await Bun.write(path, contents);
 				console.log("[writeFile] done:", path);
 				// Remember last .span file for auto-reopen
 				if (path.endsWith(".span")) {
-					try {
-						const dir = lastWorkspacePath().replace(/\/[^/]+$/, "");
-						await mkdir(dir, { recursive: true });
-						await writeFile(lastWorkspacePath(), path);
-					} catch (e) {
-						console.error("Failed to save last workspace path:", e);
-					}
+					await rememberLastWorkspace(path);
 				}
 				return { ok: true };
 			},
 			readImageAsDataUrl: async ({ path }) => {
+				console.log("[images] reading image:", path);
 				const file = Bun.file(path);
 				const buffer = await file.arrayBuffer();
 				const base64 = Buffer.from(buffer).toString("base64");
@@ -181,14 +321,22 @@ ApplicationMenu.setApplicationMenu([
 		label: "File",
 		submenu: [
 			{
-				label: "Open...",
+				label: "Open Folder...",
 				accelerator: "CommandOrControl+O",
-				action: "triggerOpen",
+				action: "openFolder",
+			},
+			{
+				label: "Close Project",
+				action: "closeProject",
 			},
 			{ type: "separator" as const },
 			{
 				label: "Import Spec...",
 				action: "importSpec",
+			},
+			{
+				label: "Export Spec...",
+				action: "triggerExportSpec",
 			},
 			{
 				label: "Import Sheet...",
@@ -277,6 +425,10 @@ ApplicationMenu.setApplicationMenu([
 Electrobun.events.on("application-menu-clicked", async (e) => {
 	const { action } = e.data as { action: string };
 	switch (action) {
+		case "openFolder": {
+			await openProjectFolder("Select image folder");
+			break;
+		}
 		case "triggerSave": {
 			const result = await mainWindow.webview.rpc.request.triggerSave({});
 			if (result.needsSaveAs) {
@@ -291,15 +443,14 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 			break;
 		}
 		case "triggerOpen": {
-			const script = `set f to POSIX path of (choose file of type {"span"} with prompt "Open")\nreturn f`;
-			try {
-				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
-				const out = await new Response(proc.stdout).text();
-				const code = await proc.exited;
-				if (code === 0 && out.trim()) {
-					mainWindow.webview.rpc.request.triggerOpen({ path: out.trim() });
-				}
-			} catch {}
+			const path = await showOpenDialog(
+				[{ name: "Span files", extensions: ["span"] }],
+				"Open Workspace",
+			);
+			if (path) {
+				await rememberLastWorkspace(path);
+				mainWindow.webview.rpc.request.triggerOpen({ path });
+			}
 			break;
 		}
 		case "addSprite":
@@ -312,41 +463,56 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 			mainWindow.webview.rpc.request.deleteSprite({});
 			break;
 		case "triggerExport": {
-			const script = `set f to POSIX path of (choose file name with prompt "Export" default name "annotations.yaml")\nreturn f`;
-			try {
-				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
-				const out = await new Response(proc.stdout).text();
-				const code = await proc.exited;
-				if (code === 0 && out.trim()) {
-					mainWindow.webview.rpc.request.triggerExport({ path: out.trim() });
-				}
-			} catch {}
+			const path = await showSaveDialog(
+				"annotations.yaml",
+				[
+					{ name: "YAML files", extensions: ["yaml", "yml"] },
+					{ name: "JSON files", extensions: ["json"] },
+				],
+				"Export",
+			);
+			if (path) {
+				mainWindow.webview.rpc.request.triggerExport({ path });
+			}
 			break;
 		}
 		case "importSpec": {
-			const script = `set f to POSIX path of (choose file of type {"yaml", "yml", "json"} with prompt "Import Spec")\nreturn f`;
-			try {
-				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
-				const out = await new Response(proc.stdout).text();
-				const code = await proc.exited;
-				if (code === 0 && out.trim()) {
-					mainWindow.webview.rpc.request.triggerImportSpec({ path: out.trim() });
-				}
-			} catch {}
+			const path = await showOpenDialog(
+				[{ name: "Spec files", extensions: ["yaml", "yml", "json"] }],
+				"Import Spec",
+			);
+			if (path) {
+				mainWindow.webview.rpc.request.triggerImportSpec({ path });
+			}
+			break;
+		}
+		case "triggerExportSpec": {
+			const path = await showSaveDialog(
+				"spec.yaml",
+				[
+					{ name: "YAML files", extensions: ["yaml", "yml"] },
+					{ name: "JSON files", extensions: ["json"] },
+				],
+				"Export Spec",
+			);
+			if (path) {
+				mainWindow.webview.rpc.request.triggerExportSpec({ path });
+			}
 			break;
 		}
 		case "importSheet": {
-			const script = `set f to POSIX path of (choose file of type {"png", "jpg", "jpeg", "gif", "webp"} with prompt "Import Sheet")\nreturn f`;
-			try {
-				const proc = Bun.spawn(["osascript", "-e", script], { stdout: "pipe", stderr: "pipe" });
-				const out = await new Response(proc.stdout).text();
-				const code = await proc.exited;
-				if (code === 0 && out.trim()) {
-					mainWindow.webview.rpc.request.triggerImportSheet({ path: out.trim() });
-				}
-			} catch {}
+			const path = await showOpenDialog(
+				[{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] }],
+				"Import Sheet",
+			);
+			if (path) {
+				mainWindow.webview.rpc.request.triggerImportSheet({ path });
+			}
 			break;
 		}
+		case "closeProject":
+			mainWindow.webview.rpc.request.closeProject({});
+			break;
 		case "resetLayout":
 			try {
 				await unlink(layoutPath());

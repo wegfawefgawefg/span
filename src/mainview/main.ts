@@ -18,13 +18,17 @@ import {
 	addAnnotationAtViewportCenter,
 	duplicateSelected,
 	deleteSelected,
+	sheets,
+	closeProject,
 	saveWorkspace,
 	saveWorkspaceAs,
 	openWorkspace,
 	exportWorkspace,
+	exportSpec,
 	doExportWrite,
 	importSpecFromPath,
 	importSheetFromPath,
+	openProjectDirectory,
 } from "./src/state";
 
 // Initialize platform
@@ -45,7 +49,17 @@ wireDesktopMenuHandlers({
 	triggerOpen: (path: string) => openWorkspace(path),
 	triggerExport: (path: string) => exportWorkspace(path),
 	triggerImportSpec: (path: string) => importSpecFromPath(path),
+	triggerExportSpec: (path: string) => exportSpec(path),
 	triggerImportSheet: (path: string) => importSheetFromPath(path),
+	openProjectDirectory: (workspacePath: string, paths: string[]) => { void openProjectDirectory(workspacePath, paths); },
+	closeProject: () => {
+		if (sheets.value.length === 0) return;
+		const confirmed = dirty.value
+			? window.confirm("Close the current project? Unsaved changes may be lost.")
+			: window.confirm("Close the current project?");
+		if (!confirmed) return;
+		closeProject();
+	},
 });
 
 const app = createApp(App);

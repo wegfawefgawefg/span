@@ -169,6 +169,7 @@ onUnmounted(() => {
 
 const displayColor = computed(() => props.modelValue || "#000000");
 const isSelected = (hex: string) => hex.toLowerCase() === (props.modelValue || "").toLowerCase();
+const isUnset = computed(() => !normalizeHex(props.modelValue ?? ""));
 </script>
 
 <template>
@@ -177,12 +178,18 @@ const isSelected = (hex: string) => hex.toLowerCase() === (props.modelValue || "
 		<div class="flex items-center gap-1.5">
 			<span
 				class="w-7 h-7 shrink-0 rounded-sm border border-border transition-colors"
-				:style="{ backgroundColor: displayColor }"
+				:style="isUnset
+					? {
+						backgroundImage: 'repeating-conic-gradient(rgba(255,255,255,0.12) 0% 25%, rgba(255,255,255,0.04) 0% 50%)',
+						backgroundSize: '8px 8px',
+						backgroundColor: 'transparent',
+					}
+					: { backgroundColor: displayColor }"
 			/>
 			<input
 				type="text"
 				:value="modelValue ?? ''"
-				placeholder="#000000"
+				:placeholder="isUnset ? 'none' : '#000000'"
 				class="flex-1 min-w-0"
 				@change="onHexInput"
 			/>

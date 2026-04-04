@@ -6,6 +6,7 @@ export interface MenuItem {
 	shortcut?: string;
 	separator?: boolean;
 	disabled?: () => boolean;
+	checked?: boolean;
 	children?: MenuItem[];
 }
 
@@ -14,14 +15,17 @@ export interface MenuSection {
 	items: MenuItem[];
 }
 
-export function getMenus(): MenuSection[] {
+export function getMenus(options?: { isPanelOpen?: (panelId: string) => boolean }): MenuSection[] {
+	const isPanelOpen = options?.isPanelOpen ?? (() => false);
 	return [
 		{
 			label: "File",
 			items: [
-				{ label: "Open\u2026", action: "open", shortcut: "Cmd+O" },
+				{ label: "Open Folder\u2026", action: "openFolder", shortcut: "Cmd+O" },
+				{ label: "Close Project", action: "closeProject" },
 				{ separator: true },
 				{ label: "Import Spec\u2026", action: "importSpec" },
+				{ label: "Export Spec\u2026", action: "exportSpec" },
 				{ label: "Import Sheet\u2026", action: "importSheet" },
 				{ separator: true },
 				{ label: "Save", action: "save", shortcut: "Cmd+S" },
@@ -41,12 +45,12 @@ export function getMenus(): MenuSection[] {
 		{
 			label: "View",
 			items: [
-				{ label: "Sheets", action: "addPanel:sheets" },
-				{ label: "Canvas", action: "addPanel:sprite-canvas" },
-				{ label: "Inspector", action: "addPanel:inspector" },
-				{ label: "Sprites In Sheet", action: "addPanel:annotations" },
-				{ label: "Gallery", action: "addPanel:gallery" },
-				{ label: "Spec Editor", action: "addPanel:spec-editor" },
+				{ label: "Sheets", action: "addPanel:sheets", checked: isPanelOpen("sheets") },
+				{ label: "Canvas", action: "addPanel:sprite-canvas", checked: isPanelOpen("sprite-canvas") },
+				{ label: "Inspector", action: "addPanel:inspector", checked: isPanelOpen("inspector") },
+				{ label: "Sprites In Sheet", action: "addPanel:annotations", checked: isPanelOpen("annotations") },
+				{ label: "Gallery", action: "addPanel:gallery", checked: isPanelOpen("gallery") },
+				{ label: "Spec Editor", action: "addPanel:spec-editor", checked: isPanelOpen("spec-editor") },
 				{ separator: true },
 				{ label: "Reset Panel Layout", action: "resetLayout" },
 			],

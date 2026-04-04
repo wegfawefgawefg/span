@@ -18,7 +18,10 @@ let triggerSaveAsHandler: (path: string) => void = () => {};
 let triggerOpenHandler: (path: string) => void = () => {};
 let triggerExportHandler: (path: string) => void = () => {};
 let triggerImportSpecHandler: (path: string) => void = () => {};
+let triggerExportSpecHandler: (path: string) => void = () => {};
 let triggerImportSheetHandler: (path: string) => void = () => {};
+let openProjectDirectoryHandler: (workspacePath: string, paths: string[]) => void = () => {};
+let closeProjectHandler: () => void = () => {};
 
 const rpc = Electroview.defineRPC<SpanRPC>({
 	handlers: {
@@ -32,7 +35,10 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			triggerOpen: ({ path }) => { setTimeout(() => triggerOpenHandler(path), 0); },
 			triggerExport: ({ path }) => { setTimeout(() => triggerExportHandler(path), 0); },
 			triggerImportSpec: ({ path }) => { setTimeout(() => triggerImportSpecHandler(path), 0); },
+			triggerExportSpec: ({ path }) => { setTimeout(() => triggerExportSpecHandler(path), 0); },
 			triggerImportSheet: ({ path }) => { setTimeout(() => triggerImportSheetHandler(path), 0); },
+			openProjectDirectory: ({ workspacePath, paths }) => { setTimeout(() => openProjectDirectoryHandler(workspacePath, paths), 0); },
+			closeProject: () => { setTimeout(() => closeProjectHandler(), 0); },
 			resetLayout: () => getResetLayoutHandler()(),
 			addPanel: ({ panelId }) => getAddPanelHandler()(panelId),
 		},
@@ -48,8 +54,18 @@ export function createElectrobunAdapter(): PlatformAdapter {
 			electroview.rpc.request.showSaveDialog({ defaultName, filters }),
 		showOpenDialog: (filters: FileFilter[]) =>
 			electroview.rpc.request.showOpenDialog({ filters }),
+		showOpenDirectoryDialog: (prompt?: string) =>
+			electroview.rpc.request.showOpenDirectoryDialog({ prompt }),
+		importImageDirectory: (prompt?: string) =>
+			electroview.rpc.request.importImageDirectory({ prompt }),
+		pickImageDirectory: (prompt?: string) =>
+			electroview.rpc.request.pickImageDirectory({ prompt }),
+		debugLog: (message: string) =>
+			electroview.rpc.request.debugLog({ message }),
 		readFile: (path: string) =>
 			electroview.rpc.request.readFile({ path }),
+		listImageFiles: (directory: string) =>
+			electroview.rpc.request.listImageFiles({ directory }),
 		writeFile: (path: string, contents: string) =>
 			electroview.rpc.request.writeFile({ path, contents }),
 		readImageAsDataUrl: (path: string) =>
@@ -77,7 +93,10 @@ export function wireDesktopMenuHandlers(handlers: {
 	triggerOpen: (path: string) => void;
 	triggerExport: (path: string) => void;
 	triggerImportSpec: (path: string) => void;
+	triggerExportSpec: (path: string) => void;
 	triggerImportSheet: (path: string) => void;
+	openProjectDirectory: (workspacePath: string, paths: string[]) => void;
+	closeProject: () => void;
 }) {
 	canCloseHandler = handlers.canClose;
 	addSpriteHandler = handlers.addSprite;
@@ -88,5 +107,8 @@ export function wireDesktopMenuHandlers(handlers: {
 	triggerOpenHandler = handlers.triggerOpen;
 	triggerExportHandler = handlers.triggerExport;
 	triggerImportSpecHandler = handlers.triggerImportSpec;
+	triggerExportSpecHandler = handlers.triggerExportSpec;
 	triggerImportSheetHandler = handlers.triggerImportSheet;
+	openProjectDirectoryHandler = handlers.openProjectDirectory;
+	closeProjectHandler = handlers.closeProject;
 }

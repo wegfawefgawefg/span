@@ -6,6 +6,12 @@ export interface WorkspaceSheet {
 	path: string;              // relative to root
 	absolutePath: string;      // full path for loading
 	annotations: Annotation[];
+	view?: {
+		gridEnabled: boolean;
+		gridWidth: number;
+		gridHeight: number;
+		zoom: number;
+	};
 	status: "loaded" | "missing";
 	imageUrl: string;          // blob URL or data URL
 	width: number;
@@ -77,6 +83,12 @@ export function removeSheet(path: string): void {
 		currentSheet.value = sheets.value[0] ?? null;
 	}
 	updateRoot();
+}
+
+export function clearSheets(): void {
+	sheets.value = [];
+	root.value = "";
+	currentSheet.value = null;
 }
 
 export function openSheetByPath(path: string): void {

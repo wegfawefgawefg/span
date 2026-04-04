@@ -5,18 +5,19 @@ import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
 import {
 	dirty,
 	statusText,
+	effectiveRoot,
 	duplicateSelected,
 	deleteSelected,
 	addAnnotationAtViewportCenter,
-	activeSpec,
 	sheets,
 	addSheet,
 	fulfillSheet,
 	loadSpec,
+	closeProject,
 	saveWorkspace,
 	saveWorkspaceAs,
-	openWorkspace,
 	exportWorkspace,
+	exportSpec,
 	importSpecFromPath,
 	importSheetFromPath,
 	restoreWorkspace,
@@ -37,6 +38,7 @@ const PANELS: Record<string, { component: string; title: string }> = {
 let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const statusFlash = ref(false);
+const panelStateVersion = ref(0);
 
 const IMAGE_EXTS = /\.(png|jpg|jpeg|gif|webp)$/i;
 const SPEC_EXTS = /\.(ya?ml|json)$/i;
@@ -61,6 +63,57 @@ function debouncedSaveLayout() {
 			console.error("Failed to save layout", e);
 		}
 	}, 500);
+}
+
+function bumpPanelStateVersion() {
+	panelStateVersion.value += 1;
+}
+
+function isPanelOpen(panelId: string): boolean {
+	void panelStateVersion.value;
+	return !!dockviewApi?.getPanel(panelId);
+}
+
+function normalizeWheelDelta(delta: number, mode: number): number {
+	if (mode === WheelEvent.DOM_DELTA_LINE) return delta * 16;
+	if (mode === WheelEvent.DOM_DELTA_PAGE) return delta * window.innerHeight;
+	return delta;
+}
+
+function getInstantScroller(target: EventTarget | null): HTMLElement | null {
+	if (!(target instanceof Element)) return null;
+	return target.closest(".instant-scroll");
+}
+
+function onGlobalWheel(event: WheelEvent) {
+	if (event.defaultPrevented || event.ctrlKey) return;
+
+	const scroller = getInstantScroller(event.target);
+	if (!scroller) return;
+
+	const canScrollY = scroller.scrollHeight > scroller.clientHeight;
+	const canScrollX = scroller.scrollWidth > scroller.clientWidth;
+	if (!canScrollY && !canScrollX) return;
+
+	const deltaX = normalizeWheelDelta(event.deltaX, event.deltaMode);
+	const deltaY = normalizeWheelDelta(event.deltaY, event.deltaMode);
+	const dominantAxis = Math.abs(deltaX) > Math.abs(deltaY) ? "x" : "y";
+
+	event.preventDefault();
+
+	if (dominantAxis === "x" && canScrollX) {
+		scroller.scrollLeft += deltaX;
+		return;
+	}
+
+	if (canScrollY) {
+		scroller.scrollTop += deltaY;
+		return;
+	}
+
+	if (canScrollX) {
+		scroller.scrollLeft += deltaX !== 0 ? deltaX : deltaY;
+	}
 }
 
 // --- File handling (images, specs, .span) ---
@@ -97,6 +150,20 @@ async function handleImportSheet() {
 	]);
 	if (!path) return;
 	await importSheetFromPath(path);
+}
+
+async function handleOpenFolder() {
+	if (platform.value !== "desktop") return;
+	await api.importImageDirectory("Select image folder");
+}
+
+function handleCloseProject() {
+	if (sheets.value.length === 0) return;
+	const confirmed = dirty.value
+		? window.confirm("Close the current project? Unsaved changes may be lost.")
+		: window.confirm("Close the current project?");
+	if (!confirmed) return;
+	closeProject();
 }
 
 async function handleDroppedFiles(files: File[]) {
@@ -255,6 +322,7 @@ async function onReady(event: DockviewReadyEvent) {
 	}
 
 	event.api.onDidLayoutChange(() => {
+		bumpPanelStateVersion();
 		debouncedSaveLayout();
 	});
 
@@ -262,6 +330,7 @@ async function onReady(event: DockviewReadyEvent) {
 		if (!dockviewApi) return;
 		dockviewApi.clear();
 		applyDefaultLayout(dockviewApi);
+		bumpPanelStateVersion();
 	});
 
 	setAddPanelHandler((panelId: string) => {
@@ -273,6 +342,7 @@ async function onReady(event: DockviewReadyEvent) {
 		const existing = dockviewApi.getPanel(panelId);
 		if (existing) {
 			existing.focus();
+			bumpPanelStateVersion();
 			return;
 		}
 
@@ -286,12 +356,13 @@ async function onReady(event: DockviewReadyEvent) {
 				? { position: { referenceGroup: activeGroup } }
 				: {}),
 		});
+		bumpPanelStateVersion();
 	});
 }
 
 async function handleMenuAction(action: string) {
-	if (action === "open") {
-		await openWorkspace();
+	if (action === "openFolder") {
+		await handleOpenFolder();
 	} else if (action === "save") {
 		const result = await saveWorkspace();
 		if (result.needsSaveAs) {
@@ -301,8 +372,12 @@ async function handleMenuAction(action: string) {
 		await saveWorkspaceAs();
 	} else if (action === "importSpec") {
 		await handleImportSpec();
+	} else if (action === "exportSpec") {
+		await exportSpec();
 	} else if (action === "importSheet") {
 		await handleImportSheet();
+	} else if (action === "closeProject") {
+		handleCloseProject();
 	} else if (action === "export") {
 		await exportWorkspace();
 	} else if (action === "addAnnotation") {
@@ -336,9 +411,9 @@ function onKeydown(event: KeyboardEvent) {
 		return;
 	}
 
-	if (mod && event.key.toLowerCase() === "o") {
+	if (mod && event.key.toLowerCase() === "o" && !event.shiftKey) {
 		event.preventDefault();
-		handleMenuAction("open");
+		handleMenuAction("openFolder");
 		return;
 	}
 
@@ -368,12 +443,14 @@ function onKeydown(event: KeyboardEvent) {
 
 onMounted(() => {
 	window.addEventListener("keydown", onKeydown);
+	window.addEventListener("wheel", onGlobalWheel, { passive: false });
 	document.addEventListener("dragover", onGlobalDragOver);
 	document.addEventListener("drop", onGlobalDrop);
 });
 
 onUnmounted(() => {
 	window.removeEventListener("keydown", onKeydown);
+	window.removeEventListener("wheel", onGlobalWheel);
 	document.removeEventListener("dragover", onGlobalDragOver);
 	document.removeEventListener("drop", onGlobalDrop);
 	if (saveTimeout) clearTimeout(saveTimeout);
@@ -382,7 +459,7 @@ onUnmounted(() => {
 
 <template>
 	<div class="app-shell" @contextmenu.prevent>
-		<MenuBar v-if="platform === 'web'" @action="handleMenuAction" />
+		<MenuBar :is-panel-open="isPanelOpen" @action="handleMenuAction" />
 		<div class="dockview-theme-dark dockview-container">
 			<DockviewVue @ready="onReady" />
 		</div>
@@ -396,6 +473,13 @@ onUnmounted(() => {
 		>
 			<div class="flex justify-between">
 				<span class="truncate">{{ statusText }}</span>
+				<span
+					v-if="effectiveRoot"
+					class="ml-4 shrink-0 max-w-[45%] truncate text-right text-text-faint"
+					:title="effectiveRoot"
+				>
+					{{ effectiveRoot }}
+				</span>
 			</div>
 		</div>
 	</div>

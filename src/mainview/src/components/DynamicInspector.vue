@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, triggerRef } from "vue";
 import type { Annotation } from "../annotation";
 import { migrateEntityType } from "../annotation";
 import type { SpanSpec, PropertyField, ScalarPropertyField, EnumPropertyField, ColorPropertyField, ShapePropertyField } from "../spec/types";
 import { getEntityByLabel } from "../spec/types";
 import {
 	annotations,
+	sheets,
 	updateShapeData,
 	updatePropertyData,
 	markDirty,
@@ -13,7 +14,6 @@ import {
 } from "../state";
 import ShapeCanvas from "./ShapeCanvas.vue";
 import ColorPicker from "./ColorPicker.vue";
-import { triggerRef } from "vue";
 
 const props = defineProps<{
 	annotation: Annotation;
@@ -164,14 +164,75 @@ function onChromaKeyInput(value: string) {
 	markDirty(true);
 }
 
+function clearChromaKey() {
+	onChromaKeyInput("");
+}
+
 function getEntity() {
 	return getEntityByLabel(props.spec, props.annotation.entityType);
+}
+
+function deepClone<T>(value: T): T {
+	return JSON.parse(JSON.stringify(value));
+}
+
+function spriteIdentity(annotation: Annotation): { entityType: string; name: string; variant: string } | null {
+	const name = typeof annotation.properties.name === "string" ? annotation.properties.name.trim() : "";
+	if (!name) return null;
+	const variant = typeof annotation.properties.variant === "string"
+		? annotation.properties.variant.trim()
+		: "";
+	return {
+		entityType: annotation.entityType,
+		name,
+		variant,
+	};
+}
+
+function canSyncProperty(propName: string): boolean {
+	return !["name", "variant", "frame"].includes(propName) && spriteIdentity(props.annotation) !== null;
+}
+
+function matchingSpriteAnnotations(): Annotation[] {
+	const identity = spriteIdentity(props.annotation);
+	if (!identity) return [];
+
+	return sheets.value.flatMap((sheet) =>
+		sheet.annotations.filter((annotation) => {
+			const candidate = spriteIdentity(annotation);
+			return (
+				candidate !== null &&
+				candidate.entityType === identity.entityType &&
+				candidate.name === identity.name &&
+				candidate.variant === identity.variant
+			);
+		})
+	);
+}
+
+function syncCountForProperty(propName: string): number {
+	if (!canSyncProperty(propName)) return 0;
+	return Math.max(0, matchingSpriteAnnotations().length - 1);
+}
+
+function syncPropertyAcrossSprite(propName: string) {
+	if (!canSyncProperty(propName)) return;
+	const value = deepClone(props.annotation.properties[propName]);
+	const targets = matchingSpriteAnnotations().filter((annotation) => annotation.id !== props.annotation.id);
+	if (targets.length === 0) return;
+
+	for (const target of targets) {
+		target.properties[propName] = deepClone(value);
+	}
+
+	triggerRef(sheets);
+	markDirty(true);
 }
 </script>
 
 <template>
 	<form
-		class="flex-1 overflow-y-auto min-h-0 flex flex-col gap-3 px-2 pb-2 pt-2"
+		class="instant-scroll flex-1 overflow-y-auto min-h-0 flex flex-col gap-3 px-2 pb-2 pt-2"
 		@submit.prevent
 	>
 		<!-- Entity type dropdown -->
@@ -267,17 +328,30 @@ function getEntity() {
 					{{ collapsed.has('chroma') ? "▶" : "▼" }}
 				</span>
 			</button>
-			<label
+			<div
 				v-if="!collapsed.has('chroma')"
-				:class="labelClass"
+				class="flex flex-col gap-2"
 			>
-				<ColorPicker
-					:model-value="annotation.chromaKey ?? ''"
-					:image-source="currentSheetImageSrc"
-					:aabb="annotation.aabb"
-					@update:model-value="onChromaKeyInput($event)"
-				/>
-			</label>
+				<div class="flex items-center justify-between text-[11px] text-text-faint font-mono">
+					<span>{{ annotation.chromaKey ? annotation.chromaKey : "none" }}</span>
+					<button
+						type="button"
+						class="text-text-faint hover:text-copper transition-colors cursor-pointer bg-transparent border border-border rounded px-2 py-1"
+						:disabled="!annotation.chromaKey"
+						@click="clearChromaKey"
+					>
+						Unset
+					</button>
+				</div>
+				<label :class="labelClass">
+					<ColorPicker
+						:model-value="annotation.chromaKey ?? ''"
+						:image-source="currentSheetImageSrc"
+						:aabb="annotation.aabb"
+						@update:model-value="onChromaKeyInput($event)"
+					/>
+				</label>
+			</div>
 		</div>
 
 		<!-- Properties section -->
@@ -302,17 +376,29 @@ function getEntity() {
 				>
 					<!-- Property header (collapsible) -->
 					<div class="flex flex-col gap-1">
-						<button
-							type="button"
-							class="prop-toggle"
-							@click="toggleSection('prop:' + def.name)"
-						>
-							<span>{{ def.name }}</span>
-							<span class="prop-type">{{ def.kind === 'scalar' ? (def as ScalarPropertyField).type : def.kind === 'enum' ? 'enum' : def.kind === 'color' ? 'color' : (def as ShapePropertyField).shapeType + ((def as ShapePropertyField).array ? '[]' : '') }}</span>
-							<span class="ml-auto text-text-faint">
-								{{ collapsed.has('prop:' + def.name) ? "▶" : "▼" }}
-							</span>
-						</button>
+						<div class="prop-header">
+							<button
+								type="button"
+								class="prop-toggle"
+								@click="toggleSection('prop:' + def.name)"
+							>
+								<span>{{ def.name }}</span>
+								<span class="prop-type">{{ def.kind === 'scalar' ? (def as ScalarPropertyField).type : def.kind === 'enum' ? 'enum' : def.kind === 'color' ? 'color' : (def as ShapePropertyField).shapeType + ((def as ShapePropertyField).array ? '[]' : '') }}</span>
+								<span class="ml-auto text-text-faint">
+									{{ collapsed.has('prop:' + def.name) ? "▶" : "▼" }}
+								</span>
+							</button>
+							<button
+								v-if="canSyncProperty(def.name)"
+								type="button"
+								class="prop-sync"
+								:title="syncCountForProperty(def.name) > 0 ? `Copy this field to ${syncCountForProperty(def.name)} matching frame${syncCountForProperty(def.name) === 1 ? '' : 's'}` : 'No other matching frames to sync'"
+								:disabled="syncCountForProperty(def.name) === 0"
+								@click="syncPropertyAcrossSprite(def.name)"
+							>
+								Sync
+							</button>
+						</div>
 
 						<template v-if="!collapsed.has('prop:' + def.name)">
 							<!-- Scalar: Boolean checkbox -->
@@ -541,15 +627,46 @@ function getEntity() {
 	padding: 2px 0;
 	text-align: left;
 	transition: color 0.15s;
+	flex: 1 1 auto;
+	min-width: 0;
 }
 
 .prop-toggle:hover {
 	color: var(--color-text);
 }
 
+.prop-header {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
 .prop-type {
 	font-size: 10px;
 	font-weight: 400;
 	color: var(--color-text-faint);
+}
+
+.prop-sync {
+	flex: 0 0 auto;
+	font-size: 10px;
+	font-weight: 500;
+	color: var(--color-text-faint);
+	background: transparent;
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	padding: 2px 6px;
+	cursor: pointer;
+	transition: color 0.15s, border-color 0.15s;
+}
+
+.prop-sync:hover:not(:disabled) {
+	color: var(--color-copper);
+	border-color: var(--color-copper);
+}
+
+.prop-sync:disabled {
+	opacity: 0.4;
+	cursor: default;
 }
 </style>

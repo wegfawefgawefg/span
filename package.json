@@ -5,12 +5,16 @@
 	"description": "Standalone spritesheet annotator",
 	"scripts": {
 		"start": "vite build && electrobun dev",
-		"dev": "electrobun dev --watch",
-		"dev:hmr": "concurrently \"bun run hmr\" \"bun run start\"",
+		"dev": "bash ./scripts/dev-with-log.sh",
+		"dev:raw": "vite build && concurrently \"VITE_EMPTY_OUT_DIR=false vite build --watch\" \"electrobun dev --watch\"",
+		"dev:hmr": "bash ./scripts/dev-with-log.sh",
+		"dev:bundle": "bun run dev:raw",
 		"hmr": "vite --port 5173",
 		"build:canary": "vite build && electrobun build --env=canary",
+		"build:desktop": "vite build && electrobun build --env=stable",
 		"build:web": "vite build --config vite.config.web.ts && mv dist-web/index-web.html dist-web/index.html",
 		"dev:web": "vite --config vite.config.web.ts",
+		"install:local": "bash ./scripts/install-local.sh",
 		"test": "bun test"
 	},
 	"dependencies": {

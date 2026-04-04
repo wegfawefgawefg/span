@@ -50,7 +50,12 @@ export const api: PlatformAdapter = {
 	showSaveDialog: (defaultName, filters) =>
 		getAdapter().showSaveDialog(defaultName, filters),
 	showOpenDialog: (filters) => getAdapter().showOpenDialog(filters),
+	showOpenDirectoryDialog: (prompt) => getAdapter().showOpenDirectoryDialog(prompt),
+	importImageDirectory: (prompt) => getAdapter().importImageDirectory(prompt),
+	pickImageDirectory: (prompt) => getAdapter().pickImageDirectory(prompt),
+	debugLog: (message) => getAdapter().debugLog(message),
 	readFile: (path) => getAdapter().readFile(path),
+	listImageFiles: (directory) => getAdapter().listImageFiles(directory),
 	writeFile: (path, contents) => getAdapter().writeFile(path, contents),
 	readImageAsDataUrl: (path) => getAdapter().readImageAsDataUrl(path),
 	revealFile: (path) => getAdapter().revealFile(path),

@@ -22,6 +22,7 @@ import {
   spanFilePath,
   openSheetByPath,
   removeSheet,
+  clearSheets,
   addSheet,
   resetWorkspace,
 } from './workspace';
@@ -40,8 +41,10 @@ export {
   currentSheet,
   workspaceReady,
   effectiveRoot,
+  spanFilePath,
   openSheetByPath,
   removeSheet,
+  clearSheets,
   addSheet,
   resetWorkspace,
 };
@@ -49,7 +52,7 @@ export type { WorkspaceSheet };
 
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 32;
-export const ZOOM_STEP = 0.1;
+export const ZOOM_FACTOR = 1.25;
 
 // --- Core state ---
 
@@ -57,9 +60,302 @@ export const selectedId = ref<string | null>(null);
 export const zoom = ref(2);
 export const dirty = ref(false);
 export const statusText = ref('Ready');
+export const canvasGridEnabled = ref(false);
+export const canvasGridWidth = ref(16);
+export const canvasGridHeight = ref(16);
 export const currentSheetImageSrc = ref<string>('');
 export const imageWidth = ref(0);
 export const imageHeight = ref(0);
+export const specFilePath = ref<string | null>(null);
+
+const CANVAS_PREFS_STORAGE_KEY = 'span-canvas-sheet-prefs:v2';
+const CHECKER_STRENGTH_STORAGE_KEY = 'span-canvas-checker-strength:v1';
+
+interface CanvasSheetPrefs {
+  gridEnabled: boolean;
+  gridWidth: number;
+  gridHeight: number;
+  zoom: number;
+}
+
+function normalizeCanvasPrefs(raw: Partial<CanvasSheetPrefs> | null | undefined): CanvasSheetPrefs {
+  return {
+    gridEnabled: raw?.gridEnabled ?? false,
+    gridWidth: Math.max(1, Math.round(raw?.gridWidth ?? 16)),
+    gridHeight: Math.max(1, Math.round(raw?.gridHeight ?? 16)),
+    zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Number(raw?.zoom ?? 2))),
+  };
+}
+
+function loadCheckerStrength(): number {
+  try {
+    const raw = localStorage.getItem(CHECKER_STRENGTH_STORAGE_KEY);
+    if (!raw) return 35;
+    return Math.max(0, Math.min(100, Math.round(Number(raw))));
+  } catch {
+    return 35;
+  }
+}
+
+export const canvasCheckerStrength = ref(loadCheckerStrength());
+let specSaveTimeout: ReturnType<typeof setTimeout> | null = null;
+let specReloadInterval: ReturnType<typeof setInterval> | null = null;
+let specReloadInFlight = false;
+let getFitZoomForImage: (width: number, height: number) => number | null = () => null;
+
+function setSpecState(
+  raw: string,
+  format: 'json' | 'yaml',
+  options?: { filePath?: string | null; markDirty?: boolean; status?: string }
+): boolean {
+  const result = parseSpec(raw, format);
+  if (Array.isArray(result)) {
+    console.error('Spec parse errors:', result);
+    statusText.value = `Spec errors: ${result.map((e) => e.message).join('; ')}`;
+    return false;
+  }
+
+  activeSpec.value = result;
+  activeSpecRaw.value = { raw, format };
+  activeTool.value = '';
+  if (options && 'filePath' in options) {
+    specFilePath.value = options.filePath ?? null;
+  }
+  if (options?.markDirty) {
+    statusText.value = options.status ?? 'Spec loaded';
+    markDirty(true);
+    if (platform.value === 'desktop' && specFilePath.value) {
+      debouncedSaveSpecFile();
+    }
+  } else if (options?.status) {
+    statusText.value = options.status;
+  }
+  return true;
+}
+
+function resetToDefaultSpec(filePath?: string | null) {
+  setSpecState(DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT, {
+    filePath: filePath ?? null,
+    markDirty: false,
+  });
+}
+
+function workspaceDir(path: string | null): string {
+  return path ? path.replace(/\/[^/]+$/, '') : '';
+}
+
+function defaultProjectSpecPathForWorkspace(path: string | null): string | null {
+  const dir = workspaceDir(path);
+  if (!dir.endsWith('/.span')) return null;
+  return `${dir}/spec.yaml`;
+}
+
+function makeWorkspaceRelativePath(targetPath: string | null, basePath: string | null): string | null {
+  if (!targetPath || !basePath) return targetPath;
+  const baseDir = workspaceDir(basePath);
+  const prefix = baseDir ? `${baseDir}/` : '';
+  if (prefix && targetPath.startsWith(prefix)) {
+    return targetPath.slice(prefix.length);
+  }
+  return targetPath;
+}
+
+function resolveWorkspacePath(path: string | null, basePath: string | null): string | null {
+  if (!path) return null;
+  if (path.startsWith('/')) return path;
+  const baseDir = workspaceDir(basePath);
+  return baseDir ? `${baseDir}/${path}` : path;
+}
+
+function debouncedSaveSpecFile() {
+  if (specSaveTimeout) clearTimeout(specSaveTimeout);
+  specSaveTimeout = setTimeout(async () => {
+    await saveSpecFileNow();
+  }, 250);
+}
+
+async function saveSpecFileNow() {
+  if (platform.value !== 'desktop') return;
+  if (!specFilePath.value || !activeSpecRaw.value) return;
+  try {
+    await api.writeFile(specFilePath.value, activeSpecRaw.value.raw);
+  } catch (e) {
+    console.error('Spec save failed:', e);
+    statusText.value = 'Spec save failed';
+  }
+}
+
+function stopSpecReloadWatcher() {
+  if (specReloadInterval) {
+    clearInterval(specReloadInterval);
+    specReloadInterval = null;
+  }
+}
+
+function startSpecReloadWatcher(path: string | null) {
+  stopSpecReloadWatcher();
+  if (platform.value !== 'desktop' || !path) return;
+
+  specReloadInterval = setInterval(async () => {
+    if (specReloadInFlight) return;
+    specReloadInFlight = true;
+    try {
+      const raw = await api.readFile(path);
+      if (!activeSpecRaw.value || raw === activeSpecRaw.value.raw) return;
+      const loaded = setSpecState(raw, inferSpecFormatFromPath(path), {
+        filePath: path,
+        markDirty: false,
+        status: 'Spec reloaded from disk',
+      });
+      if (!loaded) {
+        statusText.value = 'Spec reload failed';
+      }
+    } catch {
+      // Ignore transient read failures while editing or before the file exists.
+    } finally {
+      specReloadInFlight = false;
+    }
+  }, 1000);
+}
+
+function inferSpecFormatFromPath(path: string): 'json' | 'yaml' {
+  return path.toLowerCase().endsWith('.json') ? 'json' : 'yaml';
+}
+
+async function loadSpecFromFilePath(
+  path: string,
+  options?: { filePath?: string | null; markDirty?: boolean; status?: string }
+): Promise<boolean> {
+  try {
+    const raw = await api.readFile(path);
+    return setSpecState(raw, inferSpecFormatFromPath(path), {
+      filePath: options && 'filePath' in options ? options.filePath : path,
+      markDirty: options?.markDirty,
+      status: options?.status,
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function resolveProjectSpecForWorkspace(
+  filePath: string | null,
+  specPath: string | null,
+  embeddedSpec?: SpanFileSpec | null
+) {
+  const workspaceSpecPath = defaultProjectSpecPathForWorkspace(filePath);
+  const resolvedSpecPath = resolveWorkspacePath(specPath, filePath);
+  const candidates = [resolvedSpecPath, workspaceSpecPath].filter(
+    (candidate, index, all): candidate is string =>
+      !!candidate && all.indexOf(candidate) === index
+  );
+
+  for (const candidate of candidates) {
+    const loaded = await loadSpecFromFilePath(candidate, {
+      filePath: candidate,
+      markDirty: false,
+    });
+    if (loaded) return;
+  }
+
+  if (embeddedSpec) {
+    setSpecState(embeddedSpec.raw, embeddedSpec.format, {
+      filePath: workspaceSpecPath,
+      markDirty: false,
+    });
+    return;
+  }
+
+  resetToDefaultSpec(workspaceSpecPath);
+}
+
+function getCanvasPrefsMap(): Record<string, CanvasSheetPrefs> {
+  try {
+    const raw = localStorage.getItem(CANVAS_PREFS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function setCanvasPrefsMap(map: Record<string, CanvasSheetPrefs>) {
+  try {
+    localStorage.setItem(CANVAS_PREFS_STORAGE_KEY, JSON.stringify(map));
+  } catch (e) {
+    console.error('Failed to persist canvas sheet prefs:', e);
+  }
+}
+
+function getCanvasPrefsId(sheet: WorkspaceSheet | null): string | null {
+  if (!sheet) return null;
+  return sheet.absolutePath || sheet.path || null;
+}
+
+function getCurrentCanvasPrefs(): CanvasSheetPrefs {
+  return normalizeCanvasPrefs({
+    gridEnabled: canvasGridEnabled.value,
+    gridWidth: canvasGridWidth.value,
+    gridHeight: canvasGridHeight.value,
+    zoom: zoom.value,
+  });
+}
+
+function applyCanvasPrefs(normalized: CanvasSheetPrefs) {
+  applyingCanvasPrefs.value = true;
+  canvasGridEnabled.value = normalized.gridEnabled;
+  canvasGridWidth.value = normalized.gridWidth;
+  canvasGridHeight.value = normalized.gridHeight;
+  zoom.value = normalized.zoom;
+  applyingCanvasPrefs.value = false;
+}
+
+function loadCanvasPrefsForSheet(sheet: WorkspaceSheet | null): boolean {
+  if (sheet?.view) {
+    applyCanvasPrefs(normalizeCanvasPrefs(sheet.view));
+    return false;
+  }
+  const prefsId = getCanvasPrefsId(sheet);
+  const prefs = prefsId ? getCanvasPrefsMap()[prefsId] : null;
+  if (prefs) {
+    applyCanvasPrefs(normalizeCanvasPrefs(prefs));
+    return false;
+  }
+
+  const inherited = sheet ? getCurrentCanvasPrefs() : normalizeCanvasPrefs(null);
+  if (sheet && sheet.width > 0 && sheet.height > 0) {
+    const fitZoom = getFitZoomForImage(sheet.width, sheet.height);
+    if (typeof fitZoom === 'number' && Number.isFinite(fitZoom)) {
+      inherited.zoom = normalizeCanvasPrefs({ zoom: fitZoom }).zoom;
+    }
+  }
+  if (sheet) {
+    sheet.view = inherited;
+  }
+  applyCanvasPrefs(inherited);
+  return !!sheet;
+}
+
+function saveCanvasPrefsForSheet(sheet: WorkspaceSheet | null) {
+  if (applyingCanvasPrefs.value) return;
+  const normalized = normalizeCanvasPrefs({
+    gridEnabled: canvasGridEnabled.value,
+    gridWidth: canvasGridWidth.value,
+    gridHeight: canvasGridHeight.value,
+    zoom: zoom.value,
+  });
+  if (sheet) {
+    sheet.view = normalized;
+  }
+  const prefsId = getCanvasPrefsId(sheet);
+  if (!prefsId) return;
+  const map = getCanvasPrefsMap();
+  map[prefsId] = normalized;
+  setCanvasPrefsMap(map);
+}
+
+const applyingCanvasPrefs = ref(false);
 
 // Initialize with built-in default spec
 const _defaultParsed = parseSpec(DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT);
@@ -168,6 +464,7 @@ watch(currentSheet, async (sheet) => {
     currentSheetImageSrc.value = '';
     imageWidth.value = 0;
     imageHeight.value = 0;
+    loadCanvasPrefsForSheet(null);
     return;
   }
 
@@ -175,10 +472,52 @@ watch(currentSheet, async (sheet) => {
   currentSheetImageSrc.value = sheet.imageUrl;
   imageWidth.value = sheet.width;
   imageHeight.value = sheet.height;
+  const seededView = loadCanvasPrefsForSheet(sheet);
+  if (seededView && (spanFilePath.value || platform.value === 'web')) {
+    debouncedSave(performSave, 250);
+  }
 
   // Update status
   markDirty(false);
 });
+
+watch(
+  [
+    canvasGridEnabled,
+    canvasGridWidth,
+    canvasGridHeight,
+    zoom,
+  ],
+  () => {
+    saveCanvasPrefsForSheet(currentSheet.value);
+    if (spanFilePath.value || platform.value === 'web') {
+      debouncedSave(performSave, 250);
+    }
+  }
+);
+
+watch(canvasCheckerStrength, (value) => {
+  try {
+    localStorage.setItem(
+      CHECKER_STRENGTH_STORAGE_KEY,
+      String(Math.max(0, Math.min(100, Math.round(value))))
+    );
+  } catch (e) {
+    console.error('Failed to persist checker strength:', e);
+  }
+});
+
+watch(
+  [specFilePath, platform],
+  ([path, currentPlatform]) => {
+    if (currentPlatform !== 'desktop') {
+      stopSpecReloadWatcher();
+      return;
+    }
+    startSpecReloadWatcher(path);
+  },
+  { immediate: true }
+);
 
 // --- Viewport center callback (set by CanvasView on mount) ---
 
@@ -189,6 +528,10 @@ let getViewportCenter: () => { x: number; y: number } = () => ({
 
 export function registerViewportCenterFn(fn: () => { x: number; y: number }) {
   getViewportCenter = fn;
+}
+
+export function registerFitZoomFn(fn: (width: number, height: number) => number | null) {
+  getFitZoomForImage = fn;
 }
 
 /** Called from desktop menu handler — passes current viewport center */
@@ -206,7 +549,11 @@ function performSave() {
     return;
   }
 
-  const data = serializeWorkspace(sheets.value, activeSpecRaw.value);
+  const data = serializeWorkspace(
+    sheets.value,
+    activeSpecRaw.value,
+    makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value)
+  );
 
   console.log(
     '[performSave] platform:',
@@ -218,6 +565,9 @@ function performSave() {
   );
 
   if (platform.value === 'desktop' && spanFilePath.value) {
+    if (specFilePath.value) {
+      debouncedSaveSpecFile();
+    }
     api
       .writeFile(spanFilePath.value, data)
       .then(() => {
@@ -268,6 +618,15 @@ export function markDirty(isDirty: boolean) {
   if (isDirty) {
     debouncedSave(performSave);
   }
+}
+
+export function closeProject() {
+  resetWorkspace();
+  specFilePath.value = null;
+  resetToDefaultSpec(null);
+  selectedId.value = null;
+  dirty.value = false;
+  statusText.value = 'Closed project';
 }
 
 export function addAnnotation(x: number = 0, y: number = 0) {
@@ -367,18 +726,13 @@ export function clampAnnotationToImage(
 // --- Spec loading ---
 
 export function loadSpec(raw: string, format: 'json' | 'yaml') {
-  const result = parseSpec(raw, format);
-  if (Array.isArray(result)) {
-    // Errors
-    console.error('Spec parse errors:', result);
-    statusText.value = `Spec errors: ${result.map((e) => e.message).join('; ')}`;
-    return;
-  }
-  activeSpec.value = result;
-  activeSpecRaw.value = { raw, format };
-  activeTool.value = '';
-  statusText.value = 'Spec loaded';
-  markDirty(true);
+  const fallbackSpecPath =
+    specFilePath.value ?? defaultProjectSpecPathForWorkspace(spanFilePath.value);
+  setSpecState(raw, format, {
+    filePath: fallbackSpecPath,
+    markDirty: true,
+    status: 'Spec loaded',
+  });
 }
 
 /**
@@ -406,28 +760,26 @@ export function applySpecFromEditor(
     }
   }
 
-  activeSpec.value = result;
-  activeSpecRaw.value = { raw, format };
-  activeTool.value = '';
-  markDirty(true);
+  setSpecState(raw, format, { markDirty: true });
   return { applied: true };
 }
 
 /** Force-apply a spec even if it has destructive changes. Called after user confirms. */
 export function forceApplySpec(raw: string, format: 'json' | 'yaml') {
-  const result = parseSpec(raw, format);
-  if (Array.isArray(result)) return; // should not happen — caller already validated
-  activeSpec.value = result;
-  activeSpecRaw.value = { raw, format };
-  activeTool.value = '';
-  markDirty(true);
+  setSpecState(raw, format, { markDirty: true });
 }
 
 export async function importSpecFromPath(path: string) {
   try {
     const raw = await api.readFile(path);
-    const format = path.endsWith('.json') ? 'json' : ('yaml' as const);
-    loadSpec(raw, format);
+    const format = inferSpecFormatFromPath(path);
+    const projectSpecPath = defaultProjectSpecPathForWorkspace(spanFilePath.value);
+    const targetPath = projectSpecPath ?? path;
+    setSpecState(raw, format, {
+      filePath: targetPath,
+      markDirty: true,
+      status: 'Spec loaded',
+    });
   } catch (e) {
     console.error('Failed to import spec:', e);
     statusText.value = 'Failed to import spec file';
@@ -471,6 +823,45 @@ export async function importSheetFromPath(path: string) {
   }
 }
 
+export async function importSheetsFromPaths(paths: string[]) {
+  let imported = 0;
+
+  for (const path of paths) {
+    const before = sheets.value.length;
+    await importSheetFromPath(path);
+    if (sheets.value.length > before) {
+      imported += 1;
+    }
+  }
+
+  if (imported > 0) {
+    statusText.value = `Imported ${imported} image${imported === 1 ? '' : 's'}`;
+  } else if (paths.length > 0) {
+    statusText.value = 'No new images imported';
+  }
+}
+
+export async function openProjectDirectory(
+  workspacePath: string,
+  paths: string[]
+) {
+  resetWorkspace();
+  spanFilePath.value = workspacePath.endsWith('.span')
+    ? workspacePath
+    : workspacePath + '.span';
+  await resolveProjectSpecForWorkspace(spanFilePath.value, null, null);
+
+  await importSheetsFromPaths(paths);
+
+  if (sheets.value.length > 0) {
+    currentSheet.value = sheets.value[0];
+  }
+
+  await saveWorkspaceAs(spanFilePath.value);
+  const parts = workspacePath.split('/');
+  statusText.value = `Opened project ${parts[parts.length - 3] ?? parts[parts.length - 1]}`;
+}
+
 // --- Export ---
 
 export async function exportWorkspace(dialogPath?: string) {
@@ -501,6 +892,35 @@ export async function exportWorkspace(dialogPath?: string) {
   const defaultName = `annotations.${ext}`;
 
   await doExportWrite(output, defaultName, dialogPath);
+}
+
+export async function exportSpec(dialogPath?: string) {
+  const spec = activeSpecRaw.value;
+  if (!spec) {
+    statusText.value = 'No spec loaded — cannot export';
+    return;
+  }
+
+  const defaultName =
+    specFilePath.value?.split('/').pop() ??
+    `spec.${spec.format === 'json' ? 'json' : 'yaml'}`;
+
+  let savePath = dialogPath;
+  if (!savePath) {
+    savePath = await api.showSaveDialog(defaultName, [
+      { name: 'YAML files', extensions: ['yaml', 'yml'] },
+      { name: 'JSON files', extensions: ['json'] },
+    ]);
+  }
+  if (!savePath) return;
+
+  try {
+    await api.writeFile(savePath, spec.raw);
+    statusText.value = `Exported spec to ${savePath.split('/').pop()}`;
+  } catch (e) {
+    console.error('Spec export failed:', e);
+    statusText.value = 'Spec export failed';
+  }
 }
 
 /** Write export output — on desktop uses a dialog path passed from backend, on web triggers download. */
@@ -563,13 +983,21 @@ export async function saveWorkspaceAs(dialogPath?: string) {
 
   savePath = savePath.endsWith('.span') ? savePath : savePath + '.span';
   spanFilePath.value = savePath;
+  if (!specFilePath.value) {
+    specFilePath.value = defaultProjectSpecPathForWorkspace(savePath);
+  }
   console.log('[saveWorkspaceAs] saving to:', savePath);
 
-  const data = serializeWorkspace(sheets.value, activeSpecRaw.value);
+  const data = serializeWorkspace(
+    sheets.value,
+    activeSpecRaw.value,
+    makeWorkspaceRelativePath(specFilePath.value, savePath)
+  );
   console.log('[saveWorkspaceAs] data length:', data.length);
 
   try {
     await api.writeFile(savePath, data);
+    await saveSpecFileNow();
     console.log('[saveWorkspaceAs] write succeeded');
     markDirty(false);
     statusText.value = `Saved to ${savePath.split('/').pop()}`;
@@ -600,18 +1028,17 @@ export async function loadWorkspaceFromPath(path: string) {
 export async function restoreWorkspace(raw: string, filePath?: string) {
   const data = deserializeWorkspace(raw);
 
-  // Load inline spec if present
-  if (data.spec) {
-    loadSpec(data.spec.raw, data.spec.format);
-  }
-
   // Reset and load sheets
   resetWorkspace();
   if (filePath) {
     spanFilePath.value = filePath;
   }
+  await resolveProjectSpecForWorkspace(filePath ?? null, data.specPath ?? null, data.spec);
 
-  const dir = filePath ? filePath.replace(/\/[^/]+$/, '') : '';
+  const fileDir = filePath ? filePath.replace(/\/[^/]+$/, '') : '';
+  const dir = fileDir.endsWith('/.span')
+    ? fileDir.slice(0, -'/.span'.length)
+    : fileDir;
 
   for (const sheet of data.sheets) {
     // Resolve sheet path relative to .span file
@@ -646,6 +1073,7 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
           path: sheet.path,
           absolutePath: candidate,
           annotations: sheet.annotations,
+          ...(sheet.view ? { view: sheet.view } : {}),
           status: 'loaded',
           imageUrl: dataUrl,
           width: dims.width,
@@ -663,6 +1091,7 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
         path: sheet.path,
         absolutePath: imgPath,
         annotations: sheet.annotations,
+        ...(sheet.view ? { view: sheet.view } : {}),
         status: 'missing',
         imageUrl: '',
         width: 0,
@@ -671,6 +1100,7 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
     }
   }
 
+  currentSheet.value = sheets.value[0] ?? null;
   markDirty(false);
   statusText.value = filePath
     ? `Opened ${filePath.split('/').pop()}`

@@ -23,6 +23,10 @@ export interface DragState {
 export function useCanvas() {
 	const drag = ref<DragState | null>(null);
 
+	function normalizeZoom(nextZoom: number) {
+		return Math.round(clamp(nextZoom, ZOOM_MIN, ZOOM_MAX) * 1000) / 1000;
+	}
+
 	function zoomTo(
 		nextZoom: number,
 		scroller: HTMLElement,
@@ -30,12 +34,14 @@ export function useCanvas() {
 		clientX: number | null = null,
 		clientY: number | null = null,
 	) {
-		const clamped = Math.round(clamp(nextZoom, ZOOM_MIN, ZOOM_MAX) * 10) / 10;
+		const clamped = normalizeZoom(nextZoom);
 		if (clamped === zoom.value) return;
 
 		const oldZoom = zoom.value;
 		const scrollerRect = scroller.getBoundingClientRect();
 		const stageRect = stage.getBoundingClientRect();
+		const stageContentX = stageRect.left - scrollerRect.left + scroller.scrollLeft;
+		const stageContentY = stageRect.top - scrollerRect.top + scroller.scrollTop;
 		const offsetX =
 			clientX === null
 				? scroller.clientWidth / 2
@@ -46,11 +52,11 @@ export function useCanvas() {
 				: clientY - scrollerRect.top;
 		const stageX =
 			clientX === null
-				? scroller.scrollLeft + offsetX
+				? scroller.scrollLeft + offsetX - stageContentX
 				: clientX - stageRect.left;
 		const stageY =
 			clientY === null
-				? scroller.scrollTop + offsetY
+				? scroller.scrollTop + offsetY - stageContentY
 				: clientY - stageRect.top;
 		const worldX = stageX / oldZoom;
 		const worldY = stageY / oldZoom;
@@ -58,8 +64,11 @@ export function useCanvas() {
 		zoom.value = clamped;
 
 		requestAnimationFrame(() => {
-			scroller.scrollLeft = worldX * clamped - offsetX;
-			scroller.scrollTop = worldY * clamped - offsetY;
+			const nextStageRect = stage.getBoundingClientRect();
+			const nextStageContentX = nextStageRect.left - scrollerRect.left + scroller.scrollLeft;
+			const nextStageContentY = nextStageRect.top - scrollerRect.top + scroller.scrollTop;
+			scroller.scrollLeft = nextStageContentX + worldX * clamped - offsetX;
+			scroller.scrollTop = nextStageContentY + worldY * clamped - offsetY;
 		});
 	}
 
@@ -126,5 +135,5 @@ export function useCanvas() {
 		drag.value = null;
 	}
 
-	return { drag, zoomTo, startDrag, onPointerMove, endDrag };
+	return { drag, zoomTo, normalizeZoom, startDrag, onPointerMove, endDrag };
 }

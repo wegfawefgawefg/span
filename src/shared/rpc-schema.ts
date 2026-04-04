@@ -16,9 +16,29 @@ export type SpanRPC = {
 				params: { filters: FileFilter[] };
 				response: string | null;
 			};
+			showOpenDirectoryDialog: {
+				params: { prompt?: string };
+				response: string | null;
+			};
+			importImageDirectory: {
+				params: { prompt?: string };
+				response: void;
+			};
+			pickImageDirectory: {
+				params: { prompt?: string };
+				response: { directory: string; paths: string[] } | null;
+			};
+			debugLog: {
+				params: { message: string };
+				response: void;
+			};
 			readFile: {
 				params: { path: string };
 				response: string;
+			};
+			listImageFiles: {
+				params: { directory: string };
+				response: string[];
 			};
 			writeFile: {
 				params: { path: string; contents: string };
@@ -81,8 +101,20 @@ export type SpanRPC = {
 				params: { path: string };
 				response: void;
 			};
+			triggerExportSpec: {
+				params: { path: string };
+				response: void;
+			};
 			triggerImportSheet: {
 				params: { path: string };
+				response: void;
+			};
+			openProjectDirectory: {
+				params: { workspacePath: string; paths: string[] };
+				response: void;
+			};
+			closeProject: {
+				params: {};
 				response: void;
 			};
 			resetLayout: {

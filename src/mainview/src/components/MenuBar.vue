@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { getMenus, type MenuSection, type MenuItem } from "../menus";
+
+const props = defineProps<{
+	isPanelOpen?: (panelId: string) => boolean;
+}>();
 
 const emit = defineEmits<{
 	action: [action: string];
 }>();
 
-const menus = getMenus();
+const menus = computed(() => getMenus({ isPanelOpen: props.isPanelOpen }));
 const openMenu = ref<string | null>(null);
 
 function toggleMenu(label: string) {
@@ -62,6 +66,7 @@ function formatShortcut(shortcut: string): string {
 						:disabled="item.disabled?.()"
 						@click="handleAction(item)"
 					>
+						<span class="menu-item-check">{{ item.checked ? "✓" : "" }}</span>
 						<span class="menu-item-label">{{ item.label }}</span>
 						<span v-if="item.shortcut" class="menu-item-shortcut">{{ formatShortcut(item.shortcut) }}</span>
 					</button>
@@ -120,7 +125,6 @@ function formatShortcut(shortcut: string): string {
 .menu-item {
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	width: 100%;
 	padding: 4px 12px;
 	border: none;
@@ -129,6 +133,18 @@ function formatShortcut(shortcut: string): string {
 	font-size: 12px;
 	cursor: pointer;
 	text-align: left;
+}
+
+.menu-item-check {
+	width: 14px;
+	margin-right: 8px;
+	color: var(--color-copper-bright);
+	flex-shrink: 0;
+	text-align: center;
+}
+
+.menu-item-label {
+	flex: 1;
 }
 
 .menu-item:hover:not(:disabled) {

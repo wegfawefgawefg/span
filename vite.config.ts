@@ -8,9 +8,10 @@ export default defineConfig({
 	root: "src/mainview",
 	build: {
 		outDir: "../../dist",
-		emptyOutDir: true,
+		emptyOutDir: process.env.VITE_EMPTY_OUT_DIR !== "false",
 	},
 	server: {
 		port: 5173,
+		strictPort: true,
 	},
 });

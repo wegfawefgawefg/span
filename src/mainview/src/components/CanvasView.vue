@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from "vue";
 import type { Annotation } from "../annotation";
 import { getEntityByLabel } from "../spec/types";
 import {
 	zoom,
 	annotations,
+	currentSheet,
 	selectedId,
 	selectAnnotation,
 	activeSpec,
@@ -13,23 +14,33 @@ import {
 	imageWidth,
 	imageHeight,
 	registerViewportCenterFn,
+	registerFitZoomFn,
 	addAnnotation,
 	addAnnotationWithSize,
 	duplicateSelected,
 	deleteSelected,
 	selectedAnnotation,
 	activeEyedropper,
+	canvasGridEnabled,
+	canvasGridWidth,
+	canvasGridHeight,
+	canvasCheckerStrength,
 } from "../state";
-import { ZOOM_STEP } from "../state";
+import { ZOOM_FACTOR } from "../state";
 import { useCanvas } from "../composables/useCanvas";
+import { api } from "../platform/adapter";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
 import ToolPalette from "./ToolPalette.vue";
 
 const scroller = ref<HTMLElement | null>(null);
+const workspace = ref<HTMLElement | null>(null);
 const stage = ref<HTMLElement | null>(null);
-const sheetImg = ref<HTMLImageElement | null>(null);
-const { zoomTo, startDrag, onPointerMove, endDrag } = useCanvas();
+const displayCanvas = ref<HTMLCanvasElement | null>(null);
+const { zoomTo, normalizeZoom, startDrag, onPointerMove, endDrag } = useCanvas();
+
+const PAN_MARGIN = 384;
+const FIT_PADDING = 32;
 
 interface DrawingState {
 	originX: number;
@@ -41,10 +52,34 @@ interface DrawingState {
 }
 
 const drawing = ref<DrawingState | null>(null);
+const displayCanvasKey = computed(() => currentSheet.value?.path ?? "no-sheet");
 
 const stageWidth = computed(() => Math.round(imageWidth.value * zoom.value));
 const stageHeight = computed(() => Math.round(imageHeight.value * zoom.value));
 const zoomLabel = computed(() => `${Math.round(zoom.value * 100)}%`);
+const scrollerViewportWidth = ref(0);
+const scrollerViewportHeight = ref(0);
+const workspaceWidth = computed(() =>
+	Math.max(stageWidth.value + PAN_MARGIN * 2, scrollerViewportWidth.value + PAN_MARGIN * 2),
+);
+const workspaceHeight = computed(() =>
+	Math.max(stageHeight.value + PAN_MARGIN * 2, scrollerViewportHeight.value + PAN_MARGIN * 2),
+);
+const stageOffsetX = computed(() => Math.round((workspaceWidth.value - stageWidth.value) / 2));
+const stageOffsetY = computed(() => Math.round((workspaceHeight.value - stageHeight.value) / 2));
+const gridOverlayStyle = computed(() => {
+	const cellWidth = Math.max(1, Math.round(canvasGridWidth.value * zoom.value));
+	const cellHeight = Math.max(1, Math.round(canvasGridHeight.value * zoom.value));
+	return {
+		backgroundImage: [
+			"linear-gradient(to right, rgba(232, 226, 212, 0.14) 1px, transparent 1px)",
+			"linear-gradient(to bottom, rgba(232, 226, 212, 0.14) 1px, transparent 1px)",
+		].join(", "),
+		backgroundSize: `${cellWidth}px ${cellHeight}px`,
+		backgroundPosition: "0 0, 0 0",
+		opacity: canvasGridEnabled.value ? "1" : "0",
+	};
+});
 
 const layerCursorClass = computed(() => {
 	if (activeEyedropper.value) return 'cursor-crosshair';
@@ -59,11 +94,163 @@ const sampleCanvas = document.createElement("canvas");
 const sampleCtx = sampleCanvas.getContext("2d", {
 	willReadFrequently: true,
 })!;
+const checkerCanvas = document.createElement("canvas");
+let loadedSheetImage: HTMLImageElement | null = null;
+let imageLoadVersion = 0;
 
 // --- Panning state ---
 const isPanning = ref(false);
 const spaceHeld = ref(false);
 let panStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
+let scrollerResizeObserver: ResizeObserver | null = null;
+let hasCenteredCurrentSheet = false;
+let lastRenderMismatchKey = "";
+let canvasDebugSeq = 0;
+
+function shortImageId(value: string | null | undefined): string {
+	if (!value) return "null";
+	return value.slice(0, 48);
+}
+
+function debugCanvas(message: string) {
+	void api.debugLog(`[canvas ${++canvasDebugSeq}] ${message}`);
+}
+
+function updateScrollerViewportSize() {
+	const el = scroller.value;
+	if (!el) return;
+	scrollerViewportWidth.value = el.clientWidth;
+	scrollerViewportHeight.value = el.clientHeight;
+}
+
+function centerViewportOnStage() {
+	const el = scroller.value;
+	if (!el) return;
+	el.scrollLeft = Math.max(0, stageOffsetX.value - (el.clientWidth - stageWidth.value) / 2);
+	el.scrollTop = Math.max(0, stageOffsetY.value - (el.clientHeight - stageHeight.value) / 2);
+}
+
+function computeFitZoomForImage(width: number, height: number): number | null {
+	const el = scroller.value;
+	if (!el || width <= 0 || height <= 0) return null;
+	const availableWidth = Math.max(1, el.clientWidth - FIT_PADDING * 2);
+	const availableHeight = Math.max(1, el.clientHeight - FIT_PADDING * 2);
+	return normalizeZoom(Math.min(availableWidth / width, availableHeight / height));
+}
+
+function rebuildCheckerboardSource(width: number, height: number) {
+	checkerCanvas.width = width;
+	checkerCanvas.height = height;
+
+	const checkerCtx = checkerCanvas.getContext("2d");
+	if (!checkerCtx) return;
+
+	const imageData = checkerCtx.createImageData(width, height);
+	const data = imageData.data;
+	const strength = Math.max(0, Math.min(100, canvasCheckerStrength.value)) / 100;
+	const darkSquare = [
+		Math.round(17 + strength * 16),
+		Math.round(20 + strength * 18),
+		Math.round(25 + strength * 21),
+	];
+	const lightSquare = [
+		Math.round(17 + strength * 70),
+		Math.round(20 + strength * 76),
+		Math.round(25 + strength * 82),
+	];
+
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			const isLight = (x + y) % 2 === 0;
+			const offset = (y * width + x) * 4;
+			if (isLight) {
+				data[offset] = lightSquare[0];
+				data[offset + 1] = lightSquare[1];
+				data[offset + 2] = lightSquare[2];
+				data[offset + 3] = 255;
+			} else {
+				data[offset] = darkSquare[0];
+				data[offset + 1] = darkSquare[1];
+				data[offset + 2] = darkSquare[2];
+				data[offset + 3] = 255;
+			}
+		}
+	}
+
+	checkerCtx.putImageData(imageData, 0, 0);
+}
+
+function renderDisplayCanvas() {
+	const canvas = displayCanvas.value;
+	if (!canvas) return;
+
+	const dpr = window.devicePixelRatio || 1;
+	const displayWidth = Math.max(1, stageWidth.value);
+	const displayHeight = Math.max(1, stageHeight.value);
+	const backingWidth = Math.max(1, Math.round(displayWidth * dpr));
+	const backingHeight = Math.max(1, Math.round(displayHeight * dpr));
+
+	if (canvas.width !== backingWidth) canvas.width = backingWidth;
+	if (canvas.height !== backingHeight) canvas.height = backingHeight;
+
+	const ctx = canvas.getContext("2d");
+	if (!ctx) return;
+
+	ctx.setTransform(1, 0, 0, 1, 0, 0);
+	ctx.clearRect(0, 0, backingWidth, backingHeight);
+
+	if (!loadedSheetImage) return;
+
+	const loadedId = shortImageId(loadedSheetImage.src);
+	const targetId = shortImageId(currentSheetImageSrc.value);
+	if (loadedSheetImage.src !== currentSheetImageSrc.value) {
+		const mismatchKey = `${currentSheet.value?.path ?? "none"}|${loadedId}|${targetId}|${backingWidth}x${backingHeight}`;
+		if (mismatchKey !== lastRenderMismatchKey) {
+			lastRenderMismatchKey = mismatchKey;
+			debugCanvas(
+				`render mismatch sheet=${currentSheet.value?.path ?? "none"} loaded=${loadedId} target=${targetId} backing=${backingWidth}x${backingHeight}`
+			);
+		}
+	} else {
+		lastRenderMismatchKey = "";
+	}
+
+	ctx.imageSmoothingEnabled = false;
+	ctx.drawImage(checkerCanvas, 0, 0, backingWidth, backingHeight);
+	ctx.drawImage(loadedSheetImage, 0, 0, backingWidth, backingHeight);
+}
+
+async function waitForImageReady(img: HTMLImageElement): Promise<void> {
+	if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+		try {
+			await img.decode();
+		} catch {
+			// Some engines reject decode for already-loaded images; the load state is enough.
+		}
+		return;
+	}
+
+	await new Promise<void>((resolve, reject) => {
+		const onLoad = () => {
+			img.removeEventListener("load", onLoad);
+			img.removeEventListener("error", onError);
+			resolve();
+		};
+		const onError = () => {
+			img.removeEventListener("load", onLoad);
+			img.removeEventListener("error", onError);
+			reject(new Error("Failed to load image"));
+		};
+		img.addEventListener("load", onLoad, { once: true });
+		img.addEventListener("error", onError, { once: true });
+	});
+
+	try {
+		await img.decode();
+	} catch {
+		// If decode is flaky, the successful load event is still enough to draw.
+	}
+}
 
 function onKeyDown(e: KeyboardEvent) {
 	if (e.code === "Escape" && activeEyedropper.value) {
@@ -128,31 +315,113 @@ function handleScrollerPointerUp(event: PointerEvent) {
 onMounted(() => {
 	registerViewportCenterFn(() => {
 		const el = scroller.value;
-		if (!el) return { x: 0, y: 0 };
-		const x = (el.scrollLeft + el.clientWidth / 2) / zoom.value;
-		const y = (el.scrollTop + el.clientHeight / 2) / zoom.value;
+		const stageEl = stage.value;
+		if (!el || !stageEl) return { x: 0, y: 0 };
+		const scrollerRect = el.getBoundingClientRect();
+		const stageRect = stageEl.getBoundingClientRect();
+		const x = (scrollerRect.left + el.clientWidth / 2 - stageRect.left) / zoom.value;
+		const y = (scrollerRect.top + el.clientHeight / 2 - stageRect.top) / zoom.value;
 		return { x, y };
 	});
+	registerFitZoomFn((width, height) => computeFitZoomForImage(width, height));
 
 	window.addEventListener("keydown", onKeyDown);
 	window.addEventListener("keyup", onKeyUp);
+	updateScrollerViewportSize();
+	scrollerResizeObserver = new ResizeObserver(() => {
+		updateScrollerViewportSize();
+	});
+	if (scroller.value) {
+		scrollerResizeObserver.observe(scroller.value);
+	}
 });
 
 onUnmounted(() => {
 	window.removeEventListener("keydown", onKeyDown);
 	window.removeEventListener("keyup", onKeyUp);
+	scrollerResizeObserver?.disconnect();
+	scrollerResizeObserver = null;
+	registerFitZoomFn(() => null);
 });
 
-function onImageLoad() {
-	const img = sheetImg.value;
-	if (!img) return;
+watch(
+	currentSheet,
+	() => {
+		debugCanvas(`sheet change -> ${currentSheet.value?.path ?? "none"} size=${imageWidth.value}x${imageHeight.value}`);
+		imageLoadVersion += 1;
+		loadedSheetImage = null;
+		renderDisplayCanvas();
+	},
+	{ flush: "sync" },
+);
+
+watch(
+	displayCanvas,
+	async () => {
+		await nextTick();
+		renderDisplayCanvas();
+	},
+	{ flush: "post" },
+);
+
+watch(currentSheetImageSrc, async (src) => {
+	hasCenteredCurrentSheet = false;
+	debugCanvas(`src watch start sheet=${currentSheet.value?.path ?? "none"} target=${shortImageId(src)}`);
+	await nextTick();
+	updateScrollerViewportSize();
+
+	imageLoadVersion += 1;
+	const loadVersion = imageLoadVersion;
+
+	if (!src) {
+		loadedSheetImage = null;
+		debugCanvas(`src cleared sheet=${currentSheet.value?.path ?? "none"}`);
+		renderDisplayCanvas();
+		return;
+	}
+
+	const img = new Image();
+	img.src = src;
+
+	await waitForImageReady(img);
+
+	if (loadVersion !== imageLoadVersion) return;
+
+	loadedSheetImage = img;
+	debugCanvas(`image ready sheet=${currentSheet.value?.path ?? "none"} loaded=${shortImageId(img.src)} natural=${img.naturalWidth}x${img.naturalHeight}`);
 	imageWidth.value = img.naturalWidth;
 	imageHeight.value = img.naturalHeight;
 	sampleCanvas.width = img.naturalWidth;
 	sampleCanvas.height = img.naturalHeight;
+	rebuildCheckerboardSource(img.naturalWidth, img.naturalHeight);
 	sampleCtx.clearRect(0, 0, img.naturalWidth, img.naturalHeight);
 	sampleCtx.drawImage(img, 0, 0);
-}
+
+	await nextTick();
+	renderDisplayCanvas();
+});
+
+watch(
+	() => [currentSheetImageSrc.value, stageWidth.value, stageHeight.value, scrollerViewportWidth.value, scrollerViewportHeight.value],
+	async () => {
+		if (!currentSheetImageSrc.value || hasCenteredCurrentSheet) return;
+		if (!stageWidth.value || !stageHeight.value || !scrollerViewportWidth.value || !scrollerViewportHeight.value) return;
+		await nextTick();
+		centerViewportOnStage();
+		hasCenteredCurrentSheet = true;
+	},
+);
+
+watch(
+	() => [stageWidth.value, stageHeight.value, zoom.value, currentSheetImageSrc.value, canvasCheckerStrength.value],
+	async () => {
+		await nextTick();
+		if (imageWidth.value > 0 && imageHeight.value > 0) {
+			rebuildCheckerboardSource(imageWidth.value, imageHeight.value);
+		}
+		renderDisplayCanvas();
+	},
+);
 
 function samplePixelAt(clientX: number, clientY: number): string | null {
 	const stageEl = stage.value;
@@ -171,9 +440,11 @@ function samplePixelAt(clientX: number, clientY: number): string | null {
 function handleWheel(event: WheelEvent) {
 	if (!imageWidth.value) return;
 	event.preventDefault();
-	const delta = event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP;
+	const nextZoom = event.deltaY < 0
+		? zoom.value * ZOOM_FACTOR
+		: zoom.value / ZOOM_FACTOR;
 	zoomTo(
-		zoom.value + delta,
+		normalizeZoom(nextZoom),
 		scroller.value!,
 		stage.value!,
 		event.clientX,
@@ -182,11 +453,23 @@ function handleWheel(event: WheelEvent) {
 }
 
 function handleZoomIn() {
-	zoomTo(zoom.value + ZOOM_STEP, scroller.value!, stage.value!);
+	zoomTo(normalizeZoom(zoom.value * ZOOM_FACTOR), scroller.value!, stage.value!);
 }
 
 function handleZoomOut() {
-	zoomTo(zoom.value - ZOOM_STEP, scroller.value!, stage.value!);
+	zoomTo(normalizeZoom(zoom.value / ZOOM_FACTOR), scroller.value!, stage.value!);
+}
+
+function normalizeGridSize(axis: "width" | "height") {
+	if (axis === "width") {
+		canvasGridWidth.value = Math.max(1, Math.round(canvasGridWidth.value || 1));
+		return;
+	}
+	canvasGridHeight.value = Math.max(1, Math.round(canvasGridHeight.value || 1));
+}
+
+function normalizeCheckerStrength() {
+	canvasCheckerStrength.value = Math.max(0, Math.min(100, Math.round(canvasCheckerStrength.value || 0)));
 }
 
 // --- Primary shape helper ---
@@ -436,9 +719,12 @@ function onCanvasContextMenu(event: MouseEvent) {
 		return;
 	}
 	const el = scroller.value;
-	if (!el) return;
-	const cx = (el.scrollLeft + el.clientWidth / 2) / zoom.value;
-	const cy = (el.scrollTop + el.clientHeight / 2) / zoom.value;
+	const stageEl = stage.value;
+	if (!el || !stageEl) return;
+	const scrollerRect = el.getBoundingClientRect();
+	const stageRect = stageEl.getBoundingClientRect();
+	const cx = (scrollerRect.left + el.clientWidth / 2 - stageRect.left) / zoom.value;
+	const cy = (scrollerRect.top + el.clientHeight / 2 - stageRect.top) / zoom.value;
 	const entries: MenuEntry[] = [
 		{
 			label: "Add annotation here",
@@ -454,15 +740,59 @@ function onCanvasContextMenu(event: MouseEvent) {
 	<div class="canvas-shell" style="display: flex;">
 		<ToolPalette />
 		<div style="flex: 1; min-width: 0; position: relative; height: 100%;">
-			<div
-				class="absolute top-4 right-4 z-50 flex items-center gap-0.5 p-1 bg-surface-0/90 border border-border rounded-sm backdrop-blur-sm">
+			<div class="canvas-toolbar">
+				<div class="canvas-toolbar-group">
 				<button type="button"
-					class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
+					class="canvas-toolbar-button"
 					@click="handleZoomOut">-</button>
-				<span class="min-w-10.5 text-center text-[10px] font-mono text-text-faint select-none">{{ zoomLabel }}</span>
+				<span class="canvas-toolbar-zoom">{{ zoomLabel }}</span>
 				<button type="button"
-					class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper border border-transparent hover:border-copper/40 rounded-sm transition-colors cursor-pointer bg-transparent text-xs font-mono"
+					class="canvas-toolbar-button"
 					@click="handleZoomIn">+</button>
+				</div>
+				<div class="canvas-toolbar-divider"></div>
+				<label class="canvas-toolbar-checkbox">
+					<input v-model="canvasGridEnabled" type="checkbox" />
+					Grid
+				</label>
+				<div class="canvas-toolbar-group">
+				<label class="canvas-toolbar-field">
+					<span>W</span>
+					<input
+						v-model.number="canvasGridWidth"
+						type="number"
+						min="1"
+						step="1"
+						class="canvas-toolbar-number"
+						@change="normalizeGridSize('width')"
+					/>
+				</label>
+				<label class="canvas-toolbar-field">
+					<span>H</span>
+					<input
+						v-model.number="canvasGridHeight"
+						type="number"
+						min="1"
+						step="1"
+						class="canvas-toolbar-number"
+						@change="normalizeGridSize('height')"
+					/>
+				</label>
+				</div>
+				<div class="canvas-toolbar-divider"></div>
+				<label class="canvas-toolbar-field canvas-toolbar-range-field">
+					<span>Checker</span>
+					<input
+						v-model.number="canvasCheckerStrength"
+						type="range"
+						min="0"
+						max="100"
+						step="1"
+						class="canvas-toolbar-range"
+						@change="normalizeCheckerStrength"
+					/>
+					<span class="canvas-toolbar-range-value">{{ canvasCheckerStrength }}</span>
+				</label>
 			</div>
 			<div
 				ref="scroller"
@@ -475,11 +805,33 @@ function onCanvasContextMenu(event: MouseEvent) {
 				@pointercancel="handleScrollerPointerUp"
 				@contextmenu="onCanvasContextMenu"
 			>
-				<div ref="stage" class="canvas-stage" :style="{ width: stageWidth + 'px', height: stageHeight + 'px' }">
-					<img ref="sheetImg" class="sheet-image" :src="currentSheetImageSrc" alt="" :style="{
+				<div
+					ref="workspace"
+					class="canvas-workspace"
+					:style="{ width: workspaceWidth + 'px', height: workspaceHeight + 'px' }"
+				>
+				<div
+					ref="stage"
+					class="canvas-stage"
+					:style="{
 						width: stageWidth + 'px',
 						height: stageHeight + 'px',
-					}" draggable="false" @load="onImageLoad" />
+						left: stageOffsetX + 'px',
+						top: stageOffsetY + 'px',
+					}"
+				>
+					<canvas :key="displayCanvasKey" ref="displayCanvas" class="sheet-canvas" :style="{
+						width: stageWidth + 'px',
+						height: stageHeight + 'px',
+					}"></canvas>
+					<div
+						class="canvas-grid-overlay"
+						:style="{
+							width: stageWidth + 'px',
+							height: stageHeight + 'px',
+							...gridOverlayStyle,
+						}"
+					></div>
 					<div class="annotation-layer" :class="layerCursorClass" :style="{
 						width: stageWidth + 'px',
 						height: stageHeight + 'px',
@@ -524,6 +876,7 @@ function onCanvasContextMenu(event: MouseEvent) {
 							:style="drawPreviewStyle"
 						></div>
 					</div>
+				</div>
 				</div>
 			</div>
 			<ContextMenu ref="ctxMenu" />

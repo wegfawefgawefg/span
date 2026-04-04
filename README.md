@@ -34,6 +34,25 @@ bun run dev
 bun run dev:hmr
 ```
 
+## Local Install
+
+To install a locally built copy to `~/.local/opt/Span` and create a `span` launcher plus a desktop entry:
+
+```bash
+bun run install:local
+```
+
+That command rebuilds the stable desktop bundle from the current repo state, installs it to `~/.local/opt/Span`, writes `~/.local/bin/span`, and creates `~/.local/share/applications/span.desktop`.
+
+To update your installed copy after pulling new changes:
+
+```bash
+git pull
+bun run install:local
+```
+
+The install script replaces the existing bundle in place, so the same command handles both first install and later updates.
+
 ## Project Layout
 
 ```plaintext

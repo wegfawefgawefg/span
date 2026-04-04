@@ -9,9 +9,14 @@ export interface PlatformAdapter {
 	// File dialogs
 	showSaveDialog(defaultName: string, filters: FileFilter[]): Promise<string | null>;
 	showOpenDialog(filters: FileFilter[]): Promise<string | null>;
+	showOpenDirectoryDialog(prompt?: string): Promise<string | null>;
+	importImageDirectory(prompt?: string): Promise<void>;
+	pickImageDirectory(prompt?: string): Promise<{ directory: string; paths: string[] } | null>;
+	debugLog(message: string): Promise<void>;
 
 	// File I/O
 	readFile(path: string): Promise<string>;
+	listImageFiles(directory: string): Promise<string[]>;
 	writeFile(path: string, contents: string): Promise<{ ok: boolean }>;
 	readImageAsDataUrl(path: string): Promise<string>;
 

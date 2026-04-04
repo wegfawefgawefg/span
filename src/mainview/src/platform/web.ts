@@ -50,10 +50,30 @@ export function createWebAdapter(): WebPlatformAdapter {
 			});
 		},
 
+		async showOpenDirectoryDialog(): Promise<string | null> {
+			return null;
+		},
+
+		async importImageDirectory(): Promise<void> {
+			// No-op on web
+		},
+
+		async pickImageDirectory(): Promise<{ directory: string; paths: string[] } | null> {
+			return null;
+		},
+
+		async debugLog(): Promise<void> {
+			// No-op on web
+		},
+
 		async readFile(path: string): Promise<string> {
 			const file = fileRegistry.get(path);
 			if (!file) throw new Error(`File not found: ${path}`);
 			return await file.text();
+		},
+
+		async listImageFiles(): Promise<string[]> {
+			return [];
 		},
 
 		async writeFile(_path: string, contents: string): Promise<{ ok: boolean }> {

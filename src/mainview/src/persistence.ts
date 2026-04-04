@@ -9,6 +9,7 @@ export interface WorkspaceSheet {
 
 export interface SpanFile {
 	version: number;
+	specPath?: string | null;
 	spec: SpanFileSpec | null;
 	sheets: SpanFileSheet[];
 }
@@ -21,15 +22,23 @@ export interface SpanFileSpec {
 export interface SpanFileSheet {
 	path: string;
 	annotations: Annotation[];
+	view?: {
+		gridEnabled: boolean;
+		gridWidth: number;
+		gridHeight: number;
+		zoom: number;
+	};
 }
 
 export function serializeWorkspace(
 	sheets: WorkspaceSheet[],
 	spec: SpanFileSpec | null,
+	specPath?: string | null,
 ): string {
 	const data: SpanFile = {
-		version: 2,
-		spec,
+		version: 4,
+		...(specPath ? { specPath } : {}),
+		spec: specPath ? null : spec,
 		sheets: sheets.map((s) => ({
 			path: s.path,
 			annotations: s.annotations.map((a) => ({
@@ -43,6 +52,7 @@ export function serializeWorkspace(
 					? { _stash: { ...a._stash } }
 					: {}),
 			})),
+			...(s.view ? { view: { ...s.view } } : {}),
 		})),
 	};
 
@@ -55,9 +65,9 @@ export function deserializeWorkspace(raw: string): SpanFile {
 	if (typeof data.version !== "number") {
 		throw new Error("Invalid .span file: missing version");
 	}
-	if (data.version > 2) {
+	if (data.version > 4) {
 		throw new Error(
-			`Unsupported .span file version: ${data.version}. This version of Span supports version 2.`,
+			`Unsupported .span file version: ${data.version}. This version of Span supports version 4.`,
 		);
 	}
 
@@ -68,6 +78,7 @@ export function deserializeWorkspace(raw: string): SpanFile {
 
 	return {
 		version: data.version,
+		specPath: typeof data.specPath === "string" ? data.specPath : null,
 		spec,
 		sheets: (data.sheets ?? []).map((s: any) => ({
 			path: s.path ?? "",
@@ -80,6 +91,7 @@ export function deserializeWorkspace(raw: string): SpanFile {
 				properties: a.properties ?? {},
 				...(a._stash ? { _stash: a._stash } : {}),
 			})),
+			...(s.view ? { view: s.view } : {}),
 		})),
 	};
 }

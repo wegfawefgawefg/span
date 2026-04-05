@@ -3,11 +3,12 @@
   aabb: rect
   path: file_name
   chroma_key: color
+  name: string
+  frame: ainteger
+  duration: integer
+  offset: point
   properties:
-    name: string
-    frame: ainteger
     collision: rect[]
-    origin: point
     direction: enum[up, down, left, right]
     variant: string
     tags: string[]

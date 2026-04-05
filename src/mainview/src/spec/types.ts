@@ -17,6 +17,10 @@ export interface EntityDef {
 	primaryShape: PrimaryShape;
 	hasPath: boolean;
 	hasChromaKey: boolean;
+	nameField?: ScalarPropertyField;
+	frameField?: ScalarPropertyField;
+	durationField?: ScalarPropertyField;
+	offsetField?: ShapePropertyField;
 	properties: PropertyField[];
 }
 
@@ -90,6 +94,13 @@ export interface SpecChange {
 // --- Defaults ---
 
 export function defaultForScalar(field: ScalarPropertyField): unknown {
+	if (
+		field.name === "duration" &&
+		(field.type === "integer" || field.type === "ainteger" || field.type === "number")
+	) {
+		return 1;
+	}
+
 	const defaults: Record<ScalarType, unknown> = {
 		string: "",
 		integer: 0,
@@ -120,6 +131,19 @@ export function defaultForShape(field: ShapePropertyField): unknown {
 
 export function getEntityByLabel(spec: SpanSpec, label: string): EntityDef | undefined {
 	return spec.entities.find((e) => e.label === label);
+}
+
+export function getRequiredFields(entity: EntityDef): PropertyField[] {
+	return [
+		entity.nameField,
+		entity.frameField,
+		entity.durationField,
+		entity.offsetField,
+	].filter((field): field is PropertyField => !!field);
+}
+
+export function getAllEntityFields(entity: EntityDef): PropertyField[] {
+	return [...getRequiredFields(entity), ...entity.properties];
 }
 
 export function getShapeProperties(entity: EntityDef): ShapePropertyField[] {

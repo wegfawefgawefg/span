@@ -6,6 +6,7 @@ import type {
 } from "./spec/types";
 import {
 	getEntityByLabel,
+	getAllEntityFields,
 	defaultForScalar,
 	defaultForEnum,
 	defaultForColor,
@@ -41,7 +42,7 @@ export function createAnnotation(
 	const chromaKey = entity.hasChromaKey ? "" : null;
 
 	const properties: Record<string, unknown> = {};
-	for (const field of entity.properties) {
+	for (const field of getAllEntityFields(entity)) {
 		switch (field.kind) {
 			case "scalar":
 				properties[field.name] = defaultForScalar(field);
@@ -89,7 +90,7 @@ export function duplicateAnnotation(annotation: Annotation, spec?: SpanSpec): An
 	if (spec) {
 		const entity = getEntityByLabel(spec, annotation.entityType);
 		if (entity) {
-			for (const field of entity.properties) {
+			for (const field of getAllEntityFields(entity)) {
 				if (field.kind === "scalar" && field.type === "ainteger") {
 					const current = properties[field.name];
 					properties[field.name] = (typeof current === "number" ? current : 0) + 1;
@@ -143,7 +144,7 @@ export function migrateEntityType(
 	const newProperties: Record<string, unknown> = {};
 	const stash: Record<string, unknown> = { ...(annotation._stash ?? {}) };
 
-	const newFieldNames = new Set(newEntity.properties.map((f) => f.name));
+	const newFieldNames = new Set(getAllEntityFields(newEntity).map((f) => f.name));
 
 	// Stash old properties not in new type
 	for (const [key, value] of Object.entries(oldProps)) {
@@ -153,7 +154,7 @@ export function migrateEntityType(
 	}
 
 	// Set new properties
-	for (const field of newEntity.properties) {
+	for (const field of getAllEntityFields(newEntity)) {
 		if (field.name in oldProps) {
 			newProperties[field.name] = oldProps[field.name];
 		} else if (field.name in stash) {

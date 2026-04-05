@@ -86,6 +86,22 @@ export function buildExportData(
 			flat["chroma_key"] = ann.chromaKey;
 		}
 
+		if (entityDef.nameField) {
+			flat["name"] = ann.properties.name ?? null;
+		}
+		if (entityDef.frameField) {
+			flat["frame"] = ann.properties.frame ?? null;
+		}
+		if (entityDef.durationField) {
+			flat["duration"] = ann.properties.duration ?? null;
+		}
+		if (entityDef.offsetField) {
+			flat["offset"] = remapPoint(
+				(ann.properties.offset as { x: number; y: number } | undefined) ?? { x: 0, y: 0 },
+				shapeFields?.point,
+			);
+		}
+
 		// Properties in spec order
 		for (const field of entityDef.properties) {
 			const value = ann.properties[field.name];

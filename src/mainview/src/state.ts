@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, triggerRef } from 'vue';
 import type { Annotation } from './annotation';
 import {
   createAnnotation,
@@ -7,7 +7,14 @@ import {
   createAnnotationWithSize,
 } from './annotation';
 import type { SpanSpec } from './spec/types';
-import { getEntityByLabel } from './spec/types';
+import {
+  getEntityByLabel,
+  getAllEntityFields,
+  defaultForScalar,
+  defaultForEnum,
+  defaultForColor,
+  defaultForShape,
+} from './spec/types';
 import { parseSpec } from './spec/parse';
 import { diffSpecs } from './spec/diff';
 import type { SpecError, SpecDiff } from './spec/types';
@@ -103,6 +110,76 @@ let specReloadInterval: ReturnType<typeof setInterval> | null = null;
 let specReloadInFlight = false;
 let getFitZoomForImage: (width: number, height: number) => number | null = () => null;
 
+function isPointPropertyValue(
+  value: unknown
+): value is { x: number; y: number } {
+  return !!value
+    && typeof value === 'object'
+    && typeof (value as { x?: unknown }).x === 'number'
+    && typeof (value as { y?: unknown }).y === 'number';
+}
+
+function normalizeAnnotationsForSpec(spec: SpanSpec): boolean {
+  let changed = false;
+
+  for (const sheet of sheets.value) {
+    for (const annotation of sheet.annotations) {
+      const entity = getEntityByLabel(spec, annotation.entityType);
+      if (!entity) continue;
+
+      const properties = annotation.properties as Record<string, unknown>;
+
+      for (const field of getAllEntityFields(entity)) {
+        if (field.name in properties) continue;
+
+        switch (field.kind) {
+          case 'scalar':
+            properties[field.name] = defaultForScalar(field);
+            break;
+          case 'enum':
+            properties[field.name] = defaultForEnum(field);
+            break;
+          case 'color':
+            properties[field.name] = defaultForColor();
+            break;
+          case 'shape':
+            properties[field.name] = defaultForShape(field);
+            break;
+        }
+
+        changed = true;
+      }
+
+      const hasOffset = !!entity.offsetField;
+      if (!hasOffset) continue;
+
+      const hasOrigin = entity.properties.some((field) => field.name === 'origin');
+      const offset = properties.offset;
+      const origin = properties.origin;
+
+      if (!isPointPropertyValue(offset)) {
+        if (isPointPropertyValue(origin)) {
+          properties.offset = { x: origin.x, y: origin.y };
+        } else {
+          properties.offset = { x: 0, y: 0 };
+        }
+        changed = true;
+      }
+
+      if (!hasOrigin && 'origin' in properties) {
+        delete properties.origin;
+        changed = true;
+      }
+    }
+  }
+
+  if (changed) {
+    triggerRef(sheets);
+  }
+
+  return changed;
+}
+
 function setSpecState(
   raw: string,
   format: 'json' | 'yaml',
@@ -117,9 +194,13 @@ function setSpecState(
 
   activeSpec.value = result;
   activeSpecRaw.value = { raw, format };
+  const normalizedAnnotations = normalizeAnnotationsForSpec(result);
   activeTool.value = '';
   if (options && 'filePath' in options) {
     specFilePath.value = options.filePath ?? null;
+  }
+  if (normalizedAnnotations && (spanFilePath.value || platform.value === 'web')) {
+    debouncedSave(performSave, 250);
   }
   if (options?.markDirty) {
     statusText.value = options.status ?? 'Spec loaded';

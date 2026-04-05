@@ -16,21 +16,21 @@ describe("default spec", () => {
 		expect(sprite!.primaryShape.kind).toBe("rect");
 	});
 
-	test("default spec Sprite has name, frame, and origin properties", () => {
+	test("default spec Sprite has name, frame, duration, and offset properties", () => {
 		const result = parseSpec(DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT);
 		if (Array.isArray(result)) throw new Error("parse failed");
 		const sprite = result.entities[0];
-		const names = sprite.properties.map((p) => p.name);
-		expect(names).toContain("name");
-		expect(names).toContain("frame");
-		expect(names).toContain("origin");
+		expect(sprite.nameField?.name).toBe("name");
+		expect(sprite.frameField?.name).toBe("frame");
+		expect(sprite.durationField?.name).toBe("duration");
+		expect(sprite.offsetField?.name).toBe("offset");
 	});
 
 	test("frame property is ainteger type", () => {
 		const result = parseSpec(DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT);
 		if (Array.isArray(result)) throw new Error("parse failed");
 		const sprite = result.entities[0];
-		const frame = sprite.properties.find((p) => p.name === "frame");
+		const frame = sprite.frameField;
 		expect(frame).toBeDefined();
 		expect(frame!.kind).toBe("scalar");
 		if (frame!.kind === "scalar") {

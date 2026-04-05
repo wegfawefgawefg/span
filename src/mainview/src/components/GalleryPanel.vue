@@ -22,15 +22,25 @@ interface GalleryFrame {
 	sheetFile: string;
 }
 
+interface PreviewBounds {
+	minX: number;
+	minY: number;
+	width: number;
+	height: number;
+}
+
 interface SpriteGroup {
 	key: string;
 	name: string;
 	frameCount: number;
 	inCurrentSheet: boolean;
 	frames: GalleryFrame[];
+	previewBounds: PreviewBounds;
 }
 
 const previewScale = ref(3);
+const GALLERY_DURATION_RATE_STORAGE_KEY = "span-gallery-ms-per-duration:v1";
+const galleryMsPerDuration = ref(loadGalleryMsPerDuration());
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
 // Invalidate cached images only when sheets are added/removed or images change (not on annotation edits)
@@ -43,18 +53,89 @@ const sourceCtx = sourceCanvas.getContext("2d", {
 	willReadFrequently: true,
 })!;
 
-let galleryTick = 0;
+const galleryNow = ref(Date.now());
 let galleryTimer: number | null = null;
 const canvasRefs = ref<Map<string, HTMLCanvasElement>>(new Map());
+
+function loadGalleryMsPerDuration(): number {
+	try {
+		const raw = localStorage.getItem(GALLERY_DURATION_RATE_STORAGE_KEY);
+		if (!raw) return 60;
+		return Math.max(16, Math.min(1000, Math.round(Number(raw) || 60)));
+	} catch {
+		return 60;
+	}
+}
 
 const isRectEntity = (ann: Annotation): boolean => {
 	return getPreviewShapeName(ann.entityType) !== null;
 };
 
+function isPointLike(value: unknown): value is { x: number; y: number } {
+	return !!value
+		&& typeof value === "object"
+		&& typeof (value as { x?: unknown }).x === "number"
+		&& typeof (value as { y?: unknown }).y === "number";
+}
+
+function getFrameOffset(annotation: Annotation): { x: number; y: number } {
+	const offset = annotation.properties.offset;
+	if (isPointLike(offset)) {
+		return { x: offset.x, y: offset.y };
+	}
+	const legacyOrigin = annotation.properties.origin;
+	if (isPointLike(legacyOrigin)) {
+		return { x: legacyOrigin.x, y: legacyOrigin.y };
+	}
+	return { x: 0, y: 0 };
+}
+
+function computePreviewBounds(frames: GalleryFrame[]): PreviewBounds {
+	let minX = 0;
+	let minY = 0;
+	let maxX = 16;
+	let maxY = 16;
+	let initialized = false;
+
+	for (const frame of frames) {
+		const aabb = frame.annotation.aabb;
+		if (!aabb) continue;
+		const offset = getFrameOffset(frame.annotation);
+		const frameMinX = offset.x;
+		const frameMinY = offset.y;
+		const frameMaxX = offset.x + aabb.w;
+		const frameMaxY = offset.y + aabb.h;
+
+		if (!initialized) {
+			minX = frameMinX;
+			minY = frameMinY;
+			maxX = frameMaxX;
+			maxY = frameMaxY;
+			initialized = true;
+			continue;
+		}
+
+		minX = Math.min(minX, frameMinX);
+		minY = Math.min(minY, frameMinY);
+		maxX = Math.max(maxX, frameMaxX);
+		maxY = Math.max(maxY, frameMaxY);
+	}
+
+	return {
+		minX,
+		minY,
+		width: Math.max(1, maxX - minX),
+		height: Math.max(1, maxY - minY),
+	};
+}
+
 function getAnnotationName(ann: Annotation): string {
 	if (!activeSpec.value) return "";
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return "";
+	if (entity.nameField) {
+		return (ann.properties.name as string ?? "");
+	}
 	const firstString = entity.properties.find(f => f.kind === "scalar" && f.type === "string");
 	return firstString ? (ann.properties[firstString.name] as string ?? "") : "";
 }
@@ -63,11 +144,30 @@ function getFrameValue(ann: Annotation): number {
 	if (!activeSpec.value) return 0;
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return 0;
+	if (entity.frameField) {
+		return ann.properties.frame as number ?? 0;
+	}
 	const scalars = entity.properties.filter(f => f.kind === "scalar");
 	const numericTypes = new Set(["integer", "number", "ainteger"]);
 	const frameProp = scalars.find(f => f.kind === "scalar" && f.name === "frame" && numericTypes.has(f.type))
 		?? scalars.find(f => f.kind === "scalar" && numericTypes.has(f.type));
 	return frameProp ? (ann.properties[frameProp.name] as number ?? 0) : 0;
+}
+
+function getFrameDuration(ann: Annotation): number {
+	if (activeSpec.value) {
+		const entity = getEntityByLabel(activeSpec.value, ann.entityType);
+		if (entity?.durationField) {
+			const duration = ann.properties.duration;
+			const value = typeof duration === "number" ? duration : Number(duration);
+			if (!Number.isFinite(value)) return 1;
+			return Math.max(1, Math.round(value));
+		}
+	}
+	const duration = ann.properties.duration;
+	const value = typeof duration === "number" ? duration : Number(duration);
+	if (!Number.isFinite(value)) return 1;
+	return Math.max(1, Math.round(value));
 }
 
 function getChromaKey(ann: Annotation): string | undefined {
@@ -80,6 +180,12 @@ function groupKey(ann: Annotation): string {
 	if (!activeSpec.value) return [ann.entityType, name].join("|");
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return [ann.entityType, name].join("|");
+	if (entity.nameField) {
+		const extraFields = entity.properties
+			.filter(f => f.kind === "scalar" && f.type === "string")
+			.map(f => (ann.properties[f.name] as string ?? "").trim());
+		return [ann.entityType, name, ...extraFields].join("|");
+	}
 	const stringFields = entity.properties.filter(f => f.kind === "scalar" && f.type === "string");
 	const extraFields = stringFields.slice(1).map(f => (ann.properties[f.name] as string ?? "").trim());
 	return [ann.entityType, name, ...extraFields].join("|");
@@ -112,6 +218,7 @@ const groups = computed<SpriteGroup[]>(() => {
 					frameCount: 0,
 					inCurrentSheet: false,
 					frames: [],
+					previewBounds: { minX: 0, minY: 0, width: 16, height: 16 },
 				};
 				map.set(key, group);
 			}
@@ -140,6 +247,7 @@ const groups = computed<SpriteGroup[]>(() => {
 			return 0;
 		});
 		g.frameCount = g.frames.length;
+		g.previewBounds = computePreviewBounds(g.frames);
 	}
 
 	result.sort((a, b) => {
@@ -151,12 +259,8 @@ const groups = computed<SpriteGroup[]>(() => {
 	return result;
 });
 
-function getFirstFrameRect(group: SpriteGroup): { width: number; height: number } | null {
-	const first = group.frames[0];
-	if (!first) return null;
-	const aabb = first.annotation.aabb;
-	if (!aabb) return null;
-	return { width: aabb.w, height: aabb.h };
+function getPreviewRect(group: SpriteGroup): { width: number; height: number } {
+	return { width: group.previewBounds.width, height: group.previewBounds.height };
 }
 
 function loadImage(sheetFile: string): Promise<HTMLImageElement> {
@@ -181,14 +285,14 @@ function loadImage(sheetFile: string): Promise<HTMLImageElement> {
 	return cachedP;
 }
 
-function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
+function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame, bounds: PreviewBounds) {
 	const aabb = frame.annotation.aabb;
 	if (!aabb) return;
 
 	const w = Math.max(1, aabb.w);
 	const h = Math.max(1, aabb.h);
-	canvas.width = w * previewScale.value;
-	canvas.height = h * previewScale.value;
+	canvas.width = bounds.width * previewScale.value;
+	canvas.height = bounds.height * previewScale.value;
 
 	loadImage(frame.sheetFile)
 		.then((img) => {
@@ -218,16 +322,19 @@ function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 			const ctx = canvas.getContext("2d")!;
 			ctx.clearRect(0, 0, canvas.width, canvas.height);
 			ctx.imageSmoothingEnabled = false;
+			const offset = getFrameOffset(frame.annotation);
+			const destX = (offset.x - bounds.minX) * previewScale.value;
+			const destY = (offset.y - bounds.minY) * previewScale.value;
 			ctx.drawImage(
 				sourceCanvas,
 				0,
 				0,
 				w,
 				h,
-				0,
-				0,
-				canvas.width,
-				canvas.height,
+				destX,
+				destY,
+				w * previewScale.value,
+				h * previewScale.value,
 			);
 		})
 		.catch(() => {
@@ -239,15 +346,34 @@ function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame) {
 		});
 }
 
+function getAnimatedFrame(group: SpriteGroup): GalleryFrame | null {
+	if (group.frames.length === 0) return null;
+	if (group.frames.length === 1) return group.frames[0];
+
+	const msPerDuration = Math.max(16, galleryMsPerDuration.value);
+	const durations = group.frames.map((frame) => getFrameDuration(frame.annotation));
+	const totalDuration = durations.reduce((sum, value) => sum + value, 0);
+	if (totalDuration <= 0) return group.frames[0];
+
+	const elapsedUnits = Math.floor(galleryNow.value / msPerDuration) % totalDuration;
+	let cursor = 0;
+	for (let i = 0; i < group.frames.length; i += 1) {
+		cursor += durations[i];
+		if (elapsedUnits < cursor) {
+			return group.frames[i];
+		}
+	}
+
+	return group.frames[group.frames.length - 1];
+}
+
 function renderPreviews() {
 	for (const group of groups.value) {
 		const canvas = canvasRefs.value.get(group.key);
 		if (!canvas) continue;
-		const frameIndex =
-			group.frames.length === 1
-				? 0
-				: galleryTick % group.frames.length;
-		drawFrame(canvas, group.frames[frameIndex]);
+		const frame = getAnimatedFrame(group);
+		if (!frame) continue;
+		drawFrame(canvas, frame, group.previewBounds);
 	}
 }
 
@@ -267,11 +393,25 @@ watch(previewScale, () => {
 	requestAnimationFrame(renderPreviews);
 });
 
+watch(galleryMsPerDuration, (value) => {
+	const normalized = Math.max(16, Math.min(1000, Math.round(value || 60)));
+	if (normalized !== value) {
+		galleryMsPerDuration.value = normalized;
+		return;
+	}
+	try {
+		localStorage.setItem(GALLERY_DURATION_RATE_STORAGE_KEY, String(normalized));
+	} catch {
+		// ignore persistence failures
+	}
+	requestAnimationFrame(renderPreviews);
+});
+
 onMounted(() => {
 	galleryTimer = window.setInterval(() => {
-		galleryTick++;
+		galleryNow.value = Date.now();
 		renderPreviews();
-	}, 250);
+	}, 33);
 	renderPreviews();
 });
 
@@ -329,6 +469,17 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 				class="gallery-zoom-slider flex-1"
 				@input="previewScale = Number(($event.target as HTMLInputElement).value)"
 			/>
+			<label class="flex items-center gap-1 text-[10px] font-mono text-text-faint shrink-0">
+				<span>ms/dur</span>
+				<input
+					v-model.number="galleryMsPerDuration"
+					type="number"
+					min="16"
+					max="1000"
+					step="1"
+					class="w-16 text-right"
+				/>
+			</label>
 			<span class="text-[10px] font-mono text-text-faint border border-border rounded-sm px-1">{{ groups.length }}</span>
 		</div>
 		<div class="instant-scroll flex-1 overflow-y-auto min-h-0 px-2 py-2 flex flex-wrap gap-2 content-start items-start">
@@ -343,7 +494,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
 						? 'bg-copper-glow border-copper/30'
 						: 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px'
 				]"
-				:style="previewScale >= 3 ? { maxWidth: (getFirstFrameRect(group)?.width ?? 16) * previewScale + 16 + 'px' } : undefined"
+				:style="previewScale >= 3 ? { maxWidth: getPreviewRect(group).width * previewScale + 16 + 'px' } : undefined"
 				@click="handleClick(group)"
 				@contextmenu.stop="onGroupContextMenu($event, group)"
 			>

@@ -487,7 +487,11 @@ function getAnnotationLabel(annotation: Annotation): string {
 	if (!activeSpec.value) return annotation.entityType;
 	const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
 	if (!entity) return annotation.entityType;
-	// Use first string scalar property as display name
+	if (entity.nameField) {
+		const val = annotation.properties.name;
+		if (val && typeof val === "string") return val;
+	}
+	// Fallback to first string property
 	for (const field of entity.properties) {
 		if (field.kind === "scalar" && field.type === "string") {
 			const val = annotation.properties[field.name];

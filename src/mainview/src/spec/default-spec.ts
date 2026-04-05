@@ -5,8 +5,8 @@ export const DEFAULT_SPEC_RAW = `\
   group: sprites
   aabb: rect
   chroma_key: color
-  properties:
-    name: string
-    frame: ainteger
-    origin: point
+  name: string
+  frame: ainteger
+  duration: integer
+  offset: point
 `;

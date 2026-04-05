@@ -1,5 +1,6 @@
 // src/mainview/src/spec/diff.ts
 import type { SpanSpec, SpecDiff, SpecChange, PropertyField } from "./types";
+import { getAllEntityFields } from "./types";
 
 function isTypeWidening(from: string, to: string): boolean {
 	return from === "integer" && to === "number";
@@ -55,8 +56,8 @@ export function diffSpecs(oldSpec: SpanSpec, newSpec: SpanSpec): SpecDiff {
 			});
 		}
 
-		const oldFields = new Map(oldEnt.properties.map((f) => [f.name, f]));
-		const newFields = new Map(newEnt.properties.map((f) => [f.name, f]));
+		const oldFields = new Map(getAllEntityFields(oldEnt).map((f) => [f.name, f]));
+		const newFields = new Map(getAllEntityFields(newEnt).map((f) => [f.name, f]));
 
 		for (const [fieldName] of newFields) {
 			if (!oldFields.has(fieldName)) {

@@ -4,6 +4,8 @@ import type {
 	SpanSpec,
 	EntityDef,
 	PropertyField,
+	ScalarPropertyField,
+	ShapePropertyField,
 	SpecError,
 	ScalarType,
 } from "./types";
@@ -54,11 +56,26 @@ export function parseSpec(
 
 		const hasPath = rawEntity.path === "file_name";
 		const hasChromaKey = rawEntity.chroma_key === "color";
+		const rawProps = (rawEntity.properties ?? {}) as Record<string, unknown>;
+		const nameField =
+			parseRequiredScalarField("name", rawEntity.name) ??
+			parseRequiredScalarField("name", rawProps.name);
+		const frameField =
+			parseRequiredScalarField("frame", rawEntity.frame) ??
+			parseRequiredScalarField("frame", rawProps.frame);
+		const durationField =
+			parseRequiredScalarField("duration", rawEntity.duration) ??
+			parseRequiredScalarField("duration", rawProps.duration);
+		const offsetField =
+			parseRequiredShapeField("offset", rawEntity.offset) ??
+			parseRequiredShapeField("offset", rawProps.offset);
 
 		const properties: PropertyField[] = [];
-		const rawProps = (rawEntity.properties ?? {}) as Record<string, unknown>;
 
 		for (const [name, value] of Object.entries(rawProps)) {
+			if (name === "name" || name === "frame" || name === "duration" || name === "offset") {
+				continue;
+			}
 			if (typeof value !== "string") continue;
 
 			const field = parsePropertyType(name, value);
@@ -71,11 +88,31 @@ export function parseSpec(
 			primaryShape,
 			hasPath,
 			hasChromaKey,
+			...(nameField ? { nameField } : {}),
+			...(frameField ? { frameField } : {}),
+			...(durationField ? { durationField } : {}),
+			...(offsetField ? { offsetField } : {}),
 			properties,
 		});
 	}
 
 	return { format, entities: builtEntities };
+}
+
+function parseRequiredScalarField(
+	name: "name" | "frame" | "duration",
+	value: unknown,
+): ScalarPropertyField | undefined {
+	if (typeof value !== "string" || !SCALAR_TYPES.has(value)) return undefined;
+	return { kind: "scalar", name, type: value as ScalarType };
+}
+
+function parseRequiredShapeField(
+	name: "offset",
+	value: unknown,
+): ShapePropertyField | undefined {
+	if (value !== "point") return undefined;
+	return { kind: "shape", name, shapeType: "point", array: false };
 }
 
 function parsePropertyType(name: string, value: string): PropertyField | null {

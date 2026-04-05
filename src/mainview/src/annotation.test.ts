@@ -22,11 +22,12 @@ const TEST_SPEC = spec(`
   group: sprites
   aabb: rect
   path: file_name
+  name: string
+  frame: integer
+  duration: integer
+  offset: point
   properties:
-    name: string
-    frame: integer
     collision: rect[]
-    origin: point
     direction: enum[up, down, left, right]
     tags: string[]
 - label: Tile
@@ -63,6 +64,7 @@ describe("createAnnotation", () => {
 		const ann = createAnnotation(TEST_SPEC, "Sprite", { x: 0, y: 0 });
 		expect(ann.properties.name).toBe("");
 		expect(ann.properties.frame).toBe(0);
+		expect(ann.properties.duration).toBe(1);
 		expect(ann.properties.direction).toBe("up");
 		expect(ann.properties.tags).toEqual([]);
 	});
@@ -70,7 +72,7 @@ describe("createAnnotation", () => {
 	test("sets shape property defaults", () => {
 		const ann = createAnnotation(TEST_SPEC, "Sprite", { x: 0, y: 0 });
 		expect(ann.properties.collision).toEqual([]);
-		expect(ann.properties.origin).toEqual({ x: 0, y: 0 });
+		expect(ann.properties.offset).toEqual({ x: 0, y: 0 });
 	});
 
 	test("throws for unknown entity type", () => {
@@ -209,8 +211,8 @@ describe("clampToImage", () => {
 describe("resolveShapePropertyPosition", () => {
 	test("resolves point relative to aabb", () => {
 		const ann = createAnnotation(TEST_SPEC, "Sprite", { x: 10, y: 20 });
-		ann.properties.origin = { x: 5, y: 3 };
-		const pos = resolveShapePropertyPosition(ann, ann.properties.origin as { x: number; y: number });
+		ann.properties.offset = { x: 5, y: 3 };
+		const pos = resolveShapePropertyPosition(ann, ann.properties.offset as { x: number; y: number });
 		expect(pos).toEqual({ x: 15, y: 23 });
 	});
 });

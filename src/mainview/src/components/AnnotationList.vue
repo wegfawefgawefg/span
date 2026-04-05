@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import type { Annotation } from "../annotation";
 import {
 	annotations,
@@ -16,6 +16,7 @@ import type { MenuEntry } from "./ContextMenu.vue";
 
 const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 const collapsed = ref<Set<string>>(new Set());
+const annotationButtons = ref<Map<string, HTMLButtonElement>>(new Map());
 
 interface AnnotationGroup {
 	key: string;
@@ -28,6 +29,10 @@ function getDisplayName(ann: Annotation): string {
 	if (!activeSpec.value) return ann.id;
 	const entity = getEntityByLabel(activeSpec.value, ann.entityType);
 	if (!entity) return ann.id;
+	if (entity.nameField) {
+		const val = ann.properties.name;
+		return typeof val === "string" && val ? val : ann.entityType;
+	}
 	const firstString = entity.properties.find(f => f.kind === "scalar" && f.type === "string");
 	if (firstString) {
 		const val = ann.properties[firstString.name];
@@ -40,6 +45,10 @@ function groupKey(a: Annotation): string {
 	if (!activeSpec.value) return a.entityType;
 	const entity = getEntityByLabel(activeSpec.value, a.entityType);
 	if (!entity) return a.entityType;
+	if (entity.nameField) {
+		const nameVal = a.properties.name ?? "";
+		return `${a.entityType}|${nameVal}`;
+	}
 	const firstString = entity.properties.find(f => f.kind === "scalar" && f.type === "string");
 	const nameVal = firstString ? (a.properties[firstString.name] ?? "") : "";
 	return `${a.entityType}|${nameVal}`;
@@ -84,6 +93,24 @@ function toggleGroup(key: string) {
 	}
 }
 
+function setAnnotationButtonRef(annotationId: string, element: Element | null) {
+	if (element instanceof HTMLButtonElement) {
+		annotationButtons.value.set(annotationId, element);
+	} else {
+		annotationButtons.value.delete(annotationId);
+	}
+}
+
+function ensureSelectedAnnotationVisible() {
+	if (!selectedId.value) return;
+	const button = annotationButtons.value.get(selectedId.value);
+	if (!button) return;
+	button.scrollIntoView({
+		block: "nearest",
+		inline: "nearest",
+	});
+}
+
 const dragId = ref<string | null>(null);
 const dragOverId = ref<string | null>(null);
 
@@ -126,6 +153,20 @@ function onContextMenu(event: MouseEvent, annotationId: string) {
 	];
 	ctxMenu.value?.show(event, entries);
 }
+
+watch(
+	[selectedId, groups],
+	async ([id, currentGroups]) => {
+		if (!id) return;
+		const containingGroup = currentGroups.find(group => group.items.some(ann => ann.id === id));
+		if (containingGroup && collapsed.value.has(containingGroup.key)) {
+			collapsed.value.delete(containingGroup.key);
+		}
+		await nextTick();
+		ensureSelectedAnnotationVisible();
+	},
+	{ flush: "post" },
+);
 </script>
 
 <template>
@@ -153,6 +194,7 @@ function onContextMenu(event: MouseEvent, annotationId: string) {
 					<button
 						v-for="ann in group.items"
 						:key="ann.id"
+						:ref="el => setAnnotationButtonRef(ann.id, el)"
 						type="button"
 						draggable="true"
 						class="w-full text-left px-2 py-1 border rounded-sm transition-colors cursor-grab active:cursor-grabbing"

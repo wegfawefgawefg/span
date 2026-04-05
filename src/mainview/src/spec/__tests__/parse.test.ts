@@ -20,11 +20,12 @@ const EXAMPLE_SPEC_YAML = `
   aabb: rect
   path: file_name
   chroma_key: color
+  name: string
+  frame: integer
+  duration: integer
+  offset: point
   properties:
-    name: string
-    frame: integer
     collision: rect[]
-    origin: point
     direction: enum[up, down, left, right]
     variant: string
     tags: string[]
@@ -81,33 +82,36 @@ describe("parseSpec", () => {
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
 		const names = sprite.properties.map((p) => p.name);
-		expect(names).toEqual(["name", "frame", "collision", "origin", "direction", "variant", "tags"]);
+		expect(names).toEqual(["collision", "direction", "variant", "tags"]);
+		expect(sprite.nameField?.name).toBe("name");
+		expect(sprite.frameField?.name).toBe("frame");
+		expect(sprite.durationField?.name).toBe("duration");
+		expect(sprite.offsetField?.name).toBe("offset");
 	});
 
 	test("scalar properties parsed correctly", () => {
 		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
-		const name = sprite.properties[0] as ScalarPropertyField;
-		expect(name.kind).toBe("scalar");
-		expect(name.type).toBe("string");
-		const frame = sprite.properties[1] as ScalarPropertyField;
-		expect(frame.kind).toBe("scalar");
-		expect(frame.type).toBe("integer");
+		expect(sprite.nameField?.kind).toBe("scalar");
+		expect(sprite.nameField?.type).toBe("string");
+		expect(sprite.frameField?.kind).toBe("scalar");
+		expect(sprite.frameField?.type).toBe("integer");
+		expect(sprite.durationField?.kind).toBe("scalar");
+		expect(sprite.durationField?.type).toBe("integer");
 	});
 
 	test("shape properties parsed correctly", () => {
 		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
-		const collision = sprite.properties[2] as ShapePropertyField;
+		expect(sprite.offsetField?.kind).toBe("shape");
+		expect(sprite.offsetField?.shapeType).toBe("point");
+		expect(sprite.offsetField?.array).toBe(false);
+		const collision = sprite.properties[0] as ShapePropertyField;
 		expect(collision.kind).toBe("shape");
 		expect(collision.shapeType).toBe("rect");
 		expect(collision.array).toBe(true);
-		const origin = sprite.properties[3] as ShapePropertyField;
-		expect(origin.kind).toBe("shape");
-		expect(origin.shapeType).toBe("point");
-		expect(origin.array).toBe(false);
 	});
 
 	test("hasChromaKey is true when chroma_key: color is set", () => {
@@ -122,7 +126,7 @@ describe("parseSpec", () => {
 		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
-		const dir = sprite.properties[4] as EnumPropertyField;
+		const dir = sprite.properties[1] as EnumPropertyField;
 		expect(dir.kind).toBe("enum");
 		expect(dir.values).toEqual(["up", "down", "left", "right"]);
 	});
@@ -131,7 +135,7 @@ describe("parseSpec", () => {
 		const result = parseSpec(EXAMPLE_SPEC_YAML, "yaml");
 		if (!isSpec(result)) return;
 		const sprite = result.entities[0];
-		const tags = sprite.properties[6] as ScalarPropertyField;
+		const tags = sprite.properties[3] as ScalarPropertyField;
 		expect(tags.kind).toBe("scalar");
 		expect(tags.type).toBe("string[]");
 	});

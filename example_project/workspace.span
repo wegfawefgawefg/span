@@ -1,7 +1,7 @@
 {
   "version": 2,
   "spec": {
-    "raw": "- label: Sprite\n  group: sprites\n  aabb: rect\n  path: file_name\n  chroma_key: color\n  properties:\n    name: string\n    frame: ainteger\n    collision: rect[]\n    origin: point\n    direction: enum[up, down, left, right]\n    variant: string\n    tags: string[]\n\n- label: Tile\n  group: tiles\n  aabb: rect\n  path: file_name\n  chroma_key: color\n  properties:\n    name: string\n    solid: boolean\n    layer: enum[background, foreground, overlay]\n    tags: string[]\n\n- label: Waypoint\n  group: waypoints\n  point: point\n  properties:\n    name: string\n    order: integer\n    type: enum[spawn, entrance, exit, warp]\n",
+    "raw": "- label: Sprite\n  group: sprites\n  aabb: rect\n  path: file_name\n  chroma_key: color\n  properties:\n    name: string\n    frame: ainteger\n    duration: integer\n    collision: rect[]\n    offset: point\n    direction: enum[up, down, left, right]\n    variant: string\n    tags: string[]\n\n- label: Tile\n  group: tiles\n  aabb: rect\n  path: file_name\n  chroma_key: color\n  properties:\n    name: string\n    solid: boolean\n    layer: enum[background, foreground, overlay]\n    tags: string[]\n\n- label: Waypoint\n  group: waypoints\n  point: point\n  properties:\n    name: string\n    order: integer\n    type: enum[spawn, entrance, exit, warp]\n",
     "format": "yaml"
   },
   "sheets": [
@@ -22,6 +22,7 @@
           "properties": {
             "name": "link_walk_down",
             "frame": 0,
+            "duration": 1,
             "collision": [
               {
                 "x": 0,
@@ -30,7 +31,7 @@
                 "h": 16
               }
             ],
-            "origin": {
+            "offset": {
               "x": 8,
               "y": 7
             },
@@ -53,6 +54,7 @@
           "properties": {
             "name": "link_walk_down",
             "frame": 1,
+            "duration": 1,
             "collision": [
               {
                 "x": 1,
@@ -61,7 +63,7 @@
                 "h": 16
               }
             ],
-            "origin": {
+            "offset": {
               "x": 8,
               "y": 7
             },
@@ -84,6 +86,7 @@
           "properties": {
             "name": "link_walk_right",
             "frame": 0,
+            "duration": 1,
             "collision": [
               {
                 "x": 0,
@@ -92,7 +95,7 @@
                 "h": 16
               }
             ],
-            "origin": {
+            "offset": {
               "x": 8,
               "y": 7
             },
@@ -115,6 +118,7 @@
           "properties": {
             "name": "link_walk_right",
             "frame": 1,
+            "duration": 1,
             "collision": [
               {
                 "x": 0,
@@ -123,7 +127,7 @@
                 "h": 16
               }
             ],
-            "origin": {
+            "offset": {
               "x": 8,
               "y": 7
             },

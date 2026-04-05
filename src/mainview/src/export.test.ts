@@ -107,18 +107,18 @@ describe("buildExportData", () => {
 			label: "Sprite", group: "sprites",
 			primaryShape: { kind: "rect" }, hasPath: false, hasChromaKey: false,
 			properties: [
-				{ kind: "shape", name: "origin", shapeType: "point", array: false },
+				{ kind: "shape", name: "offset", shapeType: "point", array: false },
 				{ kind: "shape", name: "collision", shapeType: "rect", array: true },
 			],
 		};
 		const spec = makeSpec([entity]);
 		const ann = makeAnnotation("Sprite", { x: 0, y: 0, w: 32, h: 32 }, null, {
-			origin: { x: 16, y: 16 },
+			offset: { x: 16, y: 16 },
 			collision: [{ x: 2, y: 4, w: 28, h: 24 }, { x: 0, y: 0, w: 32, h: 32 }],
 		});
 		const result = buildExportData(entries(ann), spec);
 		const sprite = (result["sprites"] as Record<string, unknown>[])[0];
-		expect(sprite["origin"]).toEqual({ x: 16, y: 16 });
+		expect(sprite["offset"]).toEqual({ x: 16, y: 16 });
 		expect(sprite["collision"]).toEqual([
 			{ x: 2, y: 4, w: 28, h: 24 }, { x: 0, y: 0, w: 32, h: 32 },
 		]);

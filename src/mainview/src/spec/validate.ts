@@ -7,6 +7,7 @@ const VALID_SCALAR_TYPES = new Set<string>([
 const VALID_SHAPE_TYPES = new Set<string>(["rect", "point"]);
 const LABEL_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const ENUM_RE = /^enum\[(.+)\]$/;
+const RESERVED_CORE_FIELDS = new Set(["name", "frame", "duration", "offset"]);
 
 export function validateSpec(raw: unknown): SpecError[] {
 	const errors: SpecError[] = [];
@@ -89,6 +90,24 @@ export function validateSpec(raw: unknown): SpecError[] {
 			}
 		}
 
+		// --- required sprite/core fields ---
+		if ("name" in ent && ent.name !== "string") {
+			errors.push({ path: `${ePath}.name`, severity: "error", message: `name value must be "string"` });
+		}
+		if ("frame" in ent && ent.frame !== "integer" && ent.frame !== "ainteger") {
+			errors.push({ path: `${ePath}.frame`, severity: "error", message: `frame value must be "integer" or "ainteger"` });
+		}
+		if ("duration" in ent && ent.duration !== "integer" && ent.duration !== "ainteger" && ent.duration !== "number") {
+			errors.push({ path: `${ePath}.duration`, severity: "error", message: `duration value must be "integer", "ainteger", or "number"` });
+		}
+		if ("offset" in ent) {
+			if (ent.offset !== "point") {
+				errors.push({ path: `${ePath}.offset`, severity: "error", message: `offset value must be "point"` });
+			} else if (!isAabbEntity) {
+				errors.push({ path: `${ePath}.offset`, severity: "error", message: `offset requires the entity to have "aabb: rect" as primary shape` });
+			}
+		}
+
 		// --- properties ---
 		if (ent.properties !== undefined && (typeof ent.properties !== "object" || ent.properties === null || Array.isArray(ent.properties))) {
 			errors.push({ path: `${ePath}.properties`, severity: "error", message: "Properties must be an object" });
@@ -102,6 +121,11 @@ export function validateSpec(raw: unknown): SpecError[] {
 
 		for (const [fieldName, fieldValue] of Object.entries(properties)) {
 			const fPath = `${ePath}.properties.${fieldName}`;
+
+			if (RESERVED_CORE_FIELDS.has(fieldName) && fieldName in ent) {
+				errors.push({ path: fPath, severity: "error", message: `Field "${fieldName}" is defined both at top level and under properties` });
+				continue;
+			}
 
 			// Reserved __ prefix
 			if (fieldName.startsWith("__")) {

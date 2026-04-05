@@ -209,7 +209,7 @@ describe("validateSpec", () => {
 	});
 
 	test("point shape property is valid", () => {
-		expect(errors(validateSpec([entity({ properties: { origin: "point" } })]))).toHaveLength(0);
+		expect(errors(validateSpec([entity({ properties: { offset: "point" } })]))).toHaveLength(0);
 	});
 
 	test("rect[] shape property is valid", () => {

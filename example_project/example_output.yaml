@@ -3,6 +3,7 @@ sprites:
   - name: 'link_idle'
     path: 'link.png'
     frame: 0
+    duration: 1
     direction: down
     slice:
       x: 0
@@ -14,7 +15,7 @@ sprites:
       y: 0
       width: 16
       height: 16
-    origin:
+    offset:
       x: 8
       y: 8
     chroma_key: '#FF00FF'
@@ -23,6 +24,7 @@ sprites:
   - name: 'link_walk'
     path: 'link.png'
     frame: 0
+    duration: 1
     direction: down
     slice:
       x: 0
@@ -34,7 +36,7 @@ sprites:
       y: 0
       width: 16
       height: 16
-    origin:
+    offset:
       x: 8
       y: 8
     chroma_key: '#FF00FF'

@@ -16,15 +16,16 @@ const REFERENCE_SPEC_RAW = `\
   aabb: rect
   path: file_name
   chroma_key: color
+  name: string
+  frame: ainteger
+  duration: integer
+  offset: point
   properties:
-    name: string
-    frame: ainteger
     health: integer
     speed: number
     looping: boolean
     tags: string[]
     palette_swap: color
-    origin: point
     hurtbox: rect
     sockets: point[]
     hitboxes: rect[]

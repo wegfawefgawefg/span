@@ -3,7 +3,7 @@ import { ref, triggerRef } from "vue";
 import type { Annotation } from "../annotation";
 import { migrateEntityType } from "../annotation";
 import type { SpanSpec, PropertyField, ScalarPropertyField, EnumPropertyField, ColorPropertyField, ShapePropertyField } from "../spec/types";
-import { getEntityByLabel } from "../spec/types";
+import { getEntityByLabel, getRequiredFields } from "../spec/types";
 import {
 	annotations,
 	sheets,
@@ -174,6 +174,11 @@ function clearChromaKey() {
 
 function getEntity() {
 	return getEntityByLabel(props.spec, props.annotation.entityType);
+}
+
+function getRequiredDefs(): PropertyField[] {
+	const entity = getEntity();
+	return entity ? getRequiredFields(entity) : [];
 }
 
 function deepClone<T>(value: T): T {
@@ -355,6 +360,94 @@ function syncPropertyAcrossSprite(propName: string) {
 						@update:model-value="onChromaKeyInput($event)"
 					/>
 				</label>
+			</div>
+		</div>
+
+		<!-- Required section -->
+		<div
+			v-if="getRequiredDefs().length > 0"
+			class="flex flex-col gap-2"
+		>
+			<button
+				type="button"
+				class="section-toggle"
+				@click="toggleSection('required')"
+			>
+				Required
+				<span class="ml-auto text-text-faint">
+					{{ collapsed.has('required') ? "▶" : "▼" }}
+				</span>
+			</button>
+			<div v-if="!collapsed.has('required')" class="flex flex-col gap-2">
+				<template
+					v-for="def in getRequiredDefs()"
+					:key="`required:${def.name}`"
+				>
+					<div class="flex flex-col gap-1">
+						<div class="prop-header">
+							<button
+								type="button"
+								class="prop-toggle"
+								@click="toggleSection('required:' + def.name)"
+							>
+								<span>{{ def.name }}</span>
+								<span class="prop-type">{{ def.kind === 'scalar' ? (def as ScalarPropertyField).type : (def as ShapePropertyField).shapeType }}</span>
+								<span class="ml-auto text-text-faint">
+									{{ collapsed.has('required:' + def.name) ? "▶" : "▼" }}
+								</span>
+							</button>
+						</div>
+
+						<template v-if="!collapsed.has('required:' + def.name)">
+							<label
+								v-if="def.kind === 'scalar' && (def.type === 'integer' || def.type === 'number' || def.type === 'ainteger')"
+								:class="labelClass"
+							>
+								<input
+									type="number"
+									:value="annotation.properties[def.name]"
+									@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
+								/>
+							</label>
+
+							<label
+								v-else-if="def.kind === 'scalar'"
+								:class="labelClass"
+							>
+								<input
+									type="text"
+									:value="displayValue(def as ScalarPropertyField, annotation.properties[def.name])"
+									@input="onPropertyInput(def, ($event.target as HTMLInputElement).value)"
+								/>
+							</label>
+
+							<template v-else-if="def.kind === 'shape'">
+								<div class="flex flex-col gap-1.5">
+									<ShapeCanvas
+										v-if="currentSheetImageSrc && annotation.aabb"
+										:annotation="annotation"
+										:spec="spec"
+										:shape-name="def.name"
+										:sheet-image-src="currentSheetImageSrc"
+										:shape-color="SHAPE_COLORS[1]"
+										:property-shapes="getPropertyShapeData(def as ShapePropertyField)"
+										@update:property-shape="onShapeCanvasUpdate"
+									/>
+									<div class="grid grid-cols-2 gap-1.5">
+										<label v-for="field in ['x', 'y']" :key="field" class="flex flex-col gap-0.5 text-[10px] font-mono text-text-faint">
+											{{ field }}
+											<input
+												type="number"
+												:value="((annotation.properties[def.name] as any)?.[field]) ?? 0"
+												@input="onShapePropertyInput(def.name, null, field, ($event.target as HTMLInputElement).value)"
+											/>
+										</label>
+									</div>
+								</div>
+							</template>
+						</template>
+					</div>
+				</template>
 			</div>
 		</div>
 

@@ -128,16 +128,20 @@ function displayValue(def: ScalarPropertyField, value: unknown): string {
 	return String(value ?? "");
 }
 
-function getPropertyShapeData(def: ShapePropertyField): { type: "rect" | "point"; items: Array<{ x: number; y: number; w?: number; h?: number }> } {
+function getPropertyShapeData(def: ShapePropertyField): {
+	type: "rect" | "point";
+	array: boolean;
+	items: Array<{ x: number; y: number; w?: number; h?: number }>;
+} {
 	const value = props.annotation.properties[def.name];
 	if (def.array) {
 		const arr = Array.isArray(value) ? value : [];
-		return { type: def.shapeType, items: arr as any[] };
+		return { type: def.shapeType, array: true, items: arr as any[] };
 	}
 	if (value && typeof value === "object") {
-		return { type: def.shapeType, items: [value as any] };
+		return { type: def.shapeType, array: false, items: [value as any] };
 	}
-	return { type: def.shapeType, items: [] };
+	return { type: def.shapeType, array: false, items: [] };
 }
 
 function onShapeCanvasUpdate(propName: string, index: number | null, patch: Record<string, number>) {

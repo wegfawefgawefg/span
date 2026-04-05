@@ -12,7 +12,11 @@ const props = defineProps<{
 	sheetImageSrc: string;
 	shapeColor: string;
 	// Property shape support
-	propertyShapes?: { type: "rect" | "point"; items: Array<{ x: number; y: number; w?: number; h?: number }> };
+	propertyShapes?: {
+		type: "rect" | "point";
+		array: boolean;
+		items: Array<{ x: number; y: number; w?: number; h?: number }>;
+	};
 }>();
 
 const emit = defineEmits<{
@@ -345,7 +349,7 @@ function onPropertyShapePointerDown(event: PointerEvent, idx: number) {
 		startX: event.clientX,
 		startY: event.clientY,
 		startData,
-		propertyIndex: idx,
+		propertyIndex: props.propertyShapes?.array ? idx : null,
 		isPropertyShape: true,
 	};
 

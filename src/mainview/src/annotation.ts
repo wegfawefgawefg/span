@@ -39,7 +39,7 @@ export function createAnnotation(
 		? { x: position.x, y: position.y }
 		: null;
 
-	const chromaKey = entity.hasChromaKey ? "" : null;
+	const chromaKey = null;
 
 	const properties: Record<string, unknown> = {};
 	for (const field of getAllEntityFields(entity)) {
@@ -134,10 +134,8 @@ export function migrateEntityType(
 			: { x: annotation.aabb?.x ?? 0, y: annotation.aabb?.y ?? 0 };
 	}
 
-	// Chroma key
-	const chromaKey = newEntity.hasChromaKey
-		? (annotation.chromaKey ?? "")
-		: null;
+	// Legacy field retained in saved data, but no longer used by the app.
+	const chromaKey = null;
 
 	// Migrate properties
 	const oldProps = { ...annotation.properties };

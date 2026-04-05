@@ -13,7 +13,6 @@ import {
 	currentSheetImageSrc,
 } from "../state";
 import ShapeCanvas from "./ShapeCanvas.vue";
-import ColorPicker from "./ColorPicker.vue";
 
 const props = defineProps<{
 	annotation: Annotation;
@@ -25,7 +24,7 @@ const SHAPE_COLORS = ["var(--color-copper)", "#5a8ac8", "#5ac878", "#8a5ac8"];
 const labelClass =
 	"flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider";
 
-// Track which sections are collapsed (by key: 'primary', 'chroma', 'properties', 'prop:<name>')
+// Track which sections are collapsed (by key: 'primary', 'required', 'properties', 'prop:<name>')
 const collapsed = ref<Set<string>>(new Set());
 
 function toggleSection(key: string) {
@@ -160,16 +159,6 @@ function onShapeCanvasUpdate(propName: string, index: number | null, patch: Reco
 			updatePropertyData({ [propName]: arr });
 		}
 	}
-}
-
-function onChromaKeyInput(value: string) {
-	const ann = props.annotation;
-	ann.chromaKey = value;
-	markDirty(true);
-}
-
-function clearChromaKey() {
-	onChromaKeyInput("");
 }
 
 function getEntity() {
@@ -324,44 +313,6 @@ function syncPropertyAcrossSprite(propName: string) {
 				</div>
 			</div>
 		</template>
-
-		<!-- Chroma Key (top-level) -->
-		<div v-if="getEntity()?.hasChromaKey" class="flex flex-col gap-2">
-			<button
-				type="button"
-				class="section-toggle"
-				@click="toggleSection('chroma')"
-			>
-				chroma_key
-				<span class="ml-auto text-text-faint">
-					{{ collapsed.has('chroma') ? "▶" : "▼" }}
-				</span>
-			</button>
-			<div
-				v-if="!collapsed.has('chroma')"
-				class="flex flex-col gap-2"
-			>
-				<div class="flex items-center justify-between text-[11px] text-text-faint font-mono">
-					<span>{{ annotation.chromaKey ? annotation.chromaKey : "none" }}</span>
-					<button
-						type="button"
-						class="text-text-faint hover:text-copper transition-colors cursor-pointer bg-transparent border border-border rounded px-2 py-1"
-						:disabled="!annotation.chromaKey"
-						@click="clearChromaKey"
-					>
-						Unset
-					</button>
-				</div>
-				<label :class="labelClass">
-					<ColorPicker
-						:model-value="annotation.chromaKey ?? ''"
-						:image-source="currentSheetImageSrc"
-						:aabb="annotation.aabb"
-						@update:model-value="onChromaKeyInput($event)"
-					/>
-				</label>
-			</div>
-		</div>
 
 		<!-- Required section -->
 		<div

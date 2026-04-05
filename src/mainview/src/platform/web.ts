@@ -89,6 +89,14 @@ export function createWebAdapter(): WebPlatformAdapter {
 			return { ok: true };
 		},
 
+		async writeImageDataUrl(_path: string, dataUrl: string): Promise<{ ok: boolean }> {
+			const a = document.createElement("a");
+			a.href = dataUrl;
+			a.download = _path.split("/").pop() ?? "image.png";
+			a.click();
+			return { ok: true };
+		},
+
 		async readImageAsDataUrl(path: string): Promise<string> {
 			const file = fileRegistry.get(path);
 			if (!file) throw new Error(`File not found: ${path}`);

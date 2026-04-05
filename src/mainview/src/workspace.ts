@@ -11,6 +11,8 @@ export interface WorkspaceSheet {
 		gridWidth: number;
 		gridHeight: number;
 		zoom: number;
+		centerX?: number | null;
+		centerY?: number | null;
 	};
 	status: "loaded" | "missing";
 	imageUrl: string;          // blob URL or data URL

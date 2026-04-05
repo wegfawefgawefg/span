@@ -3,6 +3,7 @@ import "./src/style.css";
 import App from "./src/App.vue";
 import SheetSidebar from "./src/components/SheetSidebar.vue";
 import CanvasView from "./src/components/CanvasView.vue";
+import PaintPanel from "./src/components/PaintPanel.vue";
 import Inspector from "./src/components/Inspector.vue";
 import AnnotationList from "./src/components/AnnotationList.vue";
 import GalleryPanel from "./src/components/GalleryPanel.vue";
@@ -20,6 +21,7 @@ import {
 	deleteSelected,
 	sheets,
 	closeProject,
+	hasUnsavedImageEdits,
 	saveWorkspace,
 	saveWorkspaceAs,
 	openWorkspace,
@@ -38,7 +40,7 @@ setAdapter(adapter, "desktop");
 // Wire desktop-only menu handlers
 wireDesktopMenuHandlers({
 	canClose: () => {
-		if (!dirty.value) return true;
+		if (!dirty.value && !hasUnsavedImageEdits.value) return true;
 		return window.confirm("You have unsaved changes. Quit without saving?");
 	},
 	addSprite: () => addAnnotationAtViewportCenter(),
@@ -54,11 +56,14 @@ wireDesktopMenuHandlers({
 	openProjectDirectory: (workspacePath: string, paths: string[]) => { void openProjectDirectory(workspacePath, paths); },
 	closeProject: () => {
 		if (sheets.value.length === 0) return;
-		const confirmed = dirty.value
+		const confirmed = dirty.value || hasUnsavedImageEdits.value
 			? window.confirm("Close the current project? Unsaved changes may be lost.")
 			: window.confirm("Close the current project?");
 		if (!confirmed) return;
 		closeProject();
+	},
+	resizeCanvas: () => {
+		window.dispatchEvent(new CustomEvent("span:open-resize-canvas-dialog"));
 	},
 });
 
@@ -67,6 +72,7 @@ const app = createApp(App);
 // Register components globally so Dockview can find them by name
 app.component("sheets", SheetSidebar);
 app.component("sprite-canvas", CanvasView);
+app.component("paint", PaintPanel);
 app.component("inspector", Inspector);
 app.component("annotations", AnnotationList);
 app.component("gallery", GalleryPanel);

@@ -44,6 +44,10 @@ export type SpanRPC = {
 				params: { path: string; contents: string };
 				response: { ok: boolean };
 			};
+			writeImageDataUrl: {
+				params: { path: string; dataUrl: string };
+				response: { ok: boolean };
+			};
 			readImageAsDataUrl: {
 				params: { path: string };
 				response: string;
@@ -114,6 +118,10 @@ export type SpanRPC = {
 				response: void;
 			};
 			closeProject: {
+				params: {};
+				response: void;
+			};
+			resizeCanvas: {
 				params: {};
 				response: void;
 			};

@@ -39,7 +39,7 @@ import {
   deserializeWorkspace,
   debouncedSave,
 } from './persistence';
-import type { SpanFileSpec } from './persistence';
+import type { SpanFilePalette, SpanFileSpec } from './persistence';
 import { exportToString, type ExportEntry } from './export';
 
 // Re-export workspace state for consumers
@@ -83,14 +83,20 @@ interface CanvasSheetPrefs {
   gridWidth: number;
   gridHeight: number;
   zoom: number;
+  centerX: number | null;
+  centerY: number | null;
 }
 
 function normalizeCanvasPrefs(raw: Partial<CanvasSheetPrefs> | null | undefined): CanvasSheetPrefs {
+  const centerX = typeof raw?.centerX === 'number' && Number.isFinite(raw.centerX) ? raw.centerX : null;
+  const centerY = typeof raw?.centerY === 'number' && Number.isFinite(raw.centerY) ? raw.centerY : null;
   return {
     gridEnabled: raw?.gridEnabled ?? false,
     gridWidth: Math.max(1, Math.round(raw?.gridWidth ?? 16)),
     gridHeight: Math.max(1, Math.round(raw?.gridHeight ?? 16)),
     zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Number(raw?.zoom ?? 2))),
+    centerX,
+    centerY,
   };
 }
 
@@ -109,6 +115,20 @@ let specSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 let specReloadInterval: ReturnType<typeof setInterval> | null = null;
 let specReloadInFlight = false;
 let getFitZoomForImage: (width: number, height: number) => number | null = () => null;
+
+function getPersistedSelectedAnnotationId(): string | null {
+  const sheet = currentSheet.value;
+  if (!sheet || !selectedId.value) return null;
+  return sheet.annotations.some((annotation) => annotation.id === selectedId.value)
+    ? selectedId.value
+    : null;
+}
+
+function scheduleWorkspaceUiStateSave() {
+  if (spanFilePath.value || platform.value === 'web') {
+    debouncedSave(performSave, 250);
+  }
+}
 
 function isPointPropertyValue(
   value: unknown
@@ -195,7 +215,7 @@ function setSpecState(
   activeSpec.value = result;
   activeSpecRaw.value = { raw, format };
   const normalizedAnnotations = normalizeAnnotationsForSpec(result);
-  activeTool.value = '';
+  setSelectTool();
   if (options && 'filePath' in options) {
     specFilePath.value = options.filePath ?? null;
   }
@@ -375,11 +395,14 @@ function getCanvasPrefsId(sheet: WorkspaceSheet | null): string | null {
 }
 
 function getCurrentCanvasPrefs(): CanvasSheetPrefs {
+  const center = getViewportCenter();
   return normalizeCanvasPrefs({
     gridEnabled: canvasGridEnabled.value,
     gridWidth: canvasGridWidth.value,
     gridHeight: canvasGridHeight.value,
     zoom: zoom.value,
+    centerX: center.x,
+    centerY: center.y,
   });
 }
 
@@ -394,17 +417,33 @@ function applyCanvasPrefs(normalized: CanvasSheetPrefs) {
 
 function loadCanvasPrefsForSheet(sheet: WorkspaceSheet | null): boolean {
   if (sheet?.view) {
-    applyCanvasPrefs(normalizeCanvasPrefs(sheet.view));
+    const normalized = normalizeCanvasPrefs(sheet.view);
+    sheet.view = normalized;
+    applyCanvasPrefs(normalized);
     return false;
   }
   const prefsId = getCanvasPrefsId(sheet);
   const prefs = prefsId ? getCanvasPrefsMap()[prefsId] : null;
   if (prefs) {
-    applyCanvasPrefs(normalizeCanvasPrefs(prefs));
+    const normalized = normalizeCanvasPrefs(prefs);
+    if (sheet) {
+      sheet.view = normalized;
+    }
+    applyCanvasPrefs(normalized);
     return false;
   }
 
-  const inherited = sheet ? getCurrentCanvasPrefs() : normalizeCanvasPrefs(null);
+  const inherited = normalizeCanvasPrefs(
+    sheet
+      ? {
+          gridEnabled: canvasGridEnabled.value,
+          gridWidth: canvasGridWidth.value,
+          gridHeight: canvasGridHeight.value,
+          centerX: null,
+          centerY: null,
+        }
+      : null
+  );
   if (sheet && sheet.width > 0 && sheet.height > 0) {
     const fitZoom = getFitZoomForImage(sheet.width, sheet.height);
     if (typeof fitZoom === 'number' && Number.isFinite(fitZoom)) {
@@ -419,12 +458,24 @@ function loadCanvasPrefsForSheet(sheet: WorkspaceSheet | null): boolean {
 }
 
 function saveCanvasPrefsForSheet(sheet: WorkspaceSheet | null) {
+  saveCanvasPrefsForSheetWithOptions(sheet);
+}
+
+function saveCanvasPrefsForSheetWithOptions(
+  sheet: WorkspaceSheet | null,
+  options?: { preserveCenter?: boolean }
+) {
   if (applyingCanvasPrefs.value) return;
+  const preserveCenter = options?.preserveCenter ?? false;
+  const existing = sheet?.view ? normalizeCanvasPrefs(sheet.view) : null;
+  const viewportCenter = getViewportCenter();
   const normalized = normalizeCanvasPrefs({
     gridEnabled: canvasGridEnabled.value,
     gridWidth: canvasGridWidth.value,
     gridHeight: canvasGridHeight.value,
     zoom: zoom.value,
+    centerX: preserveCenter ? existing?.centerX ?? null : viewportCenter.x,
+    centerY: preserveCenter ? existing?.centerY ?? null : viewportCenter.y,
   });
   if (sheet) {
     sheet.view = normalized;
@@ -453,6 +504,420 @@ export const activeSpecRaw = ref<SpanFileSpec | null>({
   format: DEFAULT_SPEC_FORMAT,
 });
 export const activeTool = ref<string>('');
+export const activePaintTool = ref<'' | 'pencil' | 'erase' | 'eyedropper' | 'marquee'>('');
+export const activeAtlasTool = ref<'' | 'sprite-move'>('');
+export const activePaintColor = ref('#e8e2d4');
+export const paintToolSize = ref(1);
+export const paintPalette = ref<string[]>([]);
+export const projectPalettes = ref<SpanFilePalette[]>([]);
+export const activeProjectPaletteId = ref<string | null>(null);
+export const paintPixelSelection = ref<{ x: number; y: number; w: number; h: number } | null>(null);
+export const hasPaintClipboard = ref(false);
+export const activeProjectPalette = computed<SpanFilePalette | null>(
+  () => projectPalettes.value.find((palette) => palette.id === activeProjectPaletteId.value) ?? null
+);
+export const availablePaintSwatches = computed<string[]>(
+  () => activeProjectPalette.value?.colors ?? paintPalette.value
+);
+
+interface EditedSheetState {
+  undo: EditSnapshot[];
+  redo: EditSnapshot[];
+  dirty: boolean;
+  originalImageUrl: string;
+}
+
+interface EditSnapshot {
+  imageUrl: string;
+  annotationAabbs: Record<string, { x: number; y: number; w: number; h: number }>;
+}
+
+const editedSheetState = ref<Record<string, EditedSheetState>>({});
+
+function getSheetKey(sheet: WorkspaceSheet | null): string | null {
+  if (!sheet) return null;
+  return sheet.absolutePath || sheet.path || null;
+}
+
+function ensureEditedSheetState(sheet: WorkspaceSheet): EditedSheetState {
+  const key = getSheetKey(sheet);
+  if (!key) {
+    return {
+      undo: [],
+      redo: [],
+      dirty: false,
+      originalImageUrl: sheet.imageUrl,
+    };
+  }
+  const existing = editedSheetState.value[key];
+  if (existing) return existing;
+  const created: EditedSheetState = {
+    undo: [],
+    redo: [],
+    dirty: false,
+    originalImageUrl: sheet.imageUrl,
+  };
+  editedSheetState.value = {
+    ...editedSheetState.value,
+    [key]: created,
+  };
+  return created;
+}
+
+function captureEditSnapshot(sheet: WorkspaceSheet): EditSnapshot {
+  return {
+    imageUrl: sheet.imageUrl,
+    annotationAabbs: Object.fromEntries(
+      sheet.annotations
+        .filter((annotation) => !!annotation.aabb)
+        .map((annotation) => [
+          annotation.id,
+          {
+            x: annotation.aabb!.x,
+            y: annotation.aabb!.y,
+            w: annotation.aabb!.w,
+            h: annotation.aabb!.h,
+          },
+        ])
+    ),
+  };
+}
+
+function applyEditSnapshot(sheet: WorkspaceSheet, snapshot: EditSnapshot) {
+  for (const annotation of sheet.annotations) {
+    if (!annotation.aabb) continue;
+    const next = snapshot.annotationAabbs[annotation.id];
+    if (!next) continue;
+    annotation.aabb.x = next.x;
+    annotation.aabb.y = next.y;
+    annotation.aabb.w = next.w;
+    annotation.aabb.h = next.h;
+  }
+  updateSheetImageState(sheet, snapshot.imageUrl, sheet.width, sheet.height);
+  triggerRef(sheets);
+}
+
+function replaceEditedSheetState(sheet: WorkspaceSheet, next: EditedSheetState) {
+  const key = getSheetKey(sheet);
+  if (!key) return;
+  editedSheetState.value = {
+    ...editedSheetState.value,
+    [key]: next,
+  };
+}
+
+function updateSheetImageState(
+  sheet: WorkspaceSheet,
+  dataUrl: string,
+  width: number,
+  height: number
+) {
+  sheet.imageUrl = dataUrl;
+  sheet.width = width;
+  sheet.height = height;
+  if (currentSheet.value === sheet) {
+    currentSheetImageSrc.value = dataUrl;
+    imageWidth.value = width;
+    imageHeight.value = height;
+  }
+  persistSheetImage(sheet);
+  triggerRef(sheets);
+}
+
+function isPaintableSheet(sheet: WorkspaceSheet | null): boolean {
+  if (!sheet) return false;
+  return /\.(png|jpe?g|webp)$/i.test(sheet.absolutePath || sheet.path);
+}
+
+export const hasUnsavedImageEdits = computed(() =>
+  Object.values(editedSheetState.value).some((entry) => entry.dirty)
+);
+
+export function setSelectTool() {
+  activeTool.value = '';
+  activePaintTool.value = '';
+  activeAtlasTool.value = '';
+}
+
+export function setEntityTool(label: string) {
+  activePaintTool.value = '';
+  activeAtlasTool.value = '';
+  activeTool.value = label;
+}
+
+export function setPaintTool(tool: '' | 'pencil' | 'erase' | 'eyedropper' | 'marquee') {
+  activeTool.value = '';
+  activeAtlasTool.value = '';
+  activePaintTool.value = tool;
+}
+
+export function setAtlasTool(tool: '' | 'sprite-move') {
+  activeTool.value = '';
+  activePaintTool.value = '';
+  activeAtlasTool.value = tool;
+}
+
+let copyPixelSelectionHandler: () => boolean = () => false;
+let cutPixelSelectionHandler: () => boolean = () => false;
+let pastePixelSelectionHandler: () => boolean = () => false;
+let deletePixelSelectionHandler: () => boolean = () => false;
+let resizeCanvasHandler: (width: number, height: number) => boolean = () => false;
+
+export function registerPaintClipboardHandlers(handlers: {
+  copy: () => boolean;
+  cut: () => boolean;
+  paste: () => boolean;
+  deleteSelection: () => boolean;
+}) {
+  copyPixelSelectionHandler = handlers.copy;
+  cutPixelSelectionHandler = handlers.cut;
+  pastePixelSelectionHandler = handlers.paste;
+  deletePixelSelectionHandler = handlers.deleteSelection;
+}
+
+export function copyPixelSelection() {
+  return copyPixelSelectionHandler();
+}
+
+export function cutPixelSelection() {
+  return cutPixelSelectionHandler();
+}
+
+export function pastePixelSelection() {
+  return pastePixelSelectionHandler();
+}
+
+export function deletePixelSelection() {
+  return deletePixelSelectionHandler();
+}
+
+export function registerResizeCanvasHandler(handler: (width: number, height: number) => boolean) {
+  resizeCanvasHandler = handler;
+}
+
+export function getCurrentSheetCanvasSize() {
+  return {
+    width: currentSheet.value?.width ?? imageWidth.value,
+    height: currentSheet.value?.height ?? imageHeight.value,
+  };
+}
+
+export function resizeCurrentSheetCanvas(width: number, height: number) {
+  return resizeCanvasHandler(width, height);
+}
+
+export function setPaintPalette(colors: string[]) {
+  paintPalette.value = colors.slice(0, 16);
+}
+
+async function debugPaletteLog(message: string) {
+  try {
+    if (platform.value === 'desktop') {
+      await api.debugLog(`[palette] ${message}`);
+    } else {
+      console.log('[palette]', message);
+    }
+  } catch {
+    // Ignore debug log failures.
+  }
+}
+
+function normalizePaletteColorToken(token: string): string | null {
+  const trimmed = token.trim();
+  const match = trimmed.match(/^#?([0-9a-fA-F]{6})$/);
+  if (!match) return null;
+  return `#${match[1].toLowerCase()}`;
+}
+
+function parsePaletteHex(raw: string): string[] {
+  const colors: string[] = [];
+  const seen = new Set<string>();
+
+  for (const token of raw.split(/[\s,]+/)) {
+    const color = normalizePaletteColorToken(token);
+    if (!color || seen.has(color)) continue;
+    seen.add(color);
+    colors.push(color);
+  }
+
+  return colors;
+}
+
+function slugifyPaletteName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "palette";
+}
+
+export function setActiveProjectPalette(id: string | null) {
+  activeProjectPaletteId.value = id;
+  markDirty(true);
+}
+
+async function persistWorkspaceSnapshotNow() {
+  const spec = activeSpec.value;
+  if (!spec) return false;
+
+  const data = serializeWorkspace(
+    sheets.value,
+    activeSpecRaw.value,
+    projectPalettes.value,
+    activeProjectPaletteId.value,
+    makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value),
+    currentSheet.value?.path ?? null,
+    getPersistedSelectedAnnotationId(),
+  );
+
+  if (platform.value === 'desktop' && spanFilePath.value) {
+    await api.writeFile(spanFilePath.value, data);
+    if (specFilePath.value) {
+      debouncedSaveSpecFile();
+    }
+    dirty.value = false;
+    return true;
+  }
+
+  if (platform.value === 'web') {
+    localStorage.setItem('span-workspace', data);
+    dirty.value = false;
+    return true;
+  }
+
+  return false;
+}
+
+export async function importPaletteFromPath(path: string) {
+  try {
+    await debugPaletteLog(`import request path=${path}`);
+
+    if (!/\.(hex|txt)$/i.test(path)) {
+      statusText.value = 'Select a .hex palette file';
+      await debugPaletteLog(`rejected non-palette path=${path}`);
+      return;
+    }
+
+    const raw = await api.readFile(path);
+    await debugPaletteLog(`read ${raw.length} bytes from ${path}`);
+    const colors = parsePaletteHex(raw);
+    await debugPaletteLog(`parsed ${colors.length} colors from ${path}`);
+    if (colors.length === 0) {
+      statusText.value = 'No colors found in palette file';
+      return;
+    }
+
+    const filename = path.split('/').pop() ?? 'palette.hex';
+    const baseName = filename.replace(/\.[^.]+$/, '') || 'palette';
+    const existing = projectPalettes.value.find((palette) => palette.name === baseName);
+    const palette: SpanFilePalette = {
+      id: existing?.id ?? `${slugifyPaletteName(baseName)}-${Date.now()}`,
+      name: baseName,
+      colors,
+    };
+
+    projectPalettes.value = existing
+      ? projectPalettes.value.map((entry) => (entry.id === existing.id ? palette : entry))
+      : [...projectPalettes.value, palette];
+    activeProjectPaletteId.value = palette.id;
+    activePaintColor.value = palette.colors[0] ?? activePaintColor.value;
+    const persisted = await persistWorkspaceSnapshotNow();
+    if (!persisted) {
+      markDirty(true);
+    }
+    statusText.value = `Imported palette ${palette.name}`;
+    await debugPaletteLog(
+      `imported palette name=${palette.name} colors=${palette.colors.length} persisted=${persisted}`
+    );
+  } catch (e) {
+    console.error('Failed to import palette:', e);
+    statusText.value = 'Failed to import palette';
+    await debugPaletteLog(`import failed path=${path} error=${String(e)}`);
+  }
+}
+
+export function recordPaintUndoSnapshot(sheet: WorkspaceSheet) {
+  const state = ensureEditedSheetState(sheet);
+  const undo = [...state.undo, captureEditSnapshot(sheet)].slice(-64);
+  replaceEditedSheetState(sheet, {
+    ...state,
+    undo,
+    redo: [],
+  });
+}
+
+export function applyPaintedSheetImage(
+  sheet: WorkspaceSheet,
+  dataUrl: string,
+  width: number,
+  height: number
+) {
+  const state = ensureEditedSheetState(sheet);
+  const dirty = dataUrl !== state.originalImageUrl;
+  replaceEditedSheetState(sheet, {
+    ...state,
+    dirty,
+  });
+  updateSheetImageState(sheet, dataUrl, width, height);
+  statusText.value = `${sheet.path} • ${dirty ? 'Image edits pending save' : 'Image edit reverted'}`;
+}
+
+export function undoPaintEdit(): boolean {
+  const sheet = currentSheet.value;
+  if (!sheet || !isPaintableSheet(sheet)) return false;
+  const state = ensureEditedSheetState(sheet);
+  if (state.undo.length === 0) return false;
+  const previous = state.undo[state.undo.length - 1];
+  const nextUndo = state.undo.slice(0, -1);
+  const redo = [...state.redo, captureEditSnapshot(sheet)].slice(-64);
+  const dirty = previous.imageUrl !== state.originalImageUrl;
+  replaceEditedSheetState(sheet, {
+    ...state,
+    undo: nextUndo,
+    redo,
+    dirty,
+  });
+  applyEditSnapshot(sheet, previous);
+  statusText.value = `${sheet.path} • Undid image edit`;
+  return true;
+}
+
+export function redoPaintEdit(): boolean {
+  const sheet = currentSheet.value;
+  if (!sheet || !isPaintableSheet(sheet)) return false;
+  const state = ensureEditedSheetState(sheet);
+  if (state.redo.length === 0) return false;
+  const next = state.redo[state.redo.length - 1];
+  const undo = [...state.undo, captureEditSnapshot(sheet)].slice(-64);
+  const nextRedo = state.redo.slice(0, -1);
+  const dirty = next.imageUrl !== state.originalImageUrl;
+  replaceEditedSheetState(sheet, {
+    ...state,
+    undo,
+    redo: nextRedo,
+    dirty,
+  });
+  applyEditSnapshot(sheet, next);
+  statusText.value = `${sheet.path} • Redid image edit`;
+  return true;
+}
+
+async function savePendingImageEdits() {
+  if (platform.value !== 'desktop') return;
+
+  for (const sheet of sheets.value) {
+    const key = getSheetKey(sheet);
+    if (!key) continue;
+    const state = editedSheetState.value[key];
+    if (!state?.dirty) continue;
+    await api.writeImageDataUrl(sheet.absolutePath, sheet.imageUrl);
+    replaceEditedSheetState(sheet, {
+      ...state,
+      dirty: false,
+      originalImageUrl: sheet.imageUrl,
+    });
+  }
+}
 
 // Eyedropper state: when non-null, the canvas is in eyedropper mode
 export const activeEyedropper = ref<{
@@ -515,6 +980,8 @@ export function fulfillSheet(
   if (currentSheet.value === sheet) {
     currentSheet.value = fulfilled;
   }
+
+  ensureEditedSheetState(fulfilled);
 }
 
 // --- Persist sheet images to IndexedDB (web only) ---
@@ -529,18 +996,24 @@ function persistSheetImage(sheet: WorkspaceSheet) {
 
 // Persist images when sheets are added
 watch(sheets, (newSheets, oldSheets) => {
-  if (platform.value !== 'web') return;
   const oldPaths = new Set((oldSheets ?? []).map((s) => s.path));
   for (const sheet of newSheets) {
     if (!oldPaths.has(sheet.path)) {
-      persistSheetImage(sheet);
+      ensureEditedSheetState(sheet);
+      if (platform.value === 'web') {
+        persistSheetImage(sheet);
+      }
     }
   }
 });
 
 // --- Watch currentSheet to load image ---
 
-watch(currentSheet, async (sheet) => {
+watch(currentSheet, async (sheet, previousSheet) => {
+  if (previousSheet) {
+    saveCanvasPrefsForSheet(previousSheet);
+  }
+
   if (!sheet) {
     currentSheetImageSrc.value = '';
     imageWidth.value = 0;
@@ -558,9 +1031,15 @@ watch(currentSheet, async (sheet) => {
     debouncedSave(performSave, 250);
   }
 
-  // Update status
+  const key = getSheetKey(sheet);
+  if (key && editedSheetState.value[key]?.dirty) {
+    statusText.value = `${sheet.path} • Image edits pending save`;
+    return;
+  }
+
   markDirty(false);
-});
+  scheduleWorkspaceUiStateSave();
+}, { flush: 'sync' });
 
 watch(
   [
@@ -570,7 +1049,7 @@ watch(
     zoom,
   ],
   () => {
-    saveCanvasPrefsForSheet(currentSheet.value);
+    saveCanvasPrefsForSheetWithOptions(currentSheet.value, { preserveCenter: true });
     if (spanFilePath.value || platform.value === 'web') {
       debouncedSave(performSave, 250);
     }
@@ -611,6 +1090,13 @@ export function registerViewportCenterFn(fn: () => { x: number; y: number }) {
   getViewportCenter = fn;
 }
 
+export function persistCurrentCanvasViewport() {
+  saveCanvasPrefsForSheet(currentSheet.value);
+  if (spanFilePath.value || platform.value === 'web') {
+    debouncedSave(performSave, 250);
+  }
+}
+
 export function registerFitZoomFn(fn: (width: number, height: number) => number | null) {
   getFitZoomForImage = fn;
 }
@@ -633,7 +1119,11 @@ function performSave() {
   const data = serializeWorkspace(
     sheets.value,
     activeSpecRaw.value,
-    makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value)
+    projectPalettes.value,
+    activeProjectPaletteId.value,
+    makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value),
+    currentSheet.value?.path ?? null,
+    getPersistedSelectedAnnotationId(),
   );
 
   console.log(
@@ -673,6 +1163,7 @@ function performSave() {
 
 export function selectAnnotation(id: string | null) {
   selectedId.value = id;
+  scheduleWorkspaceUiStateSave();
 }
 
 export function reorderAnnotation(fromId: string, toId: string) {
@@ -703,6 +1194,13 @@ export function markDirty(isDirty: boolean) {
 
 export function closeProject() {
   resetWorkspace();
+  editedSheetState.value = {};
+  projectPalettes.value = [];
+  activeProjectPaletteId.value = null;
+  paintPalette.value = [];
+  paintPixelSelection.value = null;
+  hasPaintClipboard.value = false;
+  setSelectTool();
   specFilePath.value = null;
   resetToDefaultSpec(null);
   selectedId.value = null;
@@ -897,6 +1395,7 @@ export async function importSheetFromPath(path: string) {
         width: dims.width,
         height: dims.height,
       });
+      ensureEditedSheetState(sheets.value[sheets.value.length - 1]);
     }
   } catch (e) {
     console.error('Failed to import sheet:', e);
@@ -927,6 +1426,13 @@ export async function openProjectDirectory(
   paths: string[]
 ) {
   resetWorkspace();
+  selectedId.value = null;
+  editedSheetState.value = {};
+  projectPalettes.value = [];
+  activeProjectPaletteId.value = null;
+  paintPalette.value = [];
+  paintPixelSelection.value = null;
+  hasPaintClipboard.value = false;
   spanFilePath.value = workspacePath.endsWith('.span')
     ? workspacePath
     : workspacePath + '.span';
@@ -1042,7 +1548,13 @@ export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
   if (!spanFilePath.value) {
     return { needsSaveAs: true };
   }
-  performSave();
+  try {
+    await savePendingImageEdits();
+    performSave();
+  } catch (e) {
+    console.error('Save failed:', e);
+    statusText.value = 'Save failed';
+  }
   return { needsSaveAs: false };
 }
 
@@ -1072,11 +1584,16 @@ export async function saveWorkspaceAs(dialogPath?: string) {
   const data = serializeWorkspace(
     sheets.value,
     activeSpecRaw.value,
-    makeWorkspaceRelativePath(specFilePath.value, savePath)
+    projectPalettes.value,
+    activeProjectPaletteId.value,
+    makeWorkspaceRelativePath(specFilePath.value, savePath),
+    currentSheet.value?.path ?? null,
+    getPersistedSelectedAnnotationId(),
   );
   console.log('[saveWorkspaceAs] data length:', data.length);
 
   try {
+    await savePendingImageEdits();
     await api.writeFile(savePath, data);
     await saveSpecFileNow();
     console.log('[saveWorkspaceAs] write succeeded');
@@ -1111,6 +1628,15 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
 
   // Reset and load sheets
   resetWorkspace();
+  selectedId.value = null;
+  editedSheetState.value = {};
+  paintPixelSelection.value = null;
+  hasPaintClipboard.value = false;
+  projectPalettes.value = data.palettes ?? [];
+  activeProjectPaletteId.value =
+    data.activePaletteId && projectPalettes.value.some((palette) => palette.id === data.activePaletteId)
+      ? data.activePaletteId
+      : null;
   if (filePath) {
     spanFilePath.value = filePath;
   }
@@ -1120,6 +1646,7 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
   const dir = fileDir.endsWith('/.span')
     ? fileDir.slice(0, -'/.span'.length)
     : fileDir;
+  let prunedMissingEmptySheets = false;
 
   for (const sheet of data.sheets) {
     // Resolve sheet path relative to .span file
@@ -1160,6 +1687,7 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
           width: dims.width,
           height: dims.height,
         });
+        ensureEditedSheetState(sheets.value[sheets.value.length - 1]);
         loaded = true;
         break;
       } catch {
@@ -1168,6 +1696,10 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
     }
 
     if (!loaded) {
+      if ((sheet.annotations?.length ?? 0) === 0) {
+        prunedMissingEmptySheets = true;
+        continue;
+      }
       addSheet({
         path: sheet.path,
         absolutePath: imgPath,
@@ -1178,12 +1710,33 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
         width: 0,
         height: 0,
       });
+      ensureEditedSheetState(sheets.value[sheets.value.length - 1]);
     }
   }
 
-  currentSheet.value = sheets.value[0] ?? null;
+  const selectedAnnotationSheet =
+    data.selectedAnnotationId
+      ? sheets.value.find((sheet) =>
+          sheet.annotations.some((annotation) => annotation.id === data.selectedAnnotationId)
+        ) ?? null
+      : null;
+  const lastOpenSheet =
+    data.lastOpenSheetPath
+      ? sheets.value.find((sheet) => sheet.path === data.lastOpenSheetPath) ?? null
+      : null;
+
+  currentSheet.value = selectedAnnotationSheet ?? lastOpenSheet ?? sheets.value[0] ?? null;
+  selectedId.value =
+    currentSheet.value && data.selectedAnnotationId
+      && currentSheet.value.annotations.some((annotation) => annotation.id === data.selectedAnnotationId)
+      ? data.selectedAnnotationId
+      : null;
   markDirty(false);
   statusText.value = filePath
-    ? `Opened ${filePath.split('/').pop()}`
-    : 'Workspace restored';
+    ? `Opened ${filePath.split('/').pop()}${prunedMissingEmptySheets ? ' • pruned stale missing sheets' : ''}`
+    : `Workspace restored${prunedMissingEmptySheets ? ' • pruned stale missing sheets' : ''}`;
+
+  if (prunedMissingEmptySheets && (spanFilePath.value || platform.value === 'web')) {
+    debouncedSave(performSave, 50);
+  }
 }

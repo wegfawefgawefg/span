@@ -81,11 +81,6 @@ export function buildExportData(
 			flat["point"] = remapPoint(ann.point, shapeFields?.point);
 		}
 
-		// Chroma key
-		if (entityDef.hasChromaKey && ann.chromaKey) {
-			flat["chroma_key"] = ann.chromaKey;
-		}
-
 		if (entityDef.nameField) {
 			flat["name"] = ann.properties.name ?? null;
 		}

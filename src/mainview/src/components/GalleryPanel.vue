@@ -11,8 +11,6 @@ import {
 	getPreviewShapeName,
 } from "../state";
 import { getEntityByLabel } from "../spec/types";
-
-import { parseHexColor, applyChromaKey } from "../composables/useChromaKey";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
 
@@ -170,10 +168,6 @@ function getFrameDuration(ann: Annotation): number {
 	return Math.max(1, Math.round(value));
 }
 
-function getChromaKey(ann: Annotation): string | undefined {
-	return ann.chromaKey || undefined;
-}
-
 function groupKey(ann: Annotation): string {
 	const name = getAnnotationName(ann).trim();
 	// Build extra grouping fields: all string properties except the first (name)
@@ -310,14 +304,6 @@ function drawFrame(canvas: HTMLCanvasElement, frame: GalleryFrame, bounds: Previ
 				w,
 				h,
 			);
-
-			const chromaValue = getChromaKey(frame.annotation);
-			const chroma = chromaValue ? parseHexColor(chromaValue) : null;
-			if (chroma) {
-				const id = sourceCtx.getImageData(0, 0, w, h);
-				applyChromaKey(id, chroma);
-				sourceCtx.putImageData(id, 0, 0);
-			}
 
 			const ctx = canvas.getContext("2d")!;
 			ctx.clearRect(0, 0, canvas.width, canvas.height);

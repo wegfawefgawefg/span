@@ -230,6 +230,18 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 				}
 				return { ok: true };
 			},
+			writeImageDataUrl: async ({ path, dataUrl }) => {
+				const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+				if (!match) {
+					throw new Error(`Unsupported data URL for image write: ${path}`);
+				}
+				const [, mimeType, base64] = match;
+				console.log("[writeImageDataUrl] path:", path, "mime:", mimeType);
+				await mkdir(dirname(path), { recursive: true });
+				await Bun.write(path, Buffer.from(base64, "base64"));
+				console.log("[writeImageDataUrl] done:", path);
+				return { ok: true };
+			},
 			readImageAsDataUrl: async ({ path }) => {
 				console.log("[images] reading image:", path);
 				const file = Bun.file(path);
@@ -372,6 +384,8 @@ ApplicationMenu.setApplicationMenu([
 			{ role: "paste" },
 			{ role: "selectAll" },
 			{ type: "separator" as const },
+			{ label: "Resize Canvas...", action: "resizeCanvas" },
+			{ type: "separator" as const },
 			{ label: "Add Annotation", action: "addSprite" },
 			{
 				label: "Duplicate Annotation",
@@ -388,6 +402,8 @@ ApplicationMenu.setApplicationMenu([
 	{
 		label: "View",
 		submenu: [
+			{ label: "Reload Window", accelerator: "F5", action: "reloadWindow" },
+			{ type: "separator" as const },
 			{ label: "Sheets", action: "addPanel:sheets" },
 			{ label: "Canvas", action: "addPanel:sprite-canvas" },
 			{ label: "Inspector", action: "addPanel:inspector" },
@@ -512,6 +528,12 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 		}
 		case "closeProject":
 			mainWindow.webview.rpc.request.closeProject({});
+			break;
+		case "resizeCanvas":
+			mainWindow.webview.rpc.request.resizeCanvas({});
+			break;
+		case "reloadWindow":
+			mainWindow.webview.executeJavascript("window.location.reload()");
 			break;
 		case "resetLayout":
 			try {

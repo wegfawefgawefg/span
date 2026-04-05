@@ -171,34 +171,6 @@ function drawBackground() {
 		);
 	}
 
-	// Apply chroma key transparency
-	const chromaKey = props.annotation.chromaKey;
-	if (chromaKey) {
-		applyChromaKey(ctx, w, h, chromaKey);
-	}
-}
-
-function applyChromaKey(ctx: CanvasRenderingContext2D, w: number, h: number, hexColor: string) {
-	// Parse hex color
-	const match = hexColor.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
-	if (!match) return;
-	const cr = parseInt(match[1], 16);
-	const cg = parseInt(match[2], 16);
-	const cb = parseInt(match[3], 16);
-
-	const dpr = window.devicePixelRatio || 1;
-	const imageData = ctx.getImageData(0, 0, w * dpr, h * dpr);
-	const data = imageData.data;
-	const tolerance = 2; // allow slight color variation
-
-	for (let i = 0; i < data.length; i += 4) {
-		if (Math.abs(data[i] - cr) <= tolerance &&
-			Math.abs(data[i + 1] - cg) <= tolerance &&
-			Math.abs(data[i + 2] - cb) <= tolerance) {
-			data[i + 3] = 0; // set alpha to 0
-		}
-	}
-	ctx.putImageData(imageData, 0, 0);
 }
 
 // --- Resize observer ---
@@ -227,7 +199,6 @@ watch([viewport, () => containerWidth.value], drawBackground);
 watch(() => [
 	props.annotation.aabb,
 	props.annotation.point,
-	props.annotation.chromaKey,
 	previewRect.value,
 ], drawBackground, { deep: true });
 

@@ -57,6 +57,7 @@ export const api: PlatformAdapter = {
 	readFile: (path) => getAdapter().readFile(path),
 	listImageFiles: (directory) => getAdapter().listImageFiles(directory),
 	writeFile: (path, contents) => getAdapter().writeFile(path, contents),
+	writeImageDataUrl: (path, dataUrl) => getAdapter().writeImageDataUrl(path, dataUrl),
 	readImageAsDataUrl: (path) => getAdapter().readImageAsDataUrl(path),
 	revealFile: (path) => getAdapter().revealFile(path),
 	saveLayout: (layout) => getAdapter().saveLayout(layout),

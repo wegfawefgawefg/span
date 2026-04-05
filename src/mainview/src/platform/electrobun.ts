@@ -22,6 +22,7 @@ let triggerExportSpecHandler: (path: string) => void = () => {};
 let triggerImportSheetHandler: (path: string) => void = () => {};
 let openProjectDirectoryHandler: (workspacePath: string, paths: string[]) => void = () => {};
 let closeProjectHandler: () => void = () => {};
+let resizeCanvasHandler: () => void = () => {};
 
 const rpc = Electroview.defineRPC<SpanRPC>({
 	handlers: {
@@ -39,6 +40,7 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			triggerImportSheet: ({ path }) => { setTimeout(() => triggerImportSheetHandler(path), 0); },
 			openProjectDirectory: ({ workspacePath, paths }) => { setTimeout(() => openProjectDirectoryHandler(workspacePath, paths), 0); },
 			closeProject: () => { setTimeout(() => closeProjectHandler(), 0); },
+			resizeCanvas: () => { setTimeout(() => resizeCanvasHandler(), 0); },
 			resetLayout: () => getResetLayoutHandler()(),
 			addPanel: ({ panelId }) => getAddPanelHandler()(panelId),
 		},
@@ -68,6 +70,8 @@ export function createElectrobunAdapter(): PlatformAdapter {
 			electroview.rpc.request.listImageFiles({ directory }),
 		writeFile: (path: string, contents: string) =>
 			electroview.rpc.request.writeFile({ path, contents }),
+		writeImageDataUrl: (path: string, dataUrl: string) =>
+			electroview.rpc.request.writeImageDataUrl({ path, dataUrl }),
 		readImageAsDataUrl: (path: string) =>
 			electroview.rpc.request.readImageAsDataUrl({ path }),
 		revealFile: (path: string) =>
@@ -97,6 +101,7 @@ export function wireDesktopMenuHandlers(handlers: {
 	triggerImportSheet: (path: string) => void;
 	openProjectDirectory: (workspacePath: string, paths: string[]) => void;
 	closeProject: () => void;
+	resizeCanvas: () => void;
 }) {
 	canCloseHandler = handlers.canClose;
 	addSpriteHandler = handlers.addSprite;
@@ -111,4 +116,5 @@ export function wireDesktopMenuHandlers(handlers: {
 	triggerImportSheetHandler = handlers.triggerImportSheet;
 	openProjectDirectoryHandler = handlers.openProjectDirectory;
 	closeProjectHandler = handlers.closeProject;
+	resizeCanvasHandler = handlers.resizeCanvas;
 }

@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { DockviewVue } from "dockview-vue";
 import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
 import {
 	dirty,
 	statusText,
 	effectiveRoot,
+	currentSheet,
+	copyPixelSelection,
+	cutPixelSelection,
 	duplicateSelected,
+	deletePixelSelection,
 	deleteSelected,
 	addAnnotationAtViewportCenter,
 	sheets,
@@ -14,13 +18,20 @@ import {
 	fulfillSheet,
 	loadSpec,
 	closeProject,
+	hasUnsavedImageEdits,
+	redoPaintEdit,
 	saveWorkspace,
 	saveWorkspaceAs,
 	exportWorkspace,
 	exportSpec,
 	importSpecFromPath,
+	importPaletteFromPath,
 	importSheetFromPath,
+	pastePixelSelection,
+	getCurrentSheetCanvasSize,
+	resizeCurrentSheetCanvas,
 	restoreWorkspace,
+	undoPaintEdit,
 } from "./state";
 import { parseSpec } from "./spec/parse";
 import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler } from "./platform/adapter";
@@ -29,6 +40,7 @@ import MenuBar from "./components/MenuBar.vue";
 const PANELS: Record<string, { component: string; title: string }> = {
 	sheets: { component: "sheets", title: "Sheets" },
 	"sprite-canvas": { component: "sprite-canvas", title: "Canvas" },
+	paint: { component: "paint", title: "Paint" },
 	inspector: { component: "inspector", title: "Inspector" },
 	annotations: { component: "annotations", title: "Sprites In Sheet" },
 	gallery: { component: "gallery", title: "Gallery" },
@@ -144,12 +156,74 @@ async function handleImportSpec() {
 	await importSpecFromPath(path);
 }
 
+async function handleImportPalette() {
+	const path = await api.showOpenDialog([
+		{ name: "Palette files", extensions: ["hex", "txt"] },
+	]);
+	if (!path) return;
+	await importPaletteFromPath(path);
+}
+
 async function handleImportSheet() {
 	const path = await api.showOpenDialog([
 		{ name: "Images", extensions: ["png", "jpg", "gif", "webp"] },
 	]);
 	if (!path) return;
 	await importSheetFromPath(path);
+}
+
+function handleResizeCanvas() {
+	const currentSize = getCurrentSheetCanvasSize();
+	resizeCanvasWidth.value = String(currentSize.width);
+	resizeCanvasHeight.value = String(currentSize.height);
+	showResizeCanvasDialog.value = true;
+}
+
+function closeResizeCanvasDialog() {
+	showResizeCanvasDialog.value = false;
+}
+
+const showResizeCanvasDialog = ref(false);
+const resizeCanvasWidth = ref("0");
+const resizeCanvasHeight = ref("0");
+
+const currentCanvasSize = computed(() => getCurrentSheetCanvasSize());
+const parsedResizeWidth = computed(() => Math.max(1, Math.round(Number(resizeCanvasWidth.value) || 0)));
+const parsedResizeHeight = computed(() => Math.max(1, Math.round(Number(resizeCanvasHeight.value) || 0)));
+
+const resizeCanvasImpact = computed(() => {
+	const width = parsedResizeWidth.value;
+	const height = parsedResizeHeight.value;
+	let affected = 0;
+	let fullyOutside = 0;
+	for (const annotation of currentSheet.value?.annotations ?? []) {
+		if (!annotation.aabb) continue;
+		const outside = annotation.aabb.x >= width || annotation.aabb.y >= height;
+		const clipped =
+			outside ||
+			annotation.aabb.x + annotation.aabb.w > width ||
+			annotation.aabb.y + annotation.aabb.h > height;
+		if (clipped) affected += 1;
+		if (outside) fullyOutside += 1;
+	}
+	return { affected, fullyOutside };
+});
+
+function applyResizeCanvasDialog() {
+	const width = parsedResizeWidth.value;
+	const height = parsedResizeHeight.value;
+	const changed = resizeCurrentSheetCanvas(width, height);
+	if (!changed) {
+		statusText.value = "Resize canvas failed";
+		return;
+	}
+	closeResizeCanvasDialog();
+}
+
+function onOpenResizeCanvasDialog() {
+	const currentSize = getCurrentSheetCanvasSize();
+	if (currentSize.width < 1 || currentSize.height < 1) return;
+	handleResizeCanvas();
 }
 
 async function handleOpenFolder() {
@@ -159,7 +233,8 @@ async function handleOpenFolder() {
 
 function handleCloseProject() {
 	if (sheets.value.length === 0) return;
-	const confirmed = dirty.value
+	const hasUnsaved = dirty.value || hasUnsavedImageEdits.value;
+	const confirmed = hasUnsaved
 		? window.confirm("Close the current project? Unsaved changes may be lost.")
 		: window.confirm("Close the current project?");
 	if (!confirmed) return;
@@ -289,11 +364,18 @@ function applyDefaultLayout(dv: DockviewApi) {
 		position: { referencePanel: canvasPanel, direction: "right" },
 	});
 
+	const paintPanel = dv.addPanel({
+		id: "paint",
+		component: "paint",
+		title: "Paint",
+		position: { referencePanel: inspectorPanel, direction: "below" },
+	});
+
 	dv.addPanel({
 		id: "annotations",
 		component: "annotations",
 		title: "Sprites In Sheet",
-		position: { referencePanel: inspectorPanel, direction: "below" },
+		position: { referencePanel: paintPanel, direction: "below" },
 	});
 
 	dv.addPanel({
@@ -363,6 +445,8 @@ async function onReady(event: DockviewReadyEvent) {
 async function handleMenuAction(action: string) {
 	if (action === "openFolder") {
 		await handleOpenFolder();
+	} else if (action === "reloadWindow") {
+		window.location.reload();
 	} else if (action === "save") {
 		const result = await saveWorkspace();
 		if (result.needsSaveAs) {
@@ -374,6 +458,8 @@ async function handleMenuAction(action: string) {
 		await handleImportSpec();
 	} else if (action === "exportSpec") {
 		await exportSpec();
+	} else if (action === "importPalette") {
+		await handleImportPalette();
 	} else if (action === "importSheet") {
 		await handleImportSheet();
 	} else if (action === "closeProject") {
@@ -386,6 +472,20 @@ async function handleMenuAction(action: string) {
 		duplicateSelected();
 	} else if (action === "deleteAnnotation") {
 		deleteSelected();
+	} else if (action === "undo") {
+		undoPaintEdit();
+	} else if (action === "redo") {
+		redoPaintEdit();
+	} else if (action === "copyPixels") {
+		copyPixelSelection();
+	} else if (action === "cutPixels") {
+		cutPixelSelection();
+	} else if (action === "pastePixels") {
+		pastePixelSelection();
+	} else if (action === "deletePixels") {
+		deletePixelSelection();
+	} else if (action === "resizeCanvas") {
+		handleResizeCanvas();
 	} else if (action === "resetLayout") {
 		getResetLayoutHandler()();
 	} else if (action.startsWith("addPanel:")) {
@@ -417,6 +517,18 @@ function onKeydown(event: KeyboardEvent) {
 		return;
 	}
 
+	if ((event.key === "F5" || (mod && event.key.toLowerCase() === "r")) && !inInput) {
+		event.preventDefault();
+		handleMenuAction("reloadWindow");
+		return;
+	}
+
+	if (event.key === "Escape" && showResizeCanvasDialog.value) {
+		event.preventDefault();
+		closeResizeCanvasDialog();
+		return;
+	}
+
 	if (mod && event.key.toLowerCase() === "e" && !inInput) {
 		event.preventDefault();
 		exportWorkspace().catch((e) => {
@@ -432,10 +544,51 @@ function onKeydown(event: KeyboardEvent) {
 		return;
 	}
 
+	if (mod && event.key.toLowerCase() === "c" && !inInput) {
+		if (copyPixelSelection()) {
+			event.preventDefault();
+			return;
+		}
+	}
+
+	if (mod && event.key.toLowerCase() === "x" && !inInput) {
+		if (cutPixelSelection()) {
+			event.preventDefault();
+			return;
+		}
+	}
+
+	if (mod && event.key.toLowerCase() === "v" && !inInput) {
+		if (pastePixelSelection()) {
+			event.preventDefault();
+			return;
+		}
+	}
+
+	if (mod && event.key.toLowerCase() === "z" && !inInput) {
+		event.preventDefault();
+		if (event.shiftKey) {
+			redoPaintEdit();
+		} else {
+			undoPaintEdit();
+		}
+		return;
+	}
+
+	if (mod && event.key.toLowerCase() === "y" && !inInput) {
+		event.preventDefault();
+		redoPaintEdit();
+		return;
+	}
+
 	if (
 		(event.key === "Delete" || event.key === "Backspace") &&
 		!inInput
 	) {
+		if (deletePixelSelection()) {
+			event.preventDefault();
+			return;
+		}
 		event.preventDefault();
 		deleteSelected();
 	}
@@ -444,6 +597,7 @@ function onKeydown(event: KeyboardEvent) {
 onMounted(() => {
 	window.addEventListener("keydown", onKeydown);
 	window.addEventListener("wheel", onGlobalWheel, { passive: false });
+	window.addEventListener("span:open-resize-canvas-dialog", onOpenResizeCanvasDialog as EventListener);
 	document.addEventListener("dragover", onGlobalDragOver);
 	document.addEventListener("drop", onGlobalDrop);
 });
@@ -451,6 +605,7 @@ onMounted(() => {
 onUnmounted(() => {
 	window.removeEventListener("keydown", onKeydown);
 	window.removeEventListener("wheel", onGlobalWheel);
+	window.removeEventListener("span:open-resize-canvas-dialog", onOpenResizeCanvasDialog as EventListener);
 	document.removeEventListener("dragover", onGlobalDragOver);
 	document.removeEventListener("drop", onGlobalDrop);
 	if (saveTimeout) clearTimeout(saveTimeout);
@@ -462,6 +617,35 @@ onUnmounted(() => {
 		<MenuBar :is-panel-open="isPanelOpen" @action="handleMenuAction" />
 		<div class="dockview-theme-dark dockview-container">
 			<DockviewVue @ready="onReady" />
+		</div>
+		<div v-if="showResizeCanvasDialog" class="app-modal-backdrop">
+			<form class="app-modal-card" @submit.prevent="applyResizeCanvasDialog">
+				<div class="app-modal-title">Resize Canvas</div>
+				<div class="app-modal-copy">
+					<div>Current: {{ currentCanvasSize.width }} × {{ currentCanvasSize.height }}</div>
+					<div>New space is transparent. Existing pixels stay top-left anchored.</div>
+					<div v-if="resizeCanvasImpact.affected > 0">
+						{{ resizeCanvasImpact.affected }} sprite box{{ resizeCanvasImpact.affected === 1 ? "" : "es" }} will be clamped into the new bounds.
+					</div>
+					<div v-if="resizeCanvasImpact.fullyOutside > 0">
+						{{ resizeCanvasImpact.fullyOutside }} will end up pinned to the new edge because it would otherwise fall fully outside.
+					</div>
+				</div>
+				<div class="app-modal-grid">
+					<label class="app-modal-field">
+						<span>Width</span>
+						<input v-model="resizeCanvasWidth" type="number" min="1" step="1" autofocus />
+					</label>
+					<label class="app-modal-field">
+						<span>Height</span>
+						<input v-model="resizeCanvasHeight" type="number" min="1" step="1" />
+					</label>
+				</div>
+				<div class="app-modal-actions">
+					<button type="button" class="app-modal-button ghost" @click="closeResizeCanvasDialog">Cancel</button>
+					<button type="submit" class="app-modal-button primary">Apply</button>
+				</div>
+			</form>
 		</div>
 		<div
 			class="px-3 py-1 border-t text-[11px] font-mono truncate transition-all duration-300 ease-out"

@@ -83,13 +83,6 @@ export function validateSpec(raw: unknown): SpecError[] {
 			}
 		}
 
-		// --- chroma_key ---
-		if ("chroma_key" in ent) {
-			if (ent.chroma_key !== "color") {
-				errors.push({ path: `${ePath}.chroma_key`, severity: "error", message: `chroma_key value must be "color"` });
-			}
-		}
-
 		// --- required sprite/core fields ---
 		if ("name" in ent && ent.name !== "string") {
 			errors.push({ path: `${ePath}.name`, severity: "error", message: `name value must be "string"` });

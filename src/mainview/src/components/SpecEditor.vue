@@ -15,7 +15,6 @@ const REFERENCE_SPEC_RAW = `\
   group: sprites
   aabb: rect
   path: file_name
-  chroma_key: color
   name: string
   frame: ainteger
   duration: integer
@@ -64,7 +63,7 @@ const syntaxHints = computed(() =>
 		? [
 			"`label` and `group` are required for each entity.",
 			"Set the primary shape with exactly one of `aabb: rect` or `point: point`.",
-			"`path: file_name` and `chroma_key: color` are optional feature toggles.",
+			"`path: file_name` is an optional feature toggle.",
 			"`path: file_name` exports the source sheet filename with entries.",
 			"`properties` accepts `string`, `integer`, `number`, `boolean`, `string[]`, and `ainteger`.",
 			"`properties` also accepts `color`, `rect`, `point`, `rect[]`, `point[]`, and `enum[a, b, c]`.",
@@ -73,7 +72,7 @@ const syntaxHints = computed(() =>
 			"The root is an array of entity objects.",
 			"`label` and `group` are required for each entity.",
 			"Set the primary shape with exactly one of `\"aabb\": \"rect\"` or `\"point\": \"point\"`.",
-			"Use `\"path\": \"file_name\"` and `\"chroma_key\": \"color\"` when needed.",
+			"Use `\"path\": \"file_name\"` when needed.",
 			"`properties` accepts scalar types, colors, shapes, shape arrays, and `enum[a, b, c]` strings.",
 			"The sample includes every currently supported property type.",
 		],

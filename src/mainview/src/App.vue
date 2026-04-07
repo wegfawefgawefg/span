@@ -18,17 +18,19 @@ import {
 	addSheet,
 	fulfillSheet,
 	closeProject,
+	pastePixelSelection,
+	getCurrentSheetCanvasSize,
+	resizeCurrentSheetCanvas,
+} from "./state";
+import {
 	saveWorkspace,
 	saveWorkspaceAs,
 	exportWorkspace,
 	exportSpec,
 	importPaletteFromPath,
 	importSheetFromPath,
-	pastePixelSelection,
-	getCurrentSheetCanvasSize,
-	resizeCurrentSheetCanvas,
 	restoreWorkspace,
-} from "./state";
+} from "./state/ioState";
 import { loadSpec, importSpecFromPath } from "./state/specState";
 import {
 	hasUnsavedImageEdits,

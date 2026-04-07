@@ -10,7 +10,6 @@ import {
   applyPaintedSheetImage,
   undoPaintEdit,
   redoPaintEdit,
-  savePendingImageEdits,
 } from './state/paintHistory';
 import { setSelectTool, activeTool, activePaintColor } from './state/toolState';
 import {
@@ -21,7 +20,6 @@ import {
   availablePaintSwatches,
   setPaintPalette,
   setActiveProjectPalette as _setActiveProjectPalette,
-  importPaletteFromPath as _importPaletteFromPath,
 } from './state/paletteState';
 import {
   bindSpecStateRefs,
@@ -33,10 +31,7 @@ import {
   forceApplySpec,
   importSpecFromPath,
   resetToDefaultSpec,
-  resolveProjectSpecForWorkspace,
   debouncedSaveSpecFile,
-  saveSpecFileNow,
-  defaultProjectSpecPathForWorkspace,
   makeWorkspaceRelativePath,
 } from './state/specState';
 import {
@@ -86,10 +81,24 @@ import {
 import type { WorkspaceSheet } from './workspace';
 import {
   serializeWorkspace,
-  deserializeWorkspace,
   debouncedSave,
 } from './persistence';
-import { exportToString, type ExportEntry } from './export';
+import {
+  bindIoStateRefs,
+  importSheetFromPath,
+  importSheetsFromPaths,
+  importPaletteFromPath,
+  openProjectDirectory,
+  exportWorkspace,
+  exportSpec,
+  doExportWrite,
+  saveWorkspace,
+  saveWorkspaceAs,
+  openWorkspace,
+  loadWorkspaceFromPath,
+  restoreWorkspace,
+  persistWorkspaceSnapshotNow,
+} from './state/ioState';
 
 // Re-export workspace state for consumers
 export {
@@ -114,6 +123,23 @@ export {
   activeProjectPalette,
   availablePaintSwatches,
   setPaintPalette,
+};
+
+// Re-export ioState for consumers
+export {
+  importSheetFromPath,
+  importSheetsFromPaths,
+  importPaletteFromPath,
+  openProjectDirectory,
+  exportWorkspace,
+  exportSpec,
+  doExportWrite,
+  saveWorkspace,
+  saveWorkspaceAs,
+  openWorkspace,
+  loadWorkspaceFromPath,
+  restoreWorkspace,
+  persistWorkspaceSnapshotNow,
 };
 
 // Re-export spec state for consumers
@@ -252,41 +278,6 @@ export function setActiveProjectPalette(id: string | null) {
   _setActiveProjectPalette(id, markDirty);
 }
 
-async function persistWorkspaceSnapshotNow() {
-  const spec = activeSpec.value;
-  if (!spec) return false;
-
-  const data = serializeWorkspace(
-    sheets.value,
-    activeSpecRaw.value,
-    projectPalettes.value,
-    activeProjectPaletteId.value,
-    makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value),
-    currentSheet.value?.path ?? null,
-    getPersistedSelectedAnnotationId(),
-  );
-
-  if (platform.value === 'desktop' && spanFilePath.value) {
-    await api.writeFile(spanFilePath.value, data);
-    if (specFilePath.value) {
-      debouncedSaveSpecFile();
-    }
-    dirty.value = false;
-    return true;
-  }
-
-  if (platform.value === 'web') {
-    localStorage.setItem('span-workspace', data);
-    dirty.value = false;
-    return true;
-  }
-
-  return false;
-}
-
-export async function importPaletteFromPath(path: string) {
-  await _importPaletteFromPath(path, persistWorkspaceSnapshotNow, markDirty, statusText);
-}
 
 // recordPaintUndoSnapshot, applyPaintedSheetImage, undoPaintEdit,
 // redoPaintEdit, savePendingImageEdits are now in ./state/paintHistory.ts
@@ -477,6 +468,19 @@ function performSave() {
   }
 }
 
+// Wire up refs needed by ioState (avoids circular import)
+bindIoStateRefs({
+  dirty,
+  statusText,
+  selectedId,
+  paintPixelSelection,
+  hasPaintClipboard,
+  markDirty,
+  performSave,
+  fulfillSheet,
+  getPersistedSelectedAnnotationId,
+});
+
 // --- Actions ---
 
 export function selectAnnotation(id: string | null) {
@@ -620,378 +624,3 @@ export function clampAnnotationToImage(
   clampToImage(annotation, imgW, imgH);
 }
 
-export async function importSheetFromPath(path: string) {
-  try {
-    const dataUrl = await api.readImageAsDataUrl(path);
-    const dims = await new Promise<{ width: number; height: number }>(
-      (resolve) => {
-        const img = new Image();
-        img.onload = () =>
-          resolve({ width: img.naturalWidth, height: img.naturalHeight });
-        img.onerror = () => resolve({ width: 0, height: 0 });
-        img.src = dataUrl;
-      }
-    );
-    const name = path.split('/').pop() ?? path;
-
-    // Fulfill a missing sheet if one matches
-    const missing = sheets.value.find(
-      (s) => s.status === 'missing' && s.path.split('/').pop() === name
-    );
-    if (missing) {
-      fulfillSheet(missing, dataUrl, dims.width, dims.height);
-    } else {
-      addSheet({
-        path: name,
-        absolutePath: path,
-        annotations: [],
-        status: 'loaded',
-        imageUrl: dataUrl,
-        width: dims.width,
-        height: dims.height,
-      });
-      ensureEditedSheetState(sheets.value[sheets.value.length - 1]);
-    }
-  } catch (e) {
-    console.error('Failed to import sheet:', e);
-    statusText.value = 'Failed to import image';
-  }
-}
-
-export async function importSheetsFromPaths(paths: string[]) {
-  let imported = 0;
-
-  for (const path of paths) {
-    const before = sheets.value.length;
-    await importSheetFromPath(path);
-    if (sheets.value.length > before) {
-      imported += 1;
-    }
-  }
-
-  if (imported > 0) {
-    statusText.value = `Imported ${imported} image${imported === 1 ? '' : 's'}`;
-  } else if (paths.length > 0) {
-    statusText.value = 'No new images imported';
-  }
-}
-
-export async function openProjectDirectory(
-  workspacePath: string,
-  paths: string[]
-) {
-  resetWorkspace();
-  selectedId.value = null;
-  editedSheetState.value = {};
-  projectPalettes.value = [];
-  activeProjectPaletteId.value = null;
-  paintPalette.value = [];
-  paintPixelSelection.value = null;
-  hasPaintClipboard.value = false;
-  spanFilePath.value = workspacePath.endsWith('.span')
-    ? workspacePath
-    : workspacePath + '.span';
-  await resolveProjectSpecForWorkspace(spanFilePath.value, null, null);
-
-  await importSheetsFromPaths(paths);
-
-  if (sheets.value.length > 0) {
-    currentSheet.value = sheets.value[0];
-  }
-
-  await saveWorkspaceAs(spanFilePath.value);
-  const parts = workspacePath.split('/');
-  statusText.value = `Opened project ${parts[parts.length - 3] ?? parts[parts.length - 1]}`;
-}
-
-// --- Export ---
-
-export async function exportWorkspace(dialogPath?: string) {
-  console.log('[exportWorkspace] called, dialogPath:', dialogPath);
-  const spec = activeSpec.value;
-  if (!spec) {
-    console.log('[exportWorkspace] no spec loaded');
-    statusText.value = 'No spec loaded — cannot export';
-    return;
-  }
-
-  const entries: ExportEntry[] = sheets.value.flatMap((s) =>
-    s.annotations.map((a) => ({
-      annotation: a,
-      sheetFile: s.path.split('/').pop() ?? s.path,
-    }))
-  );
-  console.log(
-    '[exportWorkspace] entries:',
-    entries.length,
-    'format:',
-    spec.format
-  );
-  const output = exportToString(entries, spec);
-  console.log('[exportWorkspace] output length:', output.length);
-
-  const ext = spec.format === 'yaml' ? 'yaml' : 'json';
-  const defaultName = `annotations.${ext}`;
-
-  await doExportWrite(output, defaultName, dialogPath);
-}
-
-export async function exportSpec(dialogPath?: string) {
-  const spec = activeSpecRaw.value;
-  if (!spec) {
-    statusText.value = 'No spec loaded — cannot export';
-    return;
-  }
-
-  const defaultName =
-    specFilePath.value?.split('/').pop() ??
-    `spec.${spec.format === 'json' ? 'json' : 'yaml'}`;
-
-  let savePath = dialogPath;
-  if (!savePath) {
-    savePath = await api.showSaveDialog(defaultName, [
-      { name: 'YAML files', extensions: ['yaml', 'yml'] },
-      { name: 'JSON files', extensions: ['json'] },
-    ]);
-  }
-  if (!savePath) return;
-
-  try {
-    await api.writeFile(savePath, spec.raw);
-    statusText.value = `Exported spec to ${savePath.split('/').pop()}`;
-  } catch (e) {
-    console.error('Spec export failed:', e);
-    statusText.value = 'Spec export failed';
-  }
-}
-
-/** Write export output — on desktop uses a dialog path passed from backend, on web triggers download. */
-export async function doExportWrite(
-  output: string,
-  defaultName: string,
-  dialogPath?: string
-) {
-  let savePath: string;
-  if (platform.value === 'web') {
-    savePath = defaultName;
-  } else if (dialogPath) {
-    savePath = dialogPath;
-  } else {
-    // Fallback: show dialog from webview (used if called directly)
-    const path = await api.showSaveDialog(defaultName, []);
-    if (!path) return;
-    savePath = path;
-  }
-
-  try {
-    await api.writeFile(savePath, output);
-    statusText.value = `Exported to ${savePath.split('/').pop()}`;
-  } catch (e) {
-    console.error('Export failed:', e);
-    statusText.value = 'Export failed';
-  }
-}
-
-// --- Save / Save As / Open ---
-
-export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
-  // On web, always save to localStorage (no file path needed)
-  if (platform.value === 'web') {
-    performSave();
-    return { needsSaveAs: false };
-  }
-  if (!spanFilePath.value) {
-    return { needsSaveAs: true };
-  }
-  try {
-    await savePendingImageEdits();
-    performSave();
-  } catch (e) {
-    console.error('Save failed:', e);
-    statusText.value = 'Save failed';
-  }
-  return { needsSaveAs: false };
-}
-
-export async function saveWorkspaceAs(dialogPath?: string) {
-  console.log('[saveWorkspaceAs] called, dialogPath:', dialogPath);
-  let savePath = dialogPath;
-  if (!savePath) {
-    if (platform.value === 'web') {
-      // Web: trigger download with default name
-      savePath = 'workspace.span';
-    } else {
-      const selected = await api.showSaveDialog('workspace.span', [
-        { name: 'Span files', extensions: ['span'] },
-      ]);
-      if (!selected) return;
-      savePath = selected;
-    }
-  }
-
-  savePath = savePath.endsWith('.span') ? savePath : savePath + '.span';
-  spanFilePath.value = savePath;
-  if (!specFilePath.value) {
-    specFilePath.value = defaultProjectSpecPathForWorkspace(savePath);
-  }
-  console.log('[saveWorkspaceAs] saving to:', savePath);
-
-  const data = serializeWorkspace(
-    sheets.value,
-    activeSpecRaw.value,
-    projectPalettes.value,
-    activeProjectPaletteId.value,
-    makeWorkspaceRelativePath(specFilePath.value, savePath),
-    currentSheet.value?.path ?? null,
-    getPersistedSelectedAnnotationId(),
-  );
-  console.log('[saveWorkspaceAs] data length:', data.length);
-
-  try {
-    await savePendingImageEdits();
-    await api.writeFile(savePath, data);
-    await saveSpecFileNow();
-    console.log('[saveWorkspaceAs] write succeeded');
-    markDirty(false);
-    statusText.value = `Saved to ${savePath.split('/').pop()}`;
-  } catch (e) {
-    console.error('Save As failed:', e);
-    statusText.value = 'Save failed';
-  }
-}
-
-export async function openWorkspace(dialogPath?: string) {
-  const path =
-    dialogPath ??
-    (await api.showOpenDialog([{ name: 'Span files', extensions: ['span'] }]));
-  if (!path) return;
-  await loadWorkspaceFromPath(path);
-}
-
-export async function loadWorkspaceFromPath(path: string) {
-  try {
-    const raw = await api.readFile(path);
-    await restoreWorkspace(raw, path);
-  } catch (e) {
-    console.error('Failed to open .span file:', e);
-    statusText.value = 'Failed to open .span file';
-  }
-}
-
-export async function restoreWorkspace(raw: string, filePath?: string) {
-  const data = deserializeWorkspace(raw);
-
-  // Reset and load sheets
-  resetWorkspace();
-  selectedId.value = null;
-  editedSheetState.value = {};
-  paintPixelSelection.value = null;
-  hasPaintClipboard.value = false;
-  projectPalettes.value = data.palettes ?? [];
-  activeProjectPaletteId.value =
-    data.activePaletteId && projectPalettes.value.some((palette) => palette.id === data.activePaletteId)
-      ? data.activePaletteId
-      : null;
-  if (filePath) {
-    spanFilePath.value = filePath;
-  }
-  await resolveProjectSpecForWorkspace(filePath ?? null, data.specPath ?? null, data.spec);
-
-  const fileDir = filePath ? filePath.replace(/\/[^/]+$/, '') : '';
-  const dir = fileDir.endsWith('/.span')
-    ? fileDir.slice(0, -'/.span'.length)
-    : fileDir;
-  let prunedMissingEmptySheets = false;
-
-  for (const sheet of data.sheets) {
-    // Resolve sheet path relative to .span file
-    let imgPath = sheet.path;
-    if (dir && !imgPath.startsWith('/')) {
-      imgPath = dir + '/' + imgPath;
-    }
-
-    let loaded = false;
-    // Try direct path, then filename search in .span file directory
-    const candidates = [imgPath];
-    if (dir) {
-      const filename = sheet.path.split('/').pop() ?? sheet.path;
-      const searchPath = dir + '/' + filename;
-      if (searchPath !== imgPath) candidates.push(searchPath);
-    }
-
-    for (const candidate of candidates) {
-      try {
-        const dataUrl = await api.readImageAsDataUrl(candidate);
-        const dims = await new Promise<{ width: number; height: number }>(
-          (resolve) => {
-            const img = new Image();
-            img.onload = () =>
-              resolve({ width: img.naturalWidth, height: img.naturalHeight });
-            img.onerror = () => resolve({ width: 0, height: 0 });
-            img.src = dataUrl;
-          }
-        );
-
-        addSheet({
-          path: sheet.path,
-          absolutePath: candidate,
-          annotations: sheet.annotations,
-          ...(sheet.view ? { view: sheet.view } : {}),
-          status: 'loaded',
-          imageUrl: dataUrl,
-          width: dims.width,
-          height: dims.height,
-        });
-        ensureEditedSheetState(sheets.value[sheets.value.length - 1]);
-        loaded = true;
-        break;
-      } catch {
-        // Try next candidate
-      }
-    }
-
-    if (!loaded) {
-      if ((sheet.annotations?.length ?? 0) === 0) {
-        prunedMissingEmptySheets = true;
-        continue;
-      }
-      addSheet({
-        path: sheet.path,
-        absolutePath: imgPath,
-        annotations: sheet.annotations,
-        ...(sheet.view ? { view: sheet.view } : {}),
-        status: 'missing',
-        imageUrl: '',
-        width: 0,
-        height: 0,
-      });
-      ensureEditedSheetState(sheets.value[sheets.value.length - 1]);
-    }
-  }
-
-  const selectedAnnotationSheet =
-    data.selectedAnnotationId
-      ? sheets.value.find((sheet) =>
-          sheet.annotations.some((annotation) => annotation.id === data.selectedAnnotationId)
-        ) ?? null
-      : null;
-  const lastOpenSheet =
-    data.lastOpenSheetPath
-      ? sheets.value.find((sheet) => sheet.path === data.lastOpenSheetPath) ?? null
-      : null;
-
-  currentSheet.value = selectedAnnotationSheet ?? lastOpenSheet ?? sheets.value[0] ?? null;
-  selectedId.value =
-    currentSheet.value && data.selectedAnnotationId
-      && currentSheet.value.annotations.some((annotation) => annotation.id === data.selectedAnnotationId)
-      ? data.selectedAnnotationId
-      : null;
-  markDirty(false);
-  statusText.value = filePath
-    ? `Opened ${filePath.split('/').pop()}${prunedMissingEmptySheets ? ' • pruned stale missing sheets' : ''}`
-    : `Workspace restored${prunedMissingEmptySheets ? ' • pruned stale missing sheets' : ''}`;
-
-  if (prunedMissingEmptySheets && (spanFilePath.value || platform.value === 'web')) {
-    debouncedSave(performSave, 50);
-  }
-}

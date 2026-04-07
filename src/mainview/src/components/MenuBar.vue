@@ -4,13 +4,14 @@ import { getMenus, type MenuSection, type MenuItem } from "../menus";
 
 const props = defineProps<{
 	isPanelOpen?: (panelId: string) => boolean;
+	currentThemeId?: string;
 }>();
 
 const emit = defineEmits<{
 	action: [action: string];
 }>();
 
-const menus = computed(() => getMenus({ isPanelOpen: props.isPanelOpen }));
+const menus = computed(() => getMenus({ isPanelOpen: props.isPanelOpen, currentThemeId: props.currentThemeId }));
 const openMenu = ref<string | null>(null);
 
 function toggleMenu(label: string) {

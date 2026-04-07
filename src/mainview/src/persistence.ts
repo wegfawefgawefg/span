@@ -10,6 +10,7 @@ export interface WorkspaceSheet {
 export interface SpanFile {
 	version: number;
 	specPath?: string | null;
+	exportPath?: string | null;
 	spec: SpanFileSpec | null;
 	palettes?: SpanFilePalette[];
 	activePaletteId?: string | null;
@@ -48,12 +49,14 @@ export function serializeWorkspace(
 	palettes: SpanFilePalette[],
 	activePaletteId?: string | null,
 	specPath?: string | null,
+	exportPath?: string | null,
 	lastOpenSheetPath?: string | null,
 	selectedAnnotationId?: string | null,
 ): string {
 	const data: SpanFile = {
 		version: 5,
 		...(specPath ? { specPath } : {}),
+		...(exportPath ? { exportPath } : {}),
 		spec: specPath ? null : spec,
 		palettes: palettes.map((palette) => ({
 			id: palette.id,
@@ -103,6 +106,7 @@ export function deserializeWorkspace(raw: string): SpanFile {
 	return {
 		version: data.version,
 		specPath: typeof data.specPath === "string" ? data.specPath : null,
+		exportPath: typeof data.exportPath === "string" ? data.exportPath : null,
 		spec,
 		palettes: (data.palettes ?? []).map((palette: any) => ({
 			id: palette?.id ?? "",

@@ -74,6 +74,7 @@ export const currentSheetImageSrc = ref<string>('');
 export const imageWidth = ref(0);
 export const imageHeight = ref(0);
 export const specFilePath = ref<string | null>(null);
+export const exportFilePath = ref<string | null>(null);
 
 const CANVAS_PREFS_STORAGE_KEY = 'span-canvas-sheet-prefs:v2';
 const CHECKER_STRENGTH_STORAGE_KEY = 'span-canvas-checker-strength:v1';
@@ -249,6 +250,14 @@ function defaultProjectSpecPathForWorkspace(path: string | null): string | null 
   const dir = workspaceDir(path);
   if (!dir.endsWith('/.span')) return null;
   return `${dir}/spec.yaml`;
+}
+
+function defaultProjectExportPath(): string | null {
+  const root = effectiveRoot.value;
+  const spec = activeSpecRaw.value;
+  if (!root || !spec) return null;
+  const ext = spec.format === 'json' ? 'json' : 'yaml';
+  return `${root}/annotations.${ext}`;
 }
 
 function makeWorkspaceRelativePath(targetPath: string | null, basePath: string | null): string | null {
@@ -529,7 +538,7 @@ interface EditedSheetState {
 
 interface EditSnapshot {
   imageUrl: string;
-  annotationAabbs: Record<string, { x: number; y: number; w: number; h: number }>;
+  annotations: Annotation[];
 }
 
 const editedSheetState = ref<Record<string, EditedSheetState>>({});
@@ -567,31 +576,17 @@ function ensureEditedSheetState(sheet: WorkspaceSheet): EditedSheetState {
 function captureEditSnapshot(sheet: WorkspaceSheet): EditSnapshot {
   return {
     imageUrl: sheet.imageUrl,
-    annotationAabbs: Object.fromEntries(
-      sheet.annotations
-        .filter((annotation) => !!annotation.aabb)
-        .map((annotation) => [
-          annotation.id,
-          {
-            x: annotation.aabb!.x,
-            y: annotation.aabb!.y,
-            w: annotation.aabb!.w,
-            h: annotation.aabb!.h,
-          },
-        ])
-    ),
+    annotations: JSON.parse(JSON.stringify(sheet.annotations)),
   };
 }
 
 function applyEditSnapshot(sheet: WorkspaceSheet, snapshot: EditSnapshot) {
-  for (const annotation of sheet.annotations) {
-    if (!annotation.aabb) continue;
-    const next = snapshot.annotationAabbs[annotation.id];
-    if (!next) continue;
-    annotation.aabb.x = next.x;
-    annotation.aabb.y = next.y;
-    annotation.aabb.w = next.w;
-    annotation.aabb.h = next.h;
+  sheet.annotations = JSON.parse(JSON.stringify(snapshot.annotations));
+  if (currentSheet.value === sheet && selectedId.value) {
+    const hasSelected = sheet.annotations.some((annotation) => annotation.id === selectedId.value);
+    if (!hasSelected) {
+      selectedId.value = sheet.annotations[0]?.id ?? null;
+    }
   }
   updateSheetImageState(sheet, snapshot.imageUrl, sheet.width, sheet.height);
   triggerRef(sheets);
@@ -661,6 +656,9 @@ let copyPixelSelectionHandler: () => boolean = () => false;
 let cutPixelSelectionHandler: () => boolean = () => false;
 let pastePixelSelectionHandler: () => boolean = () => false;
 let deletePixelSelectionHandler: () => boolean = () => false;
+let copySpriteSelectionHandler: () => boolean = () => false;
+let cutSpriteSelectionHandler: () => boolean = () => false;
+let pasteSpriteSelectionHandler: () => boolean = () => false;
 let resizeCanvasHandler: (width: number, height: number) => boolean = () => false;
 
 export function registerPaintClipboardHandlers(handlers: {
@@ -673,6 +671,16 @@ export function registerPaintClipboardHandlers(handlers: {
   cutPixelSelectionHandler = handlers.cut;
   pastePixelSelectionHandler = handlers.paste;
   deletePixelSelectionHandler = handlers.deleteSelection;
+}
+
+export function registerSpriteClipboardHandlers(handlers: {
+  copy: () => boolean;
+  cut: () => boolean;
+  paste: () => boolean;
+}) {
+  copySpriteSelectionHandler = handlers.copy;
+  cutSpriteSelectionHandler = handlers.cut;
+  pasteSpriteSelectionHandler = handlers.paste;
 }
 
 export function copyPixelSelection() {
@@ -689,6 +697,18 @@ export function pastePixelSelection() {
 
 export function deletePixelSelection() {
   return deletePixelSelectionHandler();
+}
+
+export function copySpriteSelection() {
+  return copySpriteSelectionHandler();
+}
+
+export function cutSpriteSelection() {
+  return cutSpriteSelectionHandler();
+}
+
+export function pasteSpriteSelection() {
+  return pasteSpriteSelectionHandler();
 }
 
 export function registerResizeCanvasHandler(handler: (width: number, height: number) => boolean) {
@@ -766,6 +786,7 @@ async function persistWorkspaceSnapshotNow() {
     projectPalettes.value,
     activeProjectPaletteId.value,
     makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value),
+    makeWorkspaceRelativePath(exportFilePath.value, spanFilePath.value),
     currentSheet.value?.path ?? null,
     getPersistedSelectedAnnotationId(),
   );
@@ -1122,6 +1143,7 @@ function performSave() {
     projectPalettes.value,
     activeProjectPaletteId.value,
     makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value),
+    makeWorkspaceRelativePath(exportFilePath.value, spanFilePath.value),
     currentSheet.value?.path ?? null,
     getPersistedSelectedAnnotationId(),
   );
@@ -1197,6 +1219,7 @@ export function closeProject() {
   editedSheetState.value = {};
   projectPalettes.value = [];
   activeProjectPaletteId.value = null;
+  exportFilePath.value = null;
   paintPalette.value = [];
   paintPixelSelection.value = null;
   hasPaintClipboard.value = false;
@@ -1430,6 +1453,7 @@ export async function openProjectDirectory(
   editedSheetState.value = {};
   projectPalettes.value = [];
   activeProjectPaletteId.value = null;
+  exportFilePath.value = null;
   paintPalette.value = [];
   paintPixelSelection.value = null;
   hasPaintClipboard.value = false;
@@ -1521,6 +1545,10 @@ export async function doExportWrite(
     savePath = defaultName;
   } else if (dialogPath) {
     savePath = dialogPath;
+  } else if (exportFilePath.value) {
+    savePath = exportFilePath.value;
+  } else if (defaultProjectExportPath()) {
+    savePath = defaultProjectExportPath()!;
   } else {
     // Fallback: show dialog from webview (used if called directly)
     const path = await api.showSaveDialog(defaultName, []);
@@ -1530,11 +1558,30 @@ export async function doExportWrite(
 
   try {
     await api.writeFile(savePath, output);
+    exportFilePath.value = savePath;
     statusText.value = `Exported to ${savePath.split('/').pop()}`;
   } catch (e) {
     console.error('Export failed:', e);
     statusText.value = 'Export failed';
   }
+}
+
+async function saveExportManifestIfConfigured() {
+  const spec = activeSpec.value;
+  if (!spec || platform.value !== 'desktop') return;
+
+  const exportPath = exportFilePath.value ?? defaultProjectExportPath();
+  if (!exportPath) return;
+
+  const entries: ExportEntry[] = sheets.value.flatMap((s) =>
+    s.annotations.map((a) => ({
+      annotation: a,
+      sheetFile: s.path.split('/').pop() ?? s.path,
+    }))
+  );
+  const output = exportToString(entries, spec);
+  await api.writeFile(exportPath, output);
+  exportFilePath.value = exportPath;
 }
 
 // --- Save / Save As / Open ---
@@ -1550,6 +1597,7 @@ export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
   }
   try {
     await savePendingImageEdits();
+    await saveExportManifestIfConfigured();
     performSave();
   } catch (e) {
     console.error('Save failed:', e);
@@ -1587,6 +1635,7 @@ export async function saveWorkspaceAs(dialogPath?: string) {
     projectPalettes.value,
     activeProjectPaletteId.value,
     makeWorkspaceRelativePath(specFilePath.value, savePath),
+    makeWorkspaceRelativePath(exportFilePath.value ?? defaultProjectExportPath(), savePath),
     currentSheet.value?.path ?? null,
     getPersistedSelectedAnnotationId(),
   );
@@ -1594,6 +1643,7 @@ export async function saveWorkspaceAs(dialogPath?: string) {
 
   try {
     await savePendingImageEdits();
+    await saveExportManifestIfConfigured();
     await api.writeFile(savePath, data);
     await saveSpecFileNow();
     console.log('[saveWorkspaceAs] write succeeded');
@@ -1640,7 +1690,14 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
   if (filePath) {
     spanFilePath.value = filePath;
   }
+  const resolvedExportPath =
+    data.exportPath
+      ? (filePath && !data.exportPath.startsWith('/')
+          ? `${workspaceDir(filePath)}/${data.exportPath}`
+          : data.exportPath)
+      : null;
   await resolveProjectSpecForWorkspace(filePath ?? null, data.specPath ?? null, data.spec);
+  exportFilePath.value = resolvedExportPath ?? defaultProjectExportPath();
 
   const fileDir = filePath ? filePath.replace(/\/[^/]+$/, '') : '';
   const dir = fileDir.endsWith('/.span')

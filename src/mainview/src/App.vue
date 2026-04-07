@@ -7,8 +7,12 @@ import {
 	statusText,
 	effectiveRoot,
 	currentSheet,
+	activePaintTool,
+	activeAtlasTool,
 	copyPixelSelection,
+	copySpriteSelection,
 	cutPixelSelection,
+	cutSpriteSelection,
 	duplicateSelected,
 	deletePixelSelection,
 	deleteSelected,
@@ -28,6 +32,7 @@ import {
 	importPaletteFromPath,
 	importSheetFromPath,
 	pastePixelSelection,
+	pasteSpriteSelection,
 	getCurrentSheetCanvasSize,
 	resizeCurrentSheetCanvas,
 	restoreWorkspace,
@@ -545,23 +550,59 @@ function onKeydown(event: KeyboardEvent) {
 	}
 
 	if (mod && event.key.toLowerCase() === "c" && !inInput) {
-		if (copyPixelSelection()) {
-			event.preventDefault();
-			return;
+		if (activeAtlasTool.value === "sprite-move") {
+			if (copySpriteSelection()) {
+				event.preventDefault();
+				return;
+			}
+		} else if (activePaintTool.value) {
+			if (copyPixelSelection()) {
+				event.preventDefault();
+				return;
+			}
+		} else {
+			if (copyPixelSelection() || copySpriteSelection()) {
+				event.preventDefault();
+				return;
+			}
 		}
 	}
 
 	if (mod && event.key.toLowerCase() === "x" && !inInput) {
-		if (cutPixelSelection()) {
-			event.preventDefault();
-			return;
+		if (activeAtlasTool.value === "sprite-move") {
+			if (cutSpriteSelection()) {
+				event.preventDefault();
+				return;
+			}
+		} else if (activePaintTool.value) {
+			if (cutPixelSelection()) {
+				event.preventDefault();
+				return;
+			}
+		} else {
+			if (cutPixelSelection() || cutSpriteSelection()) {
+				event.preventDefault();
+				return;
+			}
 		}
 	}
 
 	if (mod && event.key.toLowerCase() === "v" && !inInput) {
-		if (pastePixelSelection()) {
-			event.preventDefault();
-			return;
+		if (activeAtlasTool.value === "sprite-move") {
+			if (pasteSpriteSelection()) {
+				event.preventDefault();
+				return;
+			}
+		} else if (activePaintTool.value) {
+			if (pastePixelSelection()) {
+				event.preventDefault();
+				return;
+			}
+		} else {
+			if (pastePixelSelection() || pasteSpriteSelection()) {
+				event.preventDefault();
+				return;
+			}
 		}
 	}
 

@@ -242,6 +242,12 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 				console.log("[writeImageDataUrl] done:", path);
 				return { ok: true };
 			},
+			deleteFile: async ({ path }) => {
+				console.log("[deleteFile] path:", path);
+				await unlink(path);
+				console.log("[deleteFile] done:", path);
+				return { ok: true };
+			},
 			readImageAsDataUrl: async ({ path }) => {
 				console.log("[images] reading image:", path);
 				const file = Bun.file(path);

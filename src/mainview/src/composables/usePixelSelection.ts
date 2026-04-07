@@ -4,9 +4,9 @@ import {
   currentSheet,
   paintPixelSelection,
   hasPaintClipboard,
-  recordPaintUndoSnapshot,
   statusText,
 } from '../state';
+import { recordPaintUndoSnapshot } from '../state/paintHistory';
 
 export interface PixelSelectionDragState {
   originX: number;

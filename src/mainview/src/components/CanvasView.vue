@@ -24,11 +24,8 @@ import {
   canvasGridWidth,
   canvasGridHeight,
   canvasCheckerStrength,
-  applyPaintedSheetImage,
-  recordPaintUndoSnapshot,
   registerPaintClipboardHandlers,
   registerResizeCanvasHandler,
-  redoPaintEdit,
   statusText,
   markDirty,
   ZOOM_FACTOR,
@@ -41,6 +38,11 @@ import {
   activeAtlasTool,
   setPaintTool,
 } from '../state/toolState';
+import {
+  applyPaintedSheetImage,
+  recordPaintUndoSnapshot,
+  redoPaintEdit,
+} from '../state/paintHistory';
 import { useCanvas } from '../composables/useCanvas';
 import { useCanvasPanning } from '../composables/useCanvasPanning';
 import { useCanvasRendering } from '../composables/useCanvasRendering';

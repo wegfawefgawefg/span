@@ -8,10 +8,9 @@ import {
   importPaletteFromPath,
   paintPixelSelection,
   pastePixelSelection,
-  redoPaintEdit,
   setActiveProjectPalette,
-  undoPaintEdit,
 } from '../state';
+import { undoPaintEdit, redoPaintEdit } from '../state/paintHistory';
 import {
   activeProjectPalette,
   activeProjectPaletteId,

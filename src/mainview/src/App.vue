@@ -19,8 +19,6 @@ import {
 	fulfillSheet,
 	loadSpec,
 	closeProject,
-	hasUnsavedImageEdits,
-	redoPaintEdit,
 	saveWorkspace,
 	saveWorkspaceAs,
 	exportWorkspace,
@@ -32,8 +30,12 @@ import {
 	getCurrentSheetCanvasSize,
 	resizeCurrentSheetCanvas,
 	restoreWorkspace,
-	undoPaintEdit,
 } from "./state";
+import {
+	hasUnsavedImageEdits,
+	redoPaintEdit,
+	undoPaintEdit,
+} from "./state/paintHistory";
 import { parseSpec } from "./spec/parse";
 import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler, setSetThemeHandler } from "./platform/adapter";
 import MenuBar from "./components/MenuBar.vue";

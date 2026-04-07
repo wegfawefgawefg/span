@@ -4,10 +4,10 @@ import {
   selectedId,
   annotations,
   currentSheet,
-  recordPaintUndoSnapshot,
   statusText,
   markDirty,
 } from '../state';
+import { recordPaintUndoSnapshot } from '../state/paintHistory';
 import { normalizePixelSelectionRect } from './usePixelSelection';
 
 export interface SpriteMoveItem {

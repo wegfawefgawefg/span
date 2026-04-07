@@ -1,4 +1,17 @@
 import { computed, ref, watch, triggerRef } from 'vue';
+import {
+  bindPaintHistoryRefs,
+  editedSheetState,
+  ensureEditedSheetState,
+  getSheetKey,
+  hasUnsavedImageEdits,
+  persistSheetImage,
+  recordPaintUndoSnapshot,
+  applyPaintedSheetImage,
+  undoPaintEdit,
+  redoPaintEdit,
+  savePendingImageEdits,
+} from './state/paintHistory';
 import { setSelectTool, activeTool, activePaintColor } from './state/toolState';
 import {
   paintPalette,
@@ -31,7 +44,7 @@ import { diffSpecs } from './spec/diff';
 import type { SpecError, SpecDiff } from './spec/types';
 import { DEFAULT_SPEC_RAW, DEFAULT_SPEC_FORMAT } from './spec/default-spec';
 import { api, platform } from './platform/adapter';
-import { saveImage } from './platform/image-store';
+// saveImage moved to state/paintHistory.ts
 import {
   sheets,
   currentSheet,
@@ -78,6 +91,15 @@ export {
   setPaintPalette,
 };
 
+// Re-export paint history state for consumers
+export {
+  hasUnsavedImageEdits,
+  recordPaintUndoSnapshot,
+  applyPaintedSheetImage,
+  undoPaintEdit,
+  redoPaintEdit,
+};
+
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 32;
 export const ZOOM_FACTOR = 1.25;
@@ -95,6 +117,9 @@ export const currentSheetImageSrc = ref<string>('');
 export const imageWidth = ref(0);
 export const imageHeight = ref(0);
 export const specFilePath = ref<string | null>(null);
+
+// Wire up refs needed by paintHistory (avoids circular import)
+bindPaintHistoryRefs({ currentSheetImageSrc, imageWidth, imageHeight, statusText });
 
 const CANVAS_PREFS_STORAGE_KEY = 'span-canvas-sheet-prefs:v2';
 const CHECKER_STRENGTH_STORAGE_KEY = 'span-canvas-checker-strength:v1';
@@ -527,118 +552,7 @@ export const activeSpecRaw = ref<SpanFileSpec | null>({
 export const paintPixelSelection = ref<{ x: number; y: number; w: number; h: number } | null>(null);
 export const hasPaintClipboard = ref(false);
 
-interface EditedSheetState {
-  undo: EditSnapshot[];
-  redo: EditSnapshot[];
-  dirty: boolean;
-  originalImageUrl: string;
-}
-
-interface EditSnapshot {
-  imageUrl: string;
-  annotationAabbs: Record<string, { x: number; y: number; w: number; h: number }>;
-}
-
-const editedSheetState = ref<Record<string, EditedSheetState>>({});
-
-function getSheetKey(sheet: WorkspaceSheet | null): string | null {
-  if (!sheet) return null;
-  return sheet.absolutePath || sheet.path || null;
-}
-
-function ensureEditedSheetState(sheet: WorkspaceSheet): EditedSheetState {
-  const key = getSheetKey(sheet);
-  if (!key) {
-    return {
-      undo: [],
-      redo: [],
-      dirty: false,
-      originalImageUrl: sheet.imageUrl,
-    };
-  }
-  const existing = editedSheetState.value[key];
-  if (existing) return existing;
-  const created: EditedSheetState = {
-    undo: [],
-    redo: [],
-    dirty: false,
-    originalImageUrl: sheet.imageUrl,
-  };
-  editedSheetState.value = {
-    ...editedSheetState.value,
-    [key]: created,
-  };
-  return created;
-}
-
-function captureEditSnapshot(sheet: WorkspaceSheet): EditSnapshot {
-  return {
-    imageUrl: sheet.imageUrl,
-    annotationAabbs: Object.fromEntries(
-      sheet.annotations
-        .filter((annotation) => !!annotation.aabb)
-        .map((annotation) => [
-          annotation.id,
-          {
-            x: annotation.aabb!.x,
-            y: annotation.aabb!.y,
-            w: annotation.aabb!.w,
-            h: annotation.aabb!.h,
-          },
-        ])
-    ),
-  };
-}
-
-function applyEditSnapshot(sheet: WorkspaceSheet, snapshot: EditSnapshot) {
-  for (const annotation of sheet.annotations) {
-    if (!annotation.aabb) continue;
-    const next = snapshot.annotationAabbs[annotation.id];
-    if (!next) continue;
-    annotation.aabb.x = next.x;
-    annotation.aabb.y = next.y;
-    annotation.aabb.w = next.w;
-    annotation.aabb.h = next.h;
-  }
-  updateSheetImageState(sheet, snapshot.imageUrl, sheet.width, sheet.height);
-  triggerRef(sheets);
-}
-
-function replaceEditedSheetState(sheet: WorkspaceSheet, next: EditedSheetState) {
-  const key = getSheetKey(sheet);
-  if (!key) return;
-  editedSheetState.value = {
-    ...editedSheetState.value,
-    [key]: next,
-  };
-}
-
-function updateSheetImageState(
-  sheet: WorkspaceSheet,
-  dataUrl: string,
-  width: number,
-  height: number
-) {
-  sheet.imageUrl = dataUrl;
-  sheet.width = width;
-  sheet.height = height;
-  if (currentSheet.value === sheet) {
-    currentSheetImageSrc.value = dataUrl;
-    imageWidth.value = width;
-    imageHeight.value = height;
-  }
-  persistSheetImage(sheet);
-  triggerRef(sheets);
-}
-
-function isPaintableSheet(sheet: WorkspaceSheet | null): boolean {
-  if (!sheet) return false;
-  return /\.(png|jpe?g|webp)$/i.test(sheet.absolutePath || sheet.path);
-}
-
-export const hasUnsavedImageEdits = computed(() =>
-  Object.values(editedSheetState.value).some((entry) => entry.dirty)
-);
+// Paint history interfaces, state, and functions are in ./state/paintHistory.ts
 
 
 let copyPixelSelectionHandler: () => boolean = () => false;
@@ -730,88 +644,8 @@ export async function importPaletteFromPath(path: string) {
   await _importPaletteFromPath(path, persistWorkspaceSnapshotNow, markDirty, statusText);
 }
 
-export function recordPaintUndoSnapshot(sheet: WorkspaceSheet) {
-  const state = ensureEditedSheetState(sheet);
-  const undo = [...state.undo, captureEditSnapshot(sheet)].slice(-64);
-  replaceEditedSheetState(sheet, {
-    ...state,
-    undo,
-    redo: [],
-  });
-}
-
-export function applyPaintedSheetImage(
-  sheet: WorkspaceSheet,
-  dataUrl: string,
-  width: number,
-  height: number
-) {
-  const state = ensureEditedSheetState(sheet);
-  const dirty = dataUrl !== state.originalImageUrl;
-  replaceEditedSheetState(sheet, {
-    ...state,
-    dirty,
-  });
-  updateSheetImageState(sheet, dataUrl, width, height);
-  statusText.value = `${sheet.path} • ${dirty ? 'Image edits pending save' : 'Image edit reverted'}`;
-}
-
-export function undoPaintEdit(): boolean {
-  const sheet = currentSheet.value;
-  if (!sheet || !isPaintableSheet(sheet)) return false;
-  const state = ensureEditedSheetState(sheet);
-  if (state.undo.length === 0) return false;
-  const previous = state.undo[state.undo.length - 1];
-  const nextUndo = state.undo.slice(0, -1);
-  const redo = [...state.redo, captureEditSnapshot(sheet)].slice(-64);
-  const dirty = previous.imageUrl !== state.originalImageUrl;
-  replaceEditedSheetState(sheet, {
-    ...state,
-    undo: nextUndo,
-    redo,
-    dirty,
-  });
-  applyEditSnapshot(sheet, previous);
-  statusText.value = `${sheet.path} • Undid image edit`;
-  return true;
-}
-
-export function redoPaintEdit(): boolean {
-  const sheet = currentSheet.value;
-  if (!sheet || !isPaintableSheet(sheet)) return false;
-  const state = ensureEditedSheetState(sheet);
-  if (state.redo.length === 0) return false;
-  const next = state.redo[state.redo.length - 1];
-  const undo = [...state.undo, captureEditSnapshot(sheet)].slice(-64);
-  const nextRedo = state.redo.slice(0, -1);
-  const dirty = next.imageUrl !== state.originalImageUrl;
-  replaceEditedSheetState(sheet, {
-    ...state,
-    undo,
-    redo: nextRedo,
-    dirty,
-  });
-  applyEditSnapshot(sheet, next);
-  statusText.value = `${sheet.path} • Redid image edit`;
-  return true;
-}
-
-async function savePendingImageEdits() {
-  if (platform.value !== 'desktop') return;
-
-  for (const sheet of sheets.value) {
-    const key = getSheetKey(sheet);
-    if (!key) continue;
-    const state = editedSheetState.value[key];
-    if (!state?.dirty) continue;
-    await api.writeImageDataUrl(sheet.absolutePath, sheet.imageUrl);
-    replaceEditedSheetState(sheet, {
-      ...state,
-      dirty: false,
-      originalImageUrl: sheet.imageUrl,
-    });
-  }
-}
+// recordPaintUndoSnapshot, applyPaintedSheetImage, undoPaintEdit,
+// redoPaintEdit, savePendingImageEdits are now in ./state/paintHistory.ts
 
 // Per-entity preview shape override (entityLabel → shapeName)
 // Used by GalleryPanel to know which shape to clip for thumbnails
@@ -870,16 +704,6 @@ export function fulfillSheet(
   }
 
   ensureEditedSheetState(fulfilled);
-}
-
-// --- Persist sheet images to IndexedDB (web only) ---
-
-function persistSheetImage(sheet: WorkspaceSheet) {
-  if (platform.value !== 'web') return;
-  if (sheet.status !== 'loaded' || !sheet.imageUrl) return;
-  saveImage(sheet.path, sheet.imageUrl).catch((e) => {
-    console.error('Failed to persist sheet image:', e);
-  });
 }
 
 // Persist images when sheets are added

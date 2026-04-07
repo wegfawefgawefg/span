@@ -35,7 +35,7 @@ import {
 	undoPaintEdit,
 } from "./state";
 import { parseSpec } from "./spec/parse";
-import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler } from "./platform/adapter";
+import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler, setSetThemeHandler } from "./platform/adapter";
 import MenuBar from "./components/MenuBar.vue";
 
 const PANELS: Record<string, { component: string; title: string }> = {
@@ -448,6 +448,8 @@ async function onReady(event: DockviewReadyEvent) {
 		});
 		bumpPanelStateVersion();
 	});
+
+	setSetThemeHandler((themeId: string) => setTheme(themeId));
 }
 
 async function handleMenuAction(action: string) {

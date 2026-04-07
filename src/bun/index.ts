@@ -411,6 +411,24 @@ ApplicationMenu.setApplicationMenu([
 			{ label: "Gallery", action: "addPanel:gallery" },
 			{ label: "Spec Editor", action: "addPanel:spec-editor" },
 			{ type: "separator" as const },
+			{
+				label: "Theme",
+				submenu: [
+					{ label: "Whisper", action: "setTheme:whisper" },
+					{ label: "Frost", action: "setTheme:frost" },
+					{ label: "Ember", action: "setTheme:ember" },
+					{ label: "Daylight", action: "setTheme:daylight" },
+					{ type: "separator" as const },
+					{ label: "Aseprite", action: "setTheme:aseprite" },
+					{ label: "GameMaker", action: "setTheme:gamemaker" },
+					{ type: "separator" as const },
+					{ label: "Dark (Classic)", action: "setTheme:classic-dark" },
+					{ label: "Light (Classic)", action: "setTheme:classic-light" },
+					{ label: "VS Code", action: "setTheme:vscode" },
+					{ label: "Dracula", action: "setTheme:dracula" },
+				],
+			},
+			{ type: "separator" as const },
 			{ label: "Reset Panel Layout", action: "resetLayout" },
 			{ type: "separator" as const },
 			{ role: "toggleFullScreen" },
@@ -547,7 +565,10 @@ Electrobun.events.on("application-menu-clicked", async (e) => {
 			mainWindow.webview.openDevTools();
 			break;
 		default:
-			if (action.startsWith("addPanel:")) {
+			if (action.startsWith("setTheme:")) {
+				const themeId = action.slice("setTheme:".length);
+				mainWindow.webview.rpc.request.setTheme({ themeId });
+			} else if (action.startsWith("addPanel:")) {
 				const panelId = action.slice("addPanel:".length);
 				mainWindow.webview.rpc.request.addPanel({ panelId });
 			}

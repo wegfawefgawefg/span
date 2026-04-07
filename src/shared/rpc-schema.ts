@@ -133,6 +133,10 @@ export type SpanRPC = {
 				params: { panelId: string };
 				response: void;
 			};
+			setTheme: {
+				params: { themeId: string };
+				response: void;
+			};
 		};
 		messages: {};
 	}>;

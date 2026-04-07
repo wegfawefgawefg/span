@@ -248,48 +248,25 @@ textarea {
 
 /* --- Dockview theme --- */
 
-.dockview-theme-dark.dockview-theme-dark {
-	/* Backgrounds */
-	--dv-background-color: var(--color-surface-0);
-	--dv-group-view-background-color: var(--color-surface-1);
-	--dv-tabs-and-actions-container-background-color: var(--color-surface-0);
+/* --- Custom theme base (shared by all non-built-in themes) --- */
 
-	/* Tab backgrounds — all flat on surface-0 (Whisper: no background differentiation) */
-	--dv-activegroup-visiblepanel-tab-background-color: var(--color-surface-0);
-	--dv-activegroup-hiddenpanel-tab-background-color: var(--color-surface-0);
-	--dv-inactivegroup-visiblepanel-tab-background-color: var(--color-surface-0);
-	--dv-inactivegroup-hiddenpanel-tab-background-color: var(--color-surface-0);
+.dv-theme-base {
+	/* Sizing & typography */
+	--dv-tabs-and-actions-container-height: 26px;
+	--dv-tabs-and-actions-container-font-size: 11px;
+	--dv-tab-font-size: 11px;
+	font-family: var(--font-body);
 
-	/* Tab text — active group uses copper-bright, inactive group uses dim */
-	--dv-activegroup-visiblepanel-tab-color: var(--color-copper-bright);
-	--dv-activegroup-hiddenpanel-tab-color: var(--color-text-faint);
-	--dv-inactivegroup-visiblepanel-tab-color: var(--color-text-dim);
-	--dv-inactivegroup-hiddenpanel-tab-color: var(--color-text-faint);
-
-	/* Borders & separators */
+	/* No tab dividers */
 	--dv-tab-divider-color: transparent;
-	--dv-separator-border: var(--color-border);
-	--dv-paneview-header-border-color: var(--color-border);
 
-	/* Drag & drop — subtle copper wash */
-	--dv-drag-over-background-color: rgba(200, 136, 90, 0.08);
-	--dv-drag-over-border: 1px solid rgba(200, 136, 90, 0.25);
-	--dv-transition-duration: 150ms;
-
-	/* Focus & interaction */
-	--dv-paneview-active-outline-color: var(--color-copper);
-	--dv-icon-hover-background-color: var(--color-surface-3);
-	--dv-active-sash-color: var(--color-copper);
+	/* Sash behavior */
+	--dv-sash-color: transparent;
 	--dv-active-sash-transition-duration: 0.15s;
 	--dv-active-sash-transition-delay: 0.3s;
-	--dv-sash-color: transparent;
 
-	/* Scrollbar */
-	--dv-tabs-container-scrollbar-color: var(--color-border);
-	--dv-scrollbar-background-color: var(--color-border);
-
-	/* Floating panels — deep shadow with faint copper edge */
-	--dv-floating-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(200, 136, 90, 0.15);
+	/* Transition timing */
+	--dv-transition-duration: 150ms;
 
 	/* Hide close buttons, show on tab hover */
 	& .dv-default-tab-action {
@@ -299,12 +276,6 @@ textarea {
 	& .dv-default-tab:hover .dv-default-tab-action {
 		opacity: 1;
 	}
-
-	/* Sizing & typography */
-	--dv-tabs-and-actions-container-height: 26px;
-	--dv-tabs-and-actions-container-font-size: 11px;
-	--dv-tab-font-size: 11px;
-	font-family: var(--font-body);
 
 	/* Slim tab padding */
 	& .dv-default-tab {
@@ -320,41 +291,84 @@ textarea {
 		height: 10px;
 	}
 
-	/* Whisper: copper glow on active tab in active group */
-	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
-		font-weight: 500;
-		text-shadow: 0 0 10px rgba(200, 136, 90, 0.3);
-	}
-
-	/* Whisper: inactive tabs lift to dim on hover */
-	& .dv-tab.dv-inactive-tab .dv-default-tab {
-		transition: color 0.15s;
-	}
-	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
-		color: var(--color-text-dim);
-	}
-
-	/* Whisper: copper glow on active sash */
-	& .dv-sash:hover,
-	& .dv-sash:active {
-		box-shadow: 0 0 8px rgba(200, 136, 90, 0.25);
-	}
-
-	/* Whisper: rounded drop targets */
+	/* Rounded drop targets */
 	& .dv-drop-target-selection {
 		border-radius: 4px;
 		margin: 4px;
 	}
 
-	/* Whisper: dragged tab ghost */
+	/* Dragged tab ghost */
 	& .dv-tab.dv-tab-dragging {
 		opacity: 0.5;
 	}
 
-	/* Whisper: rounded floating panels */
+	/* Rounded floating panels */
 	& .dv-resize-container {
 		border-radius: 4px;
 		overflow: hidden;
+	}
+
+	/* Inactive tabs lift on hover */
+	& .dv-tab.dv-inactive-tab .dv-default-tab {
+		transition: color 0.15s;
+	}
+}
+
+/* --- Whisper theme --- */
+
+.dv-theme-whisper {
+	/* Backgrounds */
+	--dv-background-color: #0c0d0f;
+	--dv-group-view-background-color: #121417;
+	--dv-tabs-and-actions-container-background-color: #0c0d0f;
+
+	/* Tab backgrounds — all flat */
+	--dv-activegroup-visiblepanel-tab-background-color: #0c0d0f;
+	--dv-activegroup-hiddenpanel-tab-background-color: #0c0d0f;
+	--dv-inactivegroup-visiblepanel-tab-background-color: #0c0d0f;
+	--dv-inactivegroup-hiddenpanel-tab-background-color: #0c0d0f;
+
+	/* Tab text */
+	--dv-activegroup-visiblepanel-tab-color: #e4a46e;
+	--dv-activegroup-hiddenpanel-tab-color: #6b6558;
+	--dv-inactivegroup-visiblepanel-tab-color: #9b9484;
+	--dv-inactivegroup-hiddenpanel-tab-color: #6b6558;
+
+	/* Borders */
+	--dv-separator-border: #2a2e35;
+	--dv-paneview-header-border-color: #2a2e35;
+
+	/* Drag & drop */
+	--dv-drag-over-background-color: rgba(200, 136, 90, 0.08);
+	--dv-drag-over-border: 1px solid rgba(200, 136, 90, 0.25);
+
+	/* Focus & interaction */
+	--dv-paneview-active-outline-color: #c8885a;
+	--dv-icon-hover-background-color: #22252a;
+	--dv-active-sash-color: #c8885a;
+
+	/* Scrollbar */
+	--dv-tabs-container-scrollbar-color: #2a2e35;
+	--dv-scrollbar-background-color: #2a2e35;
+
+	/* Floating */
+	--dv-floating-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(200, 136, 90, 0.15);
+
+	/* Active tab glow */
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 10px rgba(200, 136, 90, 0.3);
+	}
+
+	/* Inactive tab hover */
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: #9b9484;
+	}
+
+	/* Sash glow */
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 8px rgba(200, 136, 90, 0.25);
 	}
 }
 

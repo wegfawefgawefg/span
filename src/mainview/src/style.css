@@ -279,6 +279,8 @@ textarea {
 	--dv-paneview-active-outline-color: var(--color-copper);
 	--dv-icon-hover-background-color: var(--color-surface-3);
 	--dv-active-sash-color: var(--color-copper);
+	--dv-active-sash-transition-duration: 0.15s;
+	--dv-active-sash-transition-delay: 0.3s;
 	--dv-sash-color: transparent;
 
 	/* Scrollbar */
@@ -321,6 +323,12 @@ textarea {
 	}
 	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
 		color: var(--color-text-dim);
+	}
+
+	/* Whisper: copper glow on active sash */
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 8px rgba(200, 136, 90, 0.25);
 	}
 }
 

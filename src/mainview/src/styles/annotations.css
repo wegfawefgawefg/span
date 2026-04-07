@@ -1,0 +1,277 @@
+/* --- Shape color classes for multi-shape --- */
+
+.shape-color-1 {
+	--shape-color: #5a8ac8;
+	--shape-color-bright: #7aa8e0;
+	--shape-glow: rgba(90, 138, 200, 0.15);
+	--shape-glow-strong: rgba(90, 138, 200, 0.25);
+}
+
+.shape-color-2 {
+	--shape-color: #5ac878;
+	--shape-color-bright: #7ae098;
+	--shape-glow: rgba(90, 200, 120, 0.15);
+	--shape-glow-strong: rgba(90, 200, 120, 0.25);
+}
+
+.shape-color-3 {
+	--shape-color: #8a5ac8;
+	--shape-color-bright: #a87ae0;
+	--shape-glow: rgba(138, 90, 200, 0.15);
+	--shape-glow-strong: rgba(138, 90, 200, 0.25);
+}
+
+.annotation-box {
+	position: absolute;
+	border: 2px solid var(--shape-color, var(--color-copper));
+	background: var(--shape-glow, var(--color-copper-glow));
+	box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4);
+	touch-action: none;
+	padding: 0;
+	border-radius: 0;
+	width: auto;
+	cursor: grab;
+	image-rendering: pixelated;
+	transition:
+		border-color 0.1s steps(3),
+		background 0.1s steps(3),
+		box-shadow 0.15s steps(4);
+}
+
+.annotation-box:focus-visible {
+	outline: 1px solid var(--shape-color-bright, var(--color-copper-bright));
+	outline-offset: 2px;
+}
+
+.annotation-box.selected {
+	border-color: var(--shape-color-bright, var(--color-copper-bright));
+	background: var(--shape-glow-strong, var(--color-copper-glow-strong));
+	box-shadow:
+		inset 0 0 0 1px rgba(0, 0, 0, 0.4),
+		0 0 16px var(--shape-glow, var(--color-copper-glow)),
+		0 0 4px var(--shape-glow-strong, var(--color-copper-glow-strong));
+	animation: select-pulse 0.4s ease-out;
+}
+
+@keyframes select-pulse {
+	0% { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 0px var(--shape-glow, var(--color-copper-glow)); }
+	50% { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 24px var(--shape-glow-strong, var(--color-copper-glow-strong)), 0 0 8px var(--shape-glow, var(--color-copper-glow)); }
+	100% { box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.4), 0 0 16px var(--shape-glow, var(--color-copper-glow)), 0 0 4px var(--shape-glow-strong, var(--color-copper-glow-strong)); }
+}
+
+/* Stepped pixel-snap easing for that retro feel */
+@keyframes pixel-pop {
+	0% { transform: scale(1); }
+	40% { transform: scale(1.04); }
+	100% { transform: scale(1); }
+}
+
+.annotation-box.selected {
+	animation: select-pulse 0.4s steps(4), pixel-pop 0.25s steps(3);
+}
+
+.annotation-label {
+	position: absolute;
+	left: 0;
+	top: -20px;
+	max-width: 200px;
+	padding: 1px 6px;
+	background: color-mix(in srgb, var(--color-surface-0) 92%, transparent);
+	border: 1px solid var(--color-border);
+	border-radius: 2px;
+	color: var(--color-text-dim);
+	font-family: var(--font-mono);
+	font-size: 10px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	pointer-events: none;
+}
+
+.annotation-box.selected .annotation-label {
+	color: var(--color-copper-bright);
+	border-color: var(--color-copper);
+}
+
+.resize-handle {
+	position: absolute;
+	right: -4px;
+	bottom: -4px;
+	width: 8px;
+	height: 8px;
+	border: 1px solid rgba(0, 0, 0, 0.6);
+	background: var(--color-copper-bright);
+	border-radius: 0;
+	cursor: nwse-resize;
+	image-rendering: pixelated;
+	transition: transform 0.08s steps(2), background 0.08s steps(2);
+}
+
+.resize-handle:hover {
+	transform: scale(1.5);
+	background: var(--color-copper);
+}
+
+/* --- Point annotations --- */
+
+.annotation-point {
+	position: absolute;
+	width: 20px;
+	height: 20px;
+	margin-left: -10px;
+	margin-top: -10px;
+	cursor: grab;
+	touch-action: none;
+}
+
+.annotation-point::before,
+.annotation-point::after {
+	content: "";
+	position: absolute;
+	background: white;
+	border-radius: 0;
+	image-rendering: pixelated;
+	mix-blend-mode: difference;
+}
+
+.annotation-point::before {
+	left: 9px;
+	top: 2px;
+	width: 2px;
+	height: 16px;
+}
+
+.annotation-point::after {
+	left: 2px;
+	top: 9px;
+	width: 16px;
+	height: 2px;
+}
+
+.annotation-point.selected::before,
+.annotation-point.selected::after {
+	background: white;
+}
+
+/* --- Circle annotations --- */
+
+.annotation-circle {
+	position: absolute;
+	border: 1.5px solid var(--shape-color, var(--color-copper));
+	border-radius: 50%;
+	background: var(--shape-glow, var(--color-copper-glow));
+	cursor: grab;
+	touch-action: none;
+	transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.annotation-circle.selected {
+	border-color: var(--shape-color-bright, var(--color-copper-bright));
+	background: var(--shape-glow-strong, var(--color-copper-glow-strong));
+	box-shadow: 0 0 16px var(--shape-glow, var(--color-copper-glow));
+}
+
+/* --- Polygon annotations --- */
+
+.annotation-polygon {
+	position: absolute;
+	pointer-events: none;
+}
+
+.annotation-polygon svg {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+.annotation-polygon polygon,
+.annotation-polygon polyline {
+	fill: var(--shape-glow, var(--color-copper-glow));
+	stroke: var(--shape-color, var(--color-copper));
+	stroke-width: 1.5;
+	cursor: grab;
+	pointer-events: all;
+}
+
+.annotation-polygon.selected polygon,
+.annotation-polygon.selected polyline {
+	fill: var(--shape-glow-strong, var(--color-copper-glow-strong));
+	stroke: var(--shape-color-bright, var(--color-copper-bright));
+}
+
+.vertex-handle {
+	position: absolute;
+	width: 8px;
+	height: 8px;
+	margin-left: -4px;
+	margin-top: -4px;
+	background: var(--color-copper-bright);
+	border: 1px solid rgba(0, 0, 0, 0.6);
+	border-radius: 0;
+	cursor: move;
+	pointer-events: all;
+	image-rendering: pixelated;
+	transition: transform 0.08s steps(2);
+}
+
+.vertex-handle:hover {
+	transform: scale(1.5);
+}
+
+/* --- Drawing preview --- */
+
+.draw-preview {
+	position: absolute;
+	border: 2px dashed var(--color-copper-bright);
+	background: color-mix(in srgb, var(--color-copper-bright) 8%, transparent);
+	pointer-events: none;
+	z-index: 9999;
+	image-rendering: pixelated;
+}
+
+.pixel-selection-box {
+	position: absolute;
+	border: 2px dashed var(--color-copper-bright);
+	background:
+		linear-gradient(90deg, color-mix(in srgb, var(--color-copper-glow) 18%, transparent) 50%, transparent 50%),
+		linear-gradient(color-mix(in srgb, var(--color-copper-glow) 18%, transparent) 50%, transparent 50%);
+	background-size: 8px 8px;
+	pointer-events: none;
+	z-index: 9998;
+	image-rendering: pixelated;
+}
+
+.pixel-selection-box.preview {
+	border-color: var(--color-copper);
+}
+
+/* --- Radius handle (for circles) --- */
+
+.radius-handle {
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	margin-left: -5px;
+	margin-top: -5px;
+	border: 1px solid rgba(0, 0, 0, 0.5);
+	background: var(--color-copper-bright);
+	border-radius: 50%;
+	cursor: ew-resize;
+	transition: transform 0.1s ease;
+}
+
+.radius-handle:hover {
+	transform: scale(1.3);
+}
+
+/* --- Respect reduced motion --- */
+
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
+}

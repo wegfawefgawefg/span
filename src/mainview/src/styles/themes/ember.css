@@ -1,0 +1,53 @@
+/* --- Ember theme --- */
+
+.dv-theme-ember.dv-theme-ember {
+	/* App tokens */
+	--color-surface-0: #100c0a;
+	--color-surface-1: #171210;
+	--color-surface-2: #201a16;
+	--color-surface-3: #2a2220;
+	--color-border: #2a2220;
+	--color-border-strong: #3a302a;
+	--color-text: #e8ddd4;
+	--color-text-dim: #9e8070;
+	--color-text-faint: #5e4a3e;
+	--color-copper: #d4734a;
+	--color-copper-bright: #e8956a;
+	--color-copper-glow: rgba(212, 115, 74, 0.15);
+	--color-copper-glow-strong: rgba(232, 149, 106, 0.25);
+	--color-danger: #c45c5c;
+
+	--dv-background-color: #100c0a;
+	--dv-group-view-background-color: #171210;
+	--dv-tabs-and-actions-container-background-color: #100c0a;
+	--dv-activegroup-visiblepanel-tab-background-color: #100c0a;
+	--dv-activegroup-hiddenpanel-tab-background-color: #100c0a;
+	--dv-inactivegroup-visiblepanel-tab-background-color: #100c0a;
+	--dv-inactivegroup-hiddenpanel-tab-background-color: #100c0a;
+	--dv-activegroup-visiblepanel-tab-color: #e8956a;
+	--dv-activegroup-hiddenpanel-tab-color: #5e4a3e;
+	--dv-inactivegroup-visiblepanel-tab-color: #9e8070;
+	--dv-inactivegroup-hiddenpanel-tab-color: #5e4a3e;
+	--dv-separator-border: #2a2220;
+	--dv-paneview-header-border-color: #2a2220;
+	--dv-drag-over-background-color: rgba(212, 115, 74, 0.08);
+	--dv-drag-over-border: 1px solid rgba(212, 115, 74, 0.25);
+	--dv-paneview-active-outline-color: #d4734a;
+	--dv-icon-hover-background-color: #261c18;
+	--dv-active-sash-color: #d4734a;
+	--dv-tabs-container-scrollbar-color: #2a2220;
+	--dv-scrollbar-background-color: #2a2220;
+	--dv-floating-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(212, 115, 74, 0.15);
+
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 10px rgba(212, 115, 74, 0.3);
+	}
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: #9e8070;
+	}
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 8px rgba(212, 115, 74, 0.25);
+	}
+}

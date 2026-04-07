@@ -1,0 +1,53 @@
+/* --- Frost theme --- */
+
+.dv-theme-frost.dv-theme-frost {
+	/* App tokens */
+	--color-surface-0: #0b0d10;
+	--color-surface-1: #10141a;
+	--color-surface-2: #181e28;
+	--color-surface-3: #1e2836;
+	--color-border: #1e2836;
+	--color-border-strong: #2a3648;
+	--color-text: #d8e0ea;
+	--color-text-dim: #7a8a9e;
+	--color-text-faint: #4a5568;
+	--color-copper: #6a9fd8;
+	--color-copper-bright: #88b4e0;
+	--color-copper-glow: rgba(106, 159, 216, 0.15);
+	--color-copper-glow-strong: rgba(136, 180, 224, 0.25);
+	--color-danger: #c45c5c;
+
+	--dv-background-color: #0b0d10;
+	--dv-group-view-background-color: #10141a;
+	--dv-tabs-and-actions-container-background-color: #0b0d10;
+	--dv-activegroup-visiblepanel-tab-background-color: #0b0d10;
+	--dv-activegroup-hiddenpanel-tab-background-color: #0b0d10;
+	--dv-inactivegroup-visiblepanel-tab-background-color: #0b0d10;
+	--dv-inactivegroup-hiddenpanel-tab-background-color: #0b0d10;
+	--dv-activegroup-visiblepanel-tab-color: #88b4e0;
+	--dv-activegroup-hiddenpanel-tab-color: #4a5568;
+	--dv-inactivegroup-visiblepanel-tab-color: #7a8a9e;
+	--dv-inactivegroup-hiddenpanel-tab-color: #4a5568;
+	--dv-separator-border: #1e2836;
+	--dv-paneview-header-border-color: #1e2836;
+	--dv-drag-over-background-color: rgba(106, 159, 216, 0.08);
+	--dv-drag-over-border: 1px solid rgba(106, 159, 216, 0.25);
+	--dv-paneview-active-outline-color: #6a9fd8;
+	--dv-icon-hover-background-color: #1a2230;
+	--dv-active-sash-color: #6a9fd8;
+	--dv-tabs-container-scrollbar-color: #1e2836;
+	--dv-scrollbar-background-color: #1e2836;
+	--dv-floating-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(106, 159, 216, 0.15);
+
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 10px rgba(106, 159, 216, 0.3);
+	}
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: #7a8a9e;
+	}
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 8px rgba(106, 159, 216, 0.25);
+	}
+}

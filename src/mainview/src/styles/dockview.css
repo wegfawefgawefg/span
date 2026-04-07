@@ -1,0 +1,67 @@
+/* --- Dockview theme --- */
+
+/* --- Custom theme base (shared by all non-built-in themes) --- */
+
+.dv-theme-base.dv-theme-base {
+	/* Sizing & typography */
+	--dv-tabs-and-actions-container-height: 26px;
+	--dv-tabs-and-actions-container-font-size: 11px;
+	--dv-tab-font-size: 11px;
+	font-family: var(--font-body);
+
+	/* No tab dividers */
+	--dv-tab-divider-color: transparent;
+
+	/* Sash behavior */
+	--dv-sash-color: transparent;
+	--dv-active-sash-transition-duration: 0.15s;
+	--dv-active-sash-transition-delay: 0.3s;
+
+	/* Transition timing */
+	--dv-transition-duration: 150ms;
+
+	/* Hide close buttons, show on tab hover */
+	& .dv-default-tab-action {
+		opacity: 0;
+		transition: opacity 0.15s;
+	}
+	& .dv-default-tab:hover .dv-default-tab-action {
+		opacity: 1;
+	}
+
+	/* Slim tab padding */
+	& .dv-default-tab {
+		padding: 0 12px;
+		min-width: 0;
+		gap: 6px;
+	}
+	& .dv-default-tab-action {
+		padding: 2px;
+	}
+	& .dv-default-tab-action svg {
+		width: 10px;
+		height: 10px;
+	}
+
+	/* Rounded drop targets */
+	& .dv-drop-target-selection {
+		border-radius: 4px;
+		margin: 4px;
+	}
+
+	/* Dragged tab ghost */
+	& .dv-tab.dv-tab-dragging {
+		opacity: 0.5;
+	}
+
+	/* Rounded floating panels */
+	& .dv-resize-container {
+		border-radius: 4px;
+		overflow: hidden;
+	}
+
+	/* Inactive tabs lift on hover */
+	& .dv-tab.dv-inactive-tab .dv-default-tab {
+		transition: color 0.15s;
+	}
+}

@@ -1,0 +1,53 @@
+/* --- GameMaker theme --- */
+
+.dv-theme-gamemaker.dv-theme-gamemaker {
+	/* App tokens */
+	--color-surface-0: #d4d4d4;
+	--color-surface-1: #e0e0e0;
+	--color-surface-2: #c8c8c8;
+	--color-surface-3: #bcbcbc;
+	--color-border: #b0b0b0;
+	--color-border-strong: #999999;
+	--color-text: #1a1a1a;
+	--color-text-dim: #555555;
+	--color-text-faint: #888888;
+	--color-copper: #4a7abf;
+	--color-copper-bright: #3a6aa0;
+	--color-copper-glow: rgba(74, 122, 191, 0.12);
+	--color-copper-glow-strong: rgba(74, 122, 191, 0.22);
+	--color-danger: #b84a4a;
+
+	--dv-background-color: #d4d4d4;
+	--dv-group-view-background-color: #e0e0e0;
+	--dv-tabs-and-actions-container-background-color: #d4d4d4;
+	--dv-activegroup-visiblepanel-tab-background-color: #d4d4d4;
+	--dv-activegroup-hiddenpanel-tab-background-color: #d4d4d4;
+	--dv-inactivegroup-visiblepanel-tab-background-color: #d4d4d4;
+	--dv-inactivegroup-hiddenpanel-tab-background-color: #d4d4d4;
+	--dv-activegroup-visiblepanel-tab-color: #3a6aa0;
+	--dv-activegroup-hiddenpanel-tab-color: #999999;
+	--dv-inactivegroup-visiblepanel-tab-color: #666666;
+	--dv-inactivegroup-hiddenpanel-tab-color: #999999;
+	--dv-separator-border: #b8b8b8;
+	--dv-paneview-header-border-color: #b8b8b8;
+	--dv-drag-over-background-color: rgba(74, 122, 191, 0.1);
+	--dv-drag-over-border: 1px solid rgba(74, 122, 191, 0.3);
+	--dv-paneview-active-outline-color: #4a7abf;
+	--dv-icon-hover-background-color: #c8c8c8;
+	--dv-active-sash-color: #4a7abf;
+	--dv-tabs-container-scrollbar-color: #b0b0b0;
+	--dv-scrollbar-background-color: #b0b0b0;
+	--dv-floating-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 1px rgba(74, 122, 191, 0.2);
+
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 8px rgba(74, 122, 191, 0.15);
+	}
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: #666666;
+	}
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 6px rgba(74, 122, 191, 0.15);
+	}
+}

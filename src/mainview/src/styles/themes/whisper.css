@@ -1,0 +1,73 @@
+/* --- Whisper theme --- */
+
+.dv-theme-whisper.dv-theme-whisper {
+	/* App tokens */
+	--color-surface-0: #0c0d0f;
+	--color-surface-1: #121417;
+	--color-surface-2: #1a1c20;
+	--color-surface-3: #22252a;
+	--color-border: #2a2e35;
+	--color-border-strong: #3a3f48;
+	--color-text: #e8e2d4;
+	--color-text-dim: #9b9484;
+	--color-text-faint: #6b6558;
+	--color-copper: #c8885a;
+	--color-copper-bright: #e4a46e;
+	--color-copper-glow: rgba(200, 136, 90, 0.15);
+	--color-copper-glow-strong: rgba(228, 164, 110, 0.25);
+	--color-danger: #c45c5c;
+
+	/* Backgrounds */
+	--dv-background-color: #0c0d0f;
+	--dv-group-view-background-color: #121417;
+	--dv-tabs-and-actions-container-background-color: #0c0d0f;
+
+	/* Tab backgrounds — all flat */
+	--dv-activegroup-visiblepanel-tab-background-color: #0c0d0f;
+	--dv-activegroup-hiddenpanel-tab-background-color: #0c0d0f;
+	--dv-inactivegroup-visiblepanel-tab-background-color: #0c0d0f;
+	--dv-inactivegroup-hiddenpanel-tab-background-color: #0c0d0f;
+
+	/* Tab text */
+	--dv-activegroup-visiblepanel-tab-color: #e4a46e;
+	--dv-activegroup-hiddenpanel-tab-color: #6b6558;
+	--dv-inactivegroup-visiblepanel-tab-color: #9b9484;
+	--dv-inactivegroup-hiddenpanel-tab-color: #6b6558;
+
+	/* Borders */
+	--dv-separator-border: #2a2e35;
+	--dv-paneview-header-border-color: #2a2e35;
+
+	/* Drag & drop */
+	--dv-drag-over-background-color: rgba(200, 136, 90, 0.08);
+	--dv-drag-over-border: 1px solid rgba(200, 136, 90, 0.25);
+
+	/* Focus & interaction */
+	--dv-paneview-active-outline-color: #c8885a;
+	--dv-icon-hover-background-color: #22252a;
+	--dv-active-sash-color: #c8885a;
+
+	/* Scrollbar */
+	--dv-tabs-container-scrollbar-color: #2a2e35;
+	--dv-scrollbar-background-color: #2a2e35;
+
+	/* Floating */
+	--dv-floating-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(200, 136, 90, 0.15);
+
+	/* Active tab glow */
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 10px rgba(200, 136, 90, 0.3);
+	}
+
+	/* Inactive tab hover */
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: #9b9484;
+	}
+
+	/* Sash glow */
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 8px rgba(200, 136, 90, 0.25);
+	}
+}

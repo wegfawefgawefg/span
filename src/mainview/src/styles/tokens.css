@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+@theme {
+	--color-surface-0: #0c0d0f;
+	--color-surface-1: #121417;
+	--color-surface-2: #1a1c20;
+	--color-surface-3: #22252a;
+	--color-border: #2a2e35;
+	--color-border-strong: #3a3f48;
+	--color-text: #e8e2d4;
+	--color-text-dim: #9b9484;
+	--color-text-faint: #6b6558;
+	--color-copper: #c8885a;
+	--color-copper-bright: #e4a46e;
+	--color-copper-glow: rgba(200, 136, 90, 0.15);
+	--color-copper-glow-strong: rgba(228, 164, 110, 0.25);
+	--color-danger: #c45c5c;
+
+	--font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+	--font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+@font-face {
+	font-family: "IBM Plex Sans";
+	font-style: normal;
+	font-weight: 400 600;
+	font-display: swap;
+	src: url("../assets/fonts/ibm-plex-sans-400.woff2") format("woff2");
+}
+
+@font-face {
+	font-family: "IBM Plex Mono";
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url("../assets/fonts/ibm-plex-mono-400.woff2") format("woff2");
+}

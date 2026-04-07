@@ -625,7 +625,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div class="app-shell" @contextmenu.prevent>
+	<div :class="['app-shell', ...(currentTheme.cssClasses ?? [])]" @contextmenu.prevent>
 		<MenuBar :is-panel-open="isPanelOpen" :current-theme-id="currentThemeId" @action="handleMenuAction" />
 		<div class="dockview-container">
 			<DockviewVue :theme="currentTheme.dockviewTheme" :class-name="(currentTheme.cssClasses ?? []).join(' ')" @ready="onReady" />

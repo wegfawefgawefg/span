@@ -44,6 +44,7 @@ import {
 } from '../state';
 import { ZOOM_FACTOR } from '../state';
 import { useCanvas } from '../composables/useCanvas';
+import { useCanvasPanning } from '../composables/useCanvasPanning';
 import { api } from '../platform/adapter';
 import ContextMenu from './ContextMenu.vue';
 import type { MenuEntry } from './ContextMenu.vue';
@@ -157,6 +158,26 @@ const stageOffsetY = computed(() =>
   Math.round((workspaceHeight.value - stageHeight.value) / 2)
 );
 
+const {
+  isPanning,
+  spaceHeld,
+  centerViewportOnStage,
+  alignViewportToImageOrigin,
+  centerViewportOnImagePoint,
+  handleScrollerPointerDown,
+  handleScrollerPointerMove,
+  handleScrollerPointerUp,
+  handleScrollerScroll,
+  markCentered,
+  resetCentered,
+} = useCanvasPanning({
+  scroller,
+  stageOffsetX,
+  stageOffsetY,
+  stageWidth,
+  stageHeight,
+});
+
 const layerCursorClass = computed(() => {
   if (activeEyedropper.value) return 'cursor-crosshair';
   if (spaceHeld.value && !isPanning.value) return '';
@@ -187,12 +208,7 @@ const floatingSelectionCanvas = document.createElement('canvas');
 let loadedSheetImage: HTMLImageElement | null = null;
 let imageLoadVersion = 0;
 
-// --- Panning state ---
-const isPanning = ref(false);
-const spaceHeld = ref(false);
-let panStart = { x: 0, y: 0, scrollLeft: 0, scrollTop: 0 };
 let scrollerResizeObserver: ResizeObserver | null = null;
-let hasCenteredCurrentSheet = false;
 let lastRenderMismatchKey = '';
 let canvasDebugSeq = 0;
 
@@ -210,39 +226,6 @@ function updateScrollerViewportSize() {
   if (!el) return;
   scrollerViewportWidth.value = el.clientWidth;
   scrollerViewportHeight.value = el.clientHeight;
-}
-
-function centerViewportOnStage() {
-  const el = scroller.value;
-  if (!el) return;
-  el.scrollLeft = Math.max(
-    0,
-    stageOffsetX.value - (el.clientWidth - stageWidth.value) / 2
-  );
-  el.scrollTop = Math.max(
-    0,
-    stageOffsetY.value - (el.clientHeight - stageHeight.value) / 2
-  );
-}
-
-function alignViewportToImageOrigin() {
-  const el = scroller.value;
-  if (!el) return;
-  el.scrollLeft = Math.max(0, stageOffsetX.value);
-  el.scrollTop = Math.max(0, stageOffsetY.value);
-}
-
-function centerViewportOnImagePoint(centerX: number, centerY: number) {
-  const el = scroller.value;
-  if (!el) return;
-  el.scrollLeft = Math.max(
-    0,
-    stageOffsetX.value + centerX * zoom.value - el.clientWidth / 2
-  );
-  el.scrollTop = Math.max(
-    0,
-    stageOffsetY.value + centerY * zoom.value - el.clientHeight / 2
-  );
 }
 
 function computeFitZoomForImage(width: number, height: number): number | null {
@@ -546,47 +529,6 @@ function onKeyUp(e: KeyboardEvent) {
   }
 }
 
-function handleScrollerPointerDown(event: PointerEvent) {
-  // MMB (button 1) always pans
-  // Space+LMB pans
-  const isMMB = event.button === 1;
-  const isSpaceLMB = spaceHeld.value && event.button === 0;
-
-  if (!isMMB && !isSpaceLMB) return;
-
-  event.preventDefault();
-  event.stopPropagation();
-  isPanning.value = true;
-
-  const el = scroller.value!;
-  panStart = {
-    x: event.clientX,
-    y: event.clientY,
-    scrollLeft: el.scrollLeft,
-    scrollTop: el.scrollTop,
-  };
-
-  el.setPointerCapture(event.pointerId);
-}
-
-function handleScrollerPointerMove(event: PointerEvent) {
-  if (!isPanning.value) return;
-  const el = scroller.value!;
-  el.scrollLeft = panStart.scrollLeft - (event.clientX - panStart.x);
-  el.scrollTop = panStart.scrollTop - (event.clientY - panStart.y);
-}
-
-function handleScrollerPointerUp(event: PointerEvent) {
-  if (!isPanning.value) return;
-  isPanning.value = false;
-  scroller.value?.releasePointerCapture(event.pointerId);
-}
-
-function handleScrollerScroll() {
-  if (!hasCenteredCurrentSheet) return;
-  persistCurrentCanvasViewport();
-}
-
 onMounted(() => {
   registerViewportCenterFn(() => {
     const el = scroller.value;
@@ -655,7 +597,7 @@ watch(
       pixelClipboard = null;
       hasPaintClipboard.value = false;
     }
-    hasCenteredCurrentSheet = false;
+    resetCentered();
     clearPixelSelection();
     atlasMoveSelectionIds.value = [];
     atlasMoveSelectionDrag.value = null;
@@ -746,7 +688,7 @@ watch(currentSheetImageSrc, async (src) => {
   } else {
     alignViewportToImageOrigin();
   }
-  hasCenteredCurrentSheet = true;
+  markCentered();
 });
 
 watch(
@@ -1501,7 +1443,7 @@ async function handleFitView() {
   await nextTick();
   updateScrollerViewportSize();
   centerViewportOnStage();
-  hasCenteredCurrentSheet = true;
+  markCentered();
   persistCurrentCanvasViewport();
   renderDisplayCanvas();
 }

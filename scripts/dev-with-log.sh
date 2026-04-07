@@ -5,7 +5,17 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="$REPO_ROOT/.logs"
 LOG_PATH="${SPAN_DEV_LOG:-$LOG_DIR/span-dev.log}"
 BUN_BIN="${BUN:-$HOME/.bun/bin/bun}"
-VITE_URL="${SPAN_HMR_URL:-http://127.0.0.1:5173}"
+
+# Parse --port from arguments, default to 5173
+VITE_PORT=5173
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--port) VITE_PORT="$2"; shift 2 ;;
+		*) shift ;;
+	esac
+done
+
+VITE_URL="${SPAN_HMR_URL:-http://localhost:$VITE_PORT}"
 
 vite_pid=""
 electrobun_pid=""
@@ -31,22 +41,24 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 kill_stale_dev_processes() {
-	local pids=()
-	mapfile -t pids < <(pgrep -af "vite --port 5173" | grep "$REPO_ROOT" | awk '{print $1}' || true)
-	for pid in "${pids[@]}"; do
+	local line
+	while IFS= read -r line; do
+		local pid
+		pid="$(echo "$line" | awk '{print $1}')"
 		if [[ -n "$pid" && "$pid" != "$$" ]]; then
 			echo "[span-dev] stopping stale vite pid=$pid"
 			kill "$pid" 2>/dev/null || true
 		fi
-	done
+	done < <(pgrep -af "vite --port" | grep "$REPO_ROOT" || true)
 
-	mapfile -t pids < <(pgrep -af "electrobun dev --watch" | grep "$REPO_ROOT" | awk '{print $1}' || true)
-	for pid in "${pids[@]}"; do
+	while IFS= read -r line; do
+		local pid
+		pid="$(echo "$line" | awk '{print $1}')"
 		if [[ -n "$pid" && "$pid" != "$$" ]]; then
 			echo "[span-dev] stopping stale electrobun watcher pid=$pid"
 			kill "$pid" 2>/dev/null || true
 		fi
-	done
+	done < <(pgrep -af "electrobun dev --watch" | grep "$REPO_ROOT" || true)
 }
 
 if [[ ! -x "$BUN_BIN" ]]; then
@@ -59,7 +71,7 @@ sleep 0.5
 
 vite build
 
-"$BUN_BIN" run hmr &
+vite --port "$VITE_PORT" &
 vite_pid=$!
 echo "[span-dev] started vite dev server pid=$vite_pid"
 
@@ -80,4 +92,4 @@ electrobun dev --watch &
 electrobun_pid=$!
 echo "[span-dev] started electrobun watcher pid=$electrobun_pid"
 
-wait -n "$vite_pid" "$electrobun_pid"
+wait "$vite_pid" "$electrobun_pid"

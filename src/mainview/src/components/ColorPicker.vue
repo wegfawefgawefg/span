@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { Pipette, ChevronUp, ChevronDown } from "lucide-vue-next";
 import { activeEyedropper } from "../state";
 
 const props = defineProps<{
@@ -199,9 +200,7 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ""));
 				title="Pick color from canvas"
 				@click="activateEyedropper"
 			>
-				<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M13.5 2.5a1.41 1.41 0 0 0-2 0L9.5 4.5 7 2 2 7l2.5 2.5L2.5 11.5v2h2L6.5 11.5 9 14l5-5-2.5-2.5 2-2a1.41 1.41 0 0 0 0-2z"/>
-				</svg>
+				<Pipette :size="14" />
 			</button>
 			<button
 				type="button"
@@ -209,10 +208,8 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ""));
 				title="Toggle palette"
 				@click="toggleExpanded"
 			>
-				<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-					<path v-if="expanded" d="M1 7L5 3L9 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-					<path v-else d="M1 3L5 7L9 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-				</svg>
+				<ChevronUp v-if="expanded" :size="10" />
+				<ChevronDown v-else :size="10" />
 			</button>
 		</div>
 
@@ -251,9 +248,7 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ""));
 					class="flex items-center gap-1 text-[11px] text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border-none p-0"
 					@click="activateEyedropper"
 				>
-					<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M13.5 2.5a1.41 1.41 0 0 0-2 0L9.5 4.5 7 2 2 7l2.5 2.5L2.5 11.5v2h2L6.5 11.5 9 14l5-5-2.5-2.5 2-2a1.41 1.41 0 0 0 0-2z"/>
-					</svg>
+					<Pipette :size="12" />
 					pick
 				</button>
 				<button

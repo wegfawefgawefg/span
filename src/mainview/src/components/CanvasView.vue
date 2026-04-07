@@ -48,6 +48,7 @@ import { api } from "../platform/adapter";
 import ContextMenu from "./ContextMenu.vue";
 import type { MenuEntry } from "./ContextMenu.vue";
 import ToolPalette from "./ToolPalette.vue";
+import { Minus, Plus, Maximize2, Grid3x3 } from "lucide-vue-next";
 
 const scroller = ref<HTMLElement | null>(null);
 const workspace = ref<HTMLElement | null>(null);
@@ -1825,29 +1826,38 @@ function onCanvasContextMenu(event: MouseEvent) {
 <template>
 	<div class="canvas-shell" style="display: flex;">
 		<ToolPalette />
-		<div style="flex: 1; min-width: 0; position: relative; height: 100%;">
+		<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; height: 100%;">
 			<div class="canvas-toolbar">
 				<div class="canvas-toolbar-group">
 				<button type="button"
-					class="canvas-toolbar-button"
-					@click="handleZoomOut">-</button>
+					class="canvas-toolbar-icon-button"
+					title="Zoom out"
+					@click="handleZoomOut">
+					<Minus :size="16" />
+				</button>
 				<span class="canvas-toolbar-zoom">{{ zoomLabel }}</span>
 				<button type="button"
-					class="canvas-toolbar-button"
-					@click="handleZoomIn">+</button>
+					class="canvas-toolbar-icon-button"
+					title="Zoom in"
+					@click="handleZoomIn">
+					<Plus :size="16" />
+				</button>
 				<button type="button"
-					class="canvas-toolbar-button"
+					class="canvas-toolbar-icon-button"
 					title="Fit view"
-					@click="handleFitView">Fit</button>
+					@click="handleFitView">
+					<Maximize2 :size="16" />
+				</button>
 				</div>
 				<div class="canvas-toolbar-divider"></div>
-				<label class="canvas-toolbar-checkbox">
-					<input v-model="canvasGridEnabled" type="checkbox" />
-					Grid
+				<label class="canvas-toolbar-toggle" :class="{ active: canvasGridEnabled }">
+					<input v-model="canvasGridEnabled" type="checkbox" class="sr-only" />
+					<Grid3x3 :size="16" />
+					<span class="canvas-toolbar-label">Grid</span>
 				</label>
 				<div class="canvas-toolbar-group">
 				<label class="canvas-toolbar-field">
-					<span>W</span>
+					<span class="canvas-toolbar-label">W</span>
 					<input
 						v-model.number="canvasGridWidth"
 						type="number"
@@ -1858,7 +1868,7 @@ function onCanvasContextMenu(event: MouseEvent) {
 					/>
 				</label>
 				<label class="canvas-toolbar-field">
-					<span>H</span>
+					<span class="canvas-toolbar-label">H</span>
 					<input
 						v-model.number="canvasGridHeight"
 						type="number"
@@ -1871,7 +1881,7 @@ function onCanvasContextMenu(event: MouseEvent) {
 				</div>
 				<div class="canvas-toolbar-divider"></div>
 				<label class="canvas-toolbar-field canvas-toolbar-range-field">
-					<span>Checker</span>
+					<span class="canvas-toolbar-label">Checker</span>
 					<input
 						v-model.number="canvasCheckerStrength"
 						type="range"

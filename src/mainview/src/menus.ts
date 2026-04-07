@@ -1,4 +1,4 @@
-// Shared menu structure used by both native (Electrobun) and web menubars.
+import { THEMES } from "./themes";
 
 export interface MenuItem {
 	label: string;
@@ -15,8 +15,33 @@ export interface MenuSection {
 	items: MenuItem[];
 }
 
-export function getMenus(options?: { isPanelOpen?: (panelId: string) => boolean }): MenuSection[] {
+export function getMenus(options?: {
+	isPanelOpen?: (panelId: string) => boolean;
+	currentThemeId?: string;
+}): MenuSection[] {
 	const isPanelOpen = options?.isPanelOpen ?? (() => false);
+	const currentThemeId = options?.currentThemeId ?? "whisper";
+
+	const themeChildren: MenuItem[] = [
+		...THEMES.filter((t) => ["whisper", "frost", "ember", "daylight"].includes(t.id)).map((t) => ({
+			label: t.label,
+			action: `setTheme:${t.id}`,
+			checked: currentThemeId === t.id,
+		})),
+		{ separator: true, label: "" },
+		...THEMES.filter((t) => ["aseprite", "gamemaker"].includes(t.id)).map((t) => ({
+			label: t.label,
+			action: `setTheme:${t.id}`,
+			checked: currentThemeId === t.id,
+		})),
+		{ separator: true, label: "" },
+		...THEMES.filter((t) => ["classic-dark", "classic-light", "vscode", "dracula"].includes(t.id)).map((t) => ({
+			label: t.label,
+			action: `setTheme:${t.id}`,
+			checked: currentThemeId === t.id,
+		})),
+	];
+
 	return [
 		{
 			label: "File",
@@ -64,6 +89,8 @@ export function getMenus(options?: { isPanelOpen?: (panelId: string) => boolean 
 				{ label: "Sprites In Sheet", action: "addPanel:annotations", checked: isPanelOpen("annotations") },
 				{ label: "Gallery", action: "addPanel:gallery", checked: isPanelOpen("gallery") },
 				{ label: "Spec Editor", action: "addPanel:spec-editor", checked: isPanelOpen("spec-editor") },
+				{ separator: true },
+				{ label: "Theme", children: themeChildren },
 				{ separator: true },
 				{ label: "Reset Panel Layout", action: "resetLayout" },
 			],

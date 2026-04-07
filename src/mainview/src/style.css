@@ -267,7 +267,7 @@ textarea {
 	--dv-inactivegroup-hiddenpanel-tab-color: var(--color-text-faint);
 
 	/* Borders & separators */
-	--dv-tab-divider-color: var(--color-border);
+	--dv-tab-divider-color: transparent;
 	--dv-separator-border: var(--color-border);
 	--dv-paneview-header-border-color: var(--color-border);
 
@@ -305,7 +305,7 @@ textarea {
 
 	/* Slim tab padding */
 	& .dv-default-tab {
-		padding: 0 10px;
+		padding: 0 12px;
 		min-width: 0;
 	}
 
@@ -313,6 +313,14 @@ textarea {
 	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
 		font-weight: 500;
 		text-shadow: 0 0 10px rgba(200, 136, 90, 0.3);
+	}
+
+	/* Whisper: inactive tabs lift to dim on hover */
+	& .dv-tab.dv-inactive-tab .dv-default-tab {
+		transition: color 0.15s;
+	}
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: var(--color-text-dim);
 	}
 }
 

@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { DockviewVue } from "dockview-vue";
 import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
+import { themeDark } from "dockview-core";
 import {
 	dirty,
 	statusText,
@@ -616,7 +617,7 @@ onUnmounted(() => {
 	<div class="app-shell" @contextmenu.prevent>
 		<MenuBar :is-panel-open="isPanelOpen" @action="handleMenuAction" />
 		<div class="dockview-theme-dark dockview-container">
-			<DockviewVue @ready="onReady" />
+			<DockviewVue :theme="themeDark" @ready="onReady" />
 		</div>
 		<div v-if="showResizeCanvasDialog" class="app-modal-backdrop">
 			<form class="app-modal-card" @submit.prevent="applyResizeCanvasDialog">

@@ -248,7 +248,7 @@ textarea {
 
 /* --- Dockview theme --- */
 
-.dockview-theme-dark {
+.dockview-theme-dark.dockview-theme-dark {
 	/* Backgrounds */
 	--dv-background-color: var(--color-surface-0);
 	--dv-group-view-background-color: var(--color-surface-1);
@@ -310,6 +310,14 @@ textarea {
 	& .dv-default-tab {
 		padding: 0 12px;
 		min-width: 0;
+		gap: 6px;
+	}
+	& .dv-default-tab-action {
+		padding: 2px;
+	}
+	& .dv-default-tab-action svg {
+		width: 10px;
+		height: 10px;
 	}
 
 	/* Whisper: copper glow on active tab in active group */

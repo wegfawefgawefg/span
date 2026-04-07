@@ -250,7 +250,7 @@ textarea {
 
 /* --- Custom theme base (shared by all non-built-in themes) --- */
 
-.dv-theme-base {
+.dv-theme-base.dv-theme-base {
 	/* Sizing & typography */
 	--dv-tabs-and-actions-container-height: 26px;
 	--dv-tabs-and-actions-container-font-size: 11px;
@@ -316,7 +316,7 @@ textarea {
 
 /* --- Whisper theme --- */
 
-.dv-theme-whisper {
+.dv-theme-whisper.dv-theme-whisper {
 	/* Backgrounds */
 	--dv-background-color: #0c0d0f;
 	--dv-group-view-background-color: #121417;
@@ -374,7 +374,7 @@ textarea {
 
 /* --- Frost theme --- */
 
-.dv-theme-frost {
+.dv-theme-frost.dv-theme-frost {
 	--dv-background-color: #0b0d10;
 	--dv-group-view-background-color: #10141a;
 	--dv-tabs-and-actions-container-background-color: #0b0d10;
@@ -412,7 +412,7 @@ textarea {
 
 /* --- Ember theme --- */
 
-.dv-theme-ember {
+.dv-theme-ember.dv-theme-ember {
 	--dv-background-color: #100c0a;
 	--dv-group-view-background-color: #171210;
 	--dv-tabs-and-actions-container-background-color: #100c0a;
@@ -450,7 +450,7 @@ textarea {
 
 /* --- Daylight theme --- */
 
-.dv-theme-daylight {
+.dv-theme-daylight.dv-theme-daylight {
 	--dv-background-color: #f5f2ed;
 	--dv-group-view-background-color: #ece8e0;
 	--dv-tabs-and-actions-container-background-color: #f5f2ed;
@@ -488,7 +488,7 @@ textarea {
 
 /* --- Aseprite theme --- */
 
-.dv-theme-aseprite {
+.dv-theme-aseprite.dv-theme-aseprite {
 	--dv-background-color: #1f1f24;
 	--dv-group-view-background-color: #28282e;
 	--dv-tabs-and-actions-container-background-color: #1f1f24;
@@ -526,7 +526,7 @@ textarea {
 
 /* --- GameMaker theme --- */
 
-.dv-theme-gamemaker {
+.dv-theme-gamemaker.dv-theme-gamemaker {
 	--dv-background-color: #d4d4d4;
 	--dv-group-view-background-color: #e0e0e0;
 	--dv-tabs-and-actions-container-background-color: #d4d4d4;

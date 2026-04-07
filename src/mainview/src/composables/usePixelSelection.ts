@@ -33,6 +33,30 @@ export interface PixelSelectionMoveState {
   dragging: boolean;
 }
 
+export function normalizePixelSelectionRect(
+  sampleCanvas: HTMLCanvasElement,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number
+): { x: number; y: number; w: number; h: number } | null {
+  if (!sampleCanvas.width || !sampleCanvas.height) return null;
+
+  const minX = Math.max(0, Math.min(x0, x1));
+  const minY = Math.max(0, Math.min(y0, y1));
+  const maxX = Math.min(sampleCanvas.width - 1, Math.max(x0, x1));
+  const maxY = Math.min(sampleCanvas.height - 1, Math.max(y0, y1));
+
+  if (maxX < minX || maxY < minY) return null;
+
+  return {
+    x: minX,
+    y: minY,
+    w: maxX - minX + 1,
+    h: maxY - minY + 1,
+  };
+}
+
 export function usePixelSelection(deps: {
   sampleCanvas: HTMLCanvasElement;
   sampleCtx: CanvasRenderingContext2D;
@@ -54,27 +78,13 @@ export function usePixelSelection(deps: {
   const pixelSelectionMove = ref<PixelSelectionMoveState | null>(null);
   let pixelClipboard: PixelClipboardState | null = null;
 
-  function normalizePixelSelectionRect(
+  function normalizeRect(
     x0: number,
     y0: number,
     x1: number,
     y1: number
   ): { x: number; y: number; w: number; h: number } | null {
-    if (!sampleCanvas.width || !sampleCanvas.height) return null;
-
-    const minX = Math.max(0, Math.min(x0, x1));
-    const minY = Math.max(0, Math.min(y0, y1));
-    const maxX = Math.min(sampleCanvas.width - 1, Math.max(x0, x1));
-    const maxY = Math.min(sampleCanvas.height - 1, Math.max(y0, y1));
-
-    if (maxX < minX || maxY < minY) return null;
-
-    return {
-      x: minX,
-      y: minY,
-      w: maxX - minX + 1,
-      h: maxY - minY + 1,
-    };
+    return normalizePixelSelectionRect(sampleCanvas, x0, y0, x1, y1);
   }
 
   function pointInRect(
@@ -264,7 +274,7 @@ export function usePixelSelection(deps: {
   function commitPixelSelection() {
     const drag = pixelSelectionDrag.value;
     paintPixelSelection.value = drag
-      ? normalizePixelSelectionRect(
+      ? normalizeRect(
           drag.originX,
           drag.originY,
           drag.currentX,
@@ -371,7 +381,7 @@ export function usePixelSelection(deps: {
   return {
     pixelSelectionDrag,
     pixelSelectionMove,
-    normalizePixelSelectionRect,
+    normalizePixelSelectionRect: normalizeRect,
     pointInRect,
     selectionStyle,
     copyPixelSelectionToClipboard,

@@ -254,10 +254,10 @@ textarea {
 	--dv-group-view-background-color: var(--color-surface-1);
 	--dv-tabs-and-actions-container-background-color: var(--color-surface-0);
 
-	/* Tab backgrounds */
-	--dv-activegroup-visiblepanel-tab-background-color: var(--color-surface-2);
+	/* Tab backgrounds — all flat on surface-0 (Whisper: no background differentiation) */
+	--dv-activegroup-visiblepanel-tab-background-color: var(--color-surface-0);
 	--dv-activegroup-hiddenpanel-tab-background-color: var(--color-surface-0);
-	--dv-inactivegroup-visiblepanel-tab-background-color: var(--color-surface-1);
+	--dv-inactivegroup-visiblepanel-tab-background-color: var(--color-surface-0);
 	--dv-inactivegroup-hiddenpanel-tab-background-color: var(--color-surface-0);
 
 	/* Tab text */
@@ -298,10 +298,16 @@ textarea {
 	}
 
 	/* Sizing & typography */
-	--dv-tabs-and-actions-container-height: 30px;
-	--dv-tabs-and-actions-container-font-size: 12px;
-	--dv-tab-font-size: 12px;
+	--dv-tabs-and-actions-container-height: 26px;
+	--dv-tabs-and-actions-container-font-size: 11px;
+	--dv-tab-font-size: 11px;
 	font-family: var(--font-body);
+
+	/* Slim tab padding */
+	& .dv-default-tab {
+		padding: 0 10px;
+		min-width: 0;
+	}
 }
 
 /* --- Canvas --- */

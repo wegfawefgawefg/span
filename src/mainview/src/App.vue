@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted, computed } from "vue";
 import { DockviewVue } from "dockview-vue";
 import type { DockviewReadyEvent, DockviewApi } from "dockview-core";
+import { getTheme, THEME_STORAGE_KEY } from "./themes";
 import {
 	dirty,
 	statusText,
@@ -39,7 +40,7 @@ import {
 	undoPaintEdit,
 } from "./state";
 import { parseSpec } from "./spec/parse";
-import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler } from "./platform/adapter";
+import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler, setSetThemeHandler } from "./platform/adapter";
 import MenuBar from "./components/MenuBar.vue";
 
 const PANELS: Record<string, { component: string; title: string }> = {
@@ -56,6 +57,8 @@ let dockviewApi: DockviewApi | null = null;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const statusFlash = ref(false);
 const panelStateVersion = ref(0);
+const currentThemeId = ref(localStorage.getItem(THEME_STORAGE_KEY) ?? "whisper");
+const currentTheme = computed(() => getTheme(currentThemeId.value));
 
 const IMAGE_EXTS = /\.(png|jpg|jpeg|gif|webp)$/i;
 const SPEC_EXTS = /\.(ya?ml|json)$/i;
@@ -84,6 +87,11 @@ function debouncedSaveLayout() {
 
 function bumpPanelStateVersion() {
 	panelStateVersion.value += 1;
+}
+
+function setTheme(id: string) {
+	currentThemeId.value = id;
+	localStorage.setItem(THEME_STORAGE_KEY, id);
 }
 
 function isPanelOpen(panelId: string): boolean {
@@ -445,6 +453,8 @@ async function onReady(event: DockviewReadyEvent) {
 		});
 		bumpPanelStateVersion();
 	});
+
+	setSetThemeHandler((themeId: string) => setTheme(themeId));
 }
 
 async function handleMenuAction(action: string) {
@@ -493,6 +503,8 @@ async function handleMenuAction(action: string) {
 		handleResizeCanvas();
 	} else if (action === "resetLayout") {
 		getResetLayoutHandler()();
+	} else if (action.startsWith("setTheme:")) {
+		setTheme(action.slice("setTheme:".length));
 	} else if (action.startsWith("addPanel:")) {
 		getAddPanelHandler()(action.slice("addPanel:".length));
 	}
@@ -654,10 +666,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div class="app-shell" @contextmenu.prevent>
-		<MenuBar :is-panel-open="isPanelOpen" @action="handleMenuAction" />
-		<div class="dockview-theme-dark dockview-container">
-			<DockviewVue @ready="onReady" />
+	<div :class="['app-shell', ...(currentTheme.cssClasses ?? [])]" @contextmenu.prevent>
+		<MenuBar :is-panel-open="isPanelOpen" :current-theme-id="currentThemeId" @action="handleMenuAction" />
+		<div class="dockview-container">
+			<DockviewVue :theme="currentTheme.dockviewTheme" :class-name="(currentTheme.cssClasses ?? []).join(' ')" @ready="onReady" />
 		</div>
 		<div v-if="showResizeCanvasDialog" class="app-modal-backdrop">
 			<form class="app-modal-card" @submit.prevent="applyResizeCanvasDialog">

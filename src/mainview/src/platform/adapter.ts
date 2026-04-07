@@ -24,6 +24,16 @@ export function getAddPanelHandler() {
 	return (panelId: string) => addPanelHandler(panelId);
 }
 
+let setThemeHandler: (themeId: string) => void = () => {};
+
+export function setSetThemeHandler(handler: (themeId: string) => void) {
+	setThemeHandler = handler;
+}
+
+export function getSetThemeHandler() {
+	return (themeId: string) => setThemeHandler(themeId);
+}
+
 // --- Adapter proxy ---
 
 let _adapter: PlatformAdapter | null = null;

@@ -12,7 +12,7 @@ export default {
 			"dist/assets": "views/mainview/assets",
 			"example_project": "resources/example_project",
 		},
-		watchIgnore: ["dist/**"],
+		watchIgnore: ["dist/**", "**/.span/**"],
 		mac: {
 			bundleCEF: false,
 		},

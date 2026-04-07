@@ -5,6 +5,7 @@ import type { FileFilter, PlatformAdapter } from "./types";
 import {
 	getResetLayoutHandler,
 	getAddPanelHandler,
+	getSetThemeHandler,
 } from "./adapter";
 
 // --- Handler slots for desktop menu dispatch ---
@@ -43,6 +44,7 @@ const rpc = Electroview.defineRPC<SpanRPC>({
 			resizeCanvas: () => { setTimeout(() => resizeCanvasHandler(), 0); },
 			resetLayout: () => getResetLayoutHandler()(),
 			addPanel: ({ panelId }) => getAddPanelHandler()(panelId),
+			setTheme: ({ themeId }) => getSetThemeHandler()(themeId),
 		},
 		messages: {},
 	},

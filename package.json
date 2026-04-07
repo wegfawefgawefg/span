@@ -22,6 +22,7 @@
 		"dockview-core": "^5.1.0",
 		"dockview-vue": "^5.1.0",
 		"electrobun": "1.16.0",
+		"lucide-vue-next": "^1.0.0",
 		"tailwindcss": "^4.2.2",
 		"yaml": "^2.8.3"
 	},

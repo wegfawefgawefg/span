@@ -1,22 +1,24 @@
 <script setup lang="ts">
 import {
-  activeProjectPalette,
-  activeProjectPaletteId,
-  availablePaintSwatches,
   copyPixelSelection,
   currentSheet,
   cutPixelSelection,
   deletePixelSelection,
   hasPaintClipboard,
   importPaletteFromPath,
-  paintPalette,
   paintPixelSelection,
   pastePixelSelection,
-  projectPalettes,
   redoPaintEdit,
   setActiveProjectPalette,
   undoPaintEdit,
 } from '../state';
+import {
+  activeProjectPalette,
+  activeProjectPaletteId,
+  availablePaintSwatches,
+  paintPalette,
+  projectPalettes,
+} from '../state/paletteState';
 import { activePaintColor, activePaintTool, paintToolSize } from '../state/toolState';
 import { api } from '../platform/adapter';
 

@@ -5,8 +5,8 @@ import {
   applyPaintedSheetImage,
   recordPaintUndoSnapshot,
   statusText,
-  setPaintPalette,
 } from '../state';
+import { setPaintPalette } from '../state/paletteState';
 import { activePaintColor, paintToolSize } from '../state/toolState';
 
 interface PaintStrokeState {

@@ -1,5 +1,15 @@
 import { computed, ref, watch, triggerRef } from 'vue';
 import { setSelectTool, activeTool, activePaintColor } from './state/toolState';
+import {
+  paintPalette,
+  projectPalettes,
+  activeProjectPaletteId,
+  activeProjectPalette,
+  availablePaintSwatches,
+  setPaintPalette,
+  setActiveProjectPalette as _setActiveProjectPalette,
+  importPaletteFromPath as _importPaletteFromPath,
+} from './state/paletteState';
 import type { Annotation } from './annotation';
 import {
   createAnnotation,
@@ -57,6 +67,16 @@ export {
   resetWorkspace,
 };
 export type { WorkspaceSheet };
+
+// Re-export palette state for consumers
+export {
+  paintPalette,
+  projectPalettes,
+  activeProjectPaletteId,
+  activeProjectPalette,
+  availablePaintSwatches,
+  setPaintPalette,
+};
 
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 32;
@@ -504,17 +524,8 @@ export const activeSpecRaw = ref<SpanFileSpec | null>({
   raw: DEFAULT_SPEC_RAW,
   format: DEFAULT_SPEC_FORMAT,
 });
-export const paintPalette = ref<string[]>([]);
-export const projectPalettes = ref<SpanFilePalette[]>([]);
-export const activeProjectPaletteId = ref<string | null>(null);
 export const paintPixelSelection = ref<{ x: number; y: number; w: number; h: number } | null>(null);
 export const hasPaintClipboard = ref(false);
-export const activeProjectPalette = computed<SpanFilePalette | null>(
-  () => projectPalettes.value.find((palette) => palette.id === activeProjectPaletteId.value) ?? null
-);
-export const availablePaintSwatches = computed<string[]>(
-  () => activeProjectPalette.value?.colors ?? paintPalette.value
-);
 
 interface EditedSheetState {
   undo: EditSnapshot[];
@@ -679,54 +690,8 @@ export function resizeCurrentSheetCanvas(width: number, height: number) {
   return resizeCanvasHandler(width, height);
 }
 
-export function setPaintPalette(colors: string[]) {
-  paintPalette.value = colors.slice(0, 16);
-}
-
-async function debugPaletteLog(message: string) {
-  try {
-    if (platform.value === 'desktop') {
-      await api.debugLog(`[palette] ${message}`);
-    } else {
-      console.log('[palette]', message);
-    }
-  } catch {
-    // Ignore debug log failures.
-  }
-}
-
-function normalizePaletteColorToken(token: string): string | null {
-  const trimmed = token.trim();
-  const match = trimmed.match(/^#?([0-9a-fA-F]{6})$/);
-  if (!match) return null;
-  return `#${match[1].toLowerCase()}`;
-}
-
-function parsePaletteHex(raw: string): string[] {
-  const colors: string[] = [];
-  const seen = new Set<string>();
-
-  for (const token of raw.split(/[\s,]+/)) {
-    const color = normalizePaletteColorToken(token);
-    if (!color || seen.has(color)) continue;
-    seen.add(color);
-    colors.push(color);
-  }
-
-  return colors;
-}
-
-function slugifyPaletteName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "palette";
-}
-
 export function setActiveProjectPalette(id: string | null) {
-  activeProjectPaletteId.value = id;
-  markDirty(true);
+  _setActiveProjectPalette(id, markDirty);
 }
 
 async function persistWorkspaceSnapshotNow() {
@@ -762,51 +727,7 @@ async function persistWorkspaceSnapshotNow() {
 }
 
 export async function importPaletteFromPath(path: string) {
-  try {
-    await debugPaletteLog(`import request path=${path}`);
-
-    if (!/\.(hex|txt)$/i.test(path)) {
-      statusText.value = 'Select a .hex palette file';
-      await debugPaletteLog(`rejected non-palette path=${path}`);
-      return;
-    }
-
-    const raw = await api.readFile(path);
-    await debugPaletteLog(`read ${raw.length} bytes from ${path}`);
-    const colors = parsePaletteHex(raw);
-    await debugPaletteLog(`parsed ${colors.length} colors from ${path}`);
-    if (colors.length === 0) {
-      statusText.value = 'No colors found in palette file';
-      return;
-    }
-
-    const filename = path.split('/').pop() ?? 'palette.hex';
-    const baseName = filename.replace(/\.[^.]+$/, '') || 'palette';
-    const existing = projectPalettes.value.find((palette) => palette.name === baseName);
-    const palette: SpanFilePalette = {
-      id: existing?.id ?? `${slugifyPaletteName(baseName)}-${Date.now()}`,
-      name: baseName,
-      colors,
-    };
-
-    projectPalettes.value = existing
-      ? projectPalettes.value.map((entry) => (entry.id === existing.id ? palette : entry))
-      : [...projectPalettes.value, palette];
-    activeProjectPaletteId.value = palette.id;
-    activePaintColor.value = palette.colors[0] ?? activePaintColor.value;
-    const persisted = await persistWorkspaceSnapshotNow();
-    if (!persisted) {
-      markDirty(true);
-    }
-    statusText.value = `Imported palette ${palette.name}`;
-    await debugPaletteLog(
-      `imported palette name=${palette.name} colors=${palette.colors.length} persisted=${persisted}`
-    );
-  } catch (e) {
-    console.error('Failed to import palette:', e);
-    statusText.value = 'Failed to import palette';
-    await debugPaletteLog(`import failed path=${path} error=${String(e)}`);
-  }
+  await _importPaletteFromPath(path, persistWorkspaceSnapshotNow, markDirty, statusText);
 }
 
 export function recordPaintUndoSnapshot(sheet: WorkspaceSheet) {

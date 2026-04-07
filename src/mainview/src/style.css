@@ -486,6 +486,82 @@ textarea {
 	}
 }
 
+/* --- Aseprite theme --- */
+
+.dv-theme-aseprite {
+	--dv-background-color: #1f1f24;
+	--dv-group-view-background-color: #28282e;
+	--dv-tabs-and-actions-container-background-color: #1f1f24;
+	--dv-activegroup-visiblepanel-tab-background-color: #1f1f24;
+	--dv-activegroup-hiddenpanel-tab-background-color: #1f1f24;
+	--dv-inactivegroup-visiblepanel-tab-background-color: #1f1f24;
+	--dv-inactivegroup-hiddenpanel-tab-background-color: #1f1f24;
+	--dv-activegroup-visiblepanel-tab-color: #c490d8;
+	--dv-activegroup-hiddenpanel-tab-color: #555560;
+	--dv-inactivegroup-visiblepanel-tab-color: #8a8a96;
+	--dv-inactivegroup-hiddenpanel-tab-color: #555560;
+	--dv-separator-border: #35353c;
+	--dv-paneview-header-border-color: #35353c;
+	--dv-drag-over-background-color: rgba(168, 108, 193, 0.08);
+	--dv-drag-over-border: 1px solid rgba(168, 108, 193, 0.25);
+	--dv-paneview-active-outline-color: #a86cc1;
+	--dv-icon-hover-background-color: #30303a;
+	--dv-active-sash-color: #a86cc1;
+	--dv-tabs-container-scrollbar-color: #35353c;
+	--dv-scrollbar-background-color: #35353c;
+	--dv-floating-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(168, 108, 193, 0.15);
+
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 10px rgba(168, 108, 193, 0.3);
+	}
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: #8a8a96;
+	}
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 8px rgba(168, 108, 193, 0.25);
+	}
+}
+
+/* --- GameMaker theme --- */
+
+.dv-theme-gamemaker {
+	--dv-background-color: #d4d4d4;
+	--dv-group-view-background-color: #e0e0e0;
+	--dv-tabs-and-actions-container-background-color: #d4d4d4;
+	--dv-activegroup-visiblepanel-tab-background-color: #d4d4d4;
+	--dv-activegroup-hiddenpanel-tab-background-color: #d4d4d4;
+	--dv-inactivegroup-visiblepanel-tab-background-color: #d4d4d4;
+	--dv-inactivegroup-hiddenpanel-tab-background-color: #d4d4d4;
+	--dv-activegroup-visiblepanel-tab-color: #3a6aa0;
+	--dv-activegroup-hiddenpanel-tab-color: #999999;
+	--dv-inactivegroup-visiblepanel-tab-color: #666666;
+	--dv-inactivegroup-hiddenpanel-tab-color: #999999;
+	--dv-separator-border: #b8b8b8;
+	--dv-paneview-header-border-color: #b8b8b8;
+	--dv-drag-over-background-color: rgba(74, 122, 191, 0.1);
+	--dv-drag-over-border: 1px solid rgba(74, 122, 191, 0.3);
+	--dv-paneview-active-outline-color: #4a7abf;
+	--dv-icon-hover-background-color: #c8c8c8;
+	--dv-active-sash-color: #4a7abf;
+	--dv-tabs-container-scrollbar-color: #b0b0b0;
+	--dv-scrollbar-background-color: #b0b0b0;
+	--dv-floating-box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 1px rgba(74, 122, 191, 0.2);
+
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 8px rgba(74, 122, 191, 0.15);
+	}
+	& .dv-tab.dv-inactive-tab:hover .dv-default-tab {
+		color: #666666;
+	}
+	& .dv-sash:hover,
+	& .dv-sash:active {
+		box-shadow: 0 0 6px rgba(74, 122, 191, 0.15);
+	}
+}
+
 /* --- Canvas --- */
 
 .canvas-shell {

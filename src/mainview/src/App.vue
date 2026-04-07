@@ -627,7 +627,7 @@ onUnmounted(() => {
 <template>
 	<div class="app-shell" @contextmenu.prevent>
 		<MenuBar :is-panel-open="isPanelOpen" :current-theme-id="currentThemeId" @action="handleMenuAction" />
-		<div :class="['dockview-container', currentTheme.cssClass]">
+		<div :class="['dockview-container', ...(currentTheme.cssClasses ?? [])]">
 			<DockviewVue :theme="currentTheme.dockviewTheme" @ready="onReady" />
 		</div>
 		<div v-if="showResizeCanvasDialog" class="app-modal-backdrop">

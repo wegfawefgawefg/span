@@ -10,18 +10,18 @@ export interface Theme {
 	id: string;
 	label: string;
 	dockviewTheme: DockviewTheme;
-	cssClass?: string;
+	cssClasses?: string[];
 }
 
 export const THEMES: Theme[] = [
 	// Custom
-	{ id: "whisper", label: "Whisper", dockviewTheme: themeDark, cssClass: "dv-theme-whisper" },
-	{ id: "frost", label: "Frost", dockviewTheme: themeDark, cssClass: "dv-theme-frost" },
-	{ id: "ember", label: "Ember", dockviewTheme: themeDark, cssClass: "dv-theme-ember" },
-	{ id: "daylight", label: "Daylight", dockviewTheme: themeLight, cssClass: "dv-theme-daylight" },
+	{ id: "whisper", label: "Whisper", dockviewTheme: themeDark, cssClasses: ["dv-theme-base", "dv-theme-whisper"] },
+	{ id: "frost", label: "Frost", dockviewTheme: themeDark, cssClasses: ["dv-theme-base", "dv-theme-frost"] },
+	{ id: "ember", label: "Ember", dockviewTheme: themeDark, cssClasses: ["dv-theme-base", "dv-theme-ember"] },
+	{ id: "daylight", label: "Daylight", dockviewTheme: themeLight, cssClasses: ["dv-theme-base", "dv-theme-daylight"] },
 	// Retro
-	{ id: "aseprite", label: "Aseprite", dockviewTheme: themeDark, cssClass: "dv-theme-aseprite" },
-	{ id: "gamemaker", label: "GameMaker", dockviewTheme: themeLight, cssClass: "dv-theme-gamemaker" },
+	{ id: "aseprite", label: "Aseprite", dockviewTheme: themeDark, cssClasses: ["dv-theme-base", "dv-theme-aseprite"] },
+	{ id: "gamemaker", label: "GameMaker", dockviewTheme: themeLight, cssClasses: ["dv-theme-base", "dv-theme-gamemaker"] },
 	// Built-in
 	{ id: "classic-dark", label: "Dark (Classic)", dockviewTheme: themeDark },
 	{ id: "classic-light", label: "Light (Classic)", dockviewTheme: themeLight },

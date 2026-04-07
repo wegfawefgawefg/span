@@ -288,8 +288,8 @@ textarea {
 	--dv-tabs-container-scrollbar-color: var(--color-border);
 	--dv-scrollbar-background-color: var(--color-border);
 
-	/* Floating */
-	--dv-floating-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+	/* Floating panels — deep shadow with faint copper edge */
+	--dv-floating-box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(200, 136, 90, 0.15);
 
 	/* Hide close buttons, show on tab hover */
 	& .dv-default-tab-action {
@@ -341,6 +341,12 @@ textarea {
 	/* Whisper: dragged tab ghost */
 	& .dv-tab.dv-tab-dragging {
 		opacity: 0.5;
+	}
+
+	/* Whisper: rounded floating panels */
+	& .dv-resize-container {
+		border-radius: 4px;
+		overflow: hidden;
 	}
 }
 

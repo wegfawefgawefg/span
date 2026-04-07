@@ -260,8 +260,8 @@ textarea {
 	--dv-inactivegroup-visiblepanel-tab-background-color: var(--color-surface-0);
 	--dv-inactivegroup-hiddenpanel-tab-background-color: var(--color-surface-0);
 
-	/* Tab text */
-	--dv-activegroup-visiblepanel-tab-color: var(--color-text);
+	/* Tab text — active group uses copper-bright, inactive group uses dim */
+	--dv-activegroup-visiblepanel-tab-color: var(--color-copper-bright);
 	--dv-activegroup-hiddenpanel-tab-color: var(--color-text-faint);
 	--dv-inactivegroup-visiblepanel-tab-color: var(--color-text-dim);
 	--dv-inactivegroup-hiddenpanel-tab-color: var(--color-text-faint);

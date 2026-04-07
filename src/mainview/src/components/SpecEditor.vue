@@ -5,7 +5,7 @@ import {
   applySpecFromEditor,
   forceApplySpec,
   specFilePath,
-} from '../state';
+} from '../state/specState';
 import { serializeSpecRaw } from '../spec/serialize';
 import type { SpecError, SpecDiff } from '../spec/types';
 import { DEFAULT_SPEC_FORMAT } from '../spec/default-spec';

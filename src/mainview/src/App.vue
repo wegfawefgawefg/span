@@ -17,13 +17,11 @@ import {
 	sheets,
 	addSheet,
 	fulfillSheet,
-	loadSpec,
 	closeProject,
 	saveWorkspace,
 	saveWorkspaceAs,
 	exportWorkspace,
 	exportSpec,
-	importSpecFromPath,
 	importPaletteFromPath,
 	importSheetFromPath,
 	pastePixelSelection,
@@ -31,6 +29,7 @@ import {
 	resizeCurrentSheetCanvas,
 	restoreWorkspace,
 } from "./state";
+import { loadSpec, importSpecFromPath } from "./state/specState";
 import {
 	hasUnsavedImageEdits,
 	redoPaintEdit,

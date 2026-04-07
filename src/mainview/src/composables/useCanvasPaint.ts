@@ -2,13 +2,12 @@ import { ref, type Ref } from 'vue';
 import {
   zoom,
   currentSheet,
-  activePaintColor,
-  paintToolSize,
   applyPaintedSheetImage,
   recordPaintUndoSnapshot,
   statusText,
   setPaintPalette,
 } from '../state';
+import { activePaintColor, paintToolSize } from '../state/toolState';
 
 interface PaintStrokeState {
   lastX: number;

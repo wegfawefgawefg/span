@@ -3,7 +3,8 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { Annotation } from '../annotation';
 import type { SpanSpec } from '../spec/types';
 import { getEntityByLabel } from '../spec/types';
-import { updateShapeData, markDirty, activeEyedropper } from '../state';
+import { updateShapeData, markDirty } from '../state';
+import { activeEyedropper } from '../state/toolState';
 
 const props = defineProps<{
   annotation: Annotation;

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { Pipette, ChevronUp, ChevronDown } from 'lucide-vue-next';
-import { activeEyedropper } from '../state';
+import { activeEyedropper } from '../state/toolState';
 
 const props = defineProps<{
   modelValue: string;

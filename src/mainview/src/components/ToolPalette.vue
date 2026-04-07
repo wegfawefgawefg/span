@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { activeSpec } from '../state';
 import {
-  activeSpec,
   activeTool,
   activePaintTool,
   activeAtlasTool,
@@ -8,7 +8,7 @@ import {
   setPaintTool,
   setAtlasTool,
   setSelectTool,
-} from '../state';
+} from '../state/toolState';
 import {
   MousePointer2,
   VectorSquare,

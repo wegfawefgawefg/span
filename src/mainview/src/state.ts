@@ -1,4 +1,5 @@
 import { computed, ref, watch, triggerRef } from 'vue';
+import { setSelectTool, activeTool, activePaintColor } from './state/toolState';
 import type { Annotation } from './annotation';
 import {
   createAnnotation,
@@ -503,11 +504,6 @@ export const activeSpecRaw = ref<SpanFileSpec | null>({
   raw: DEFAULT_SPEC_RAW,
   format: DEFAULT_SPEC_FORMAT,
 });
-export const activeTool = ref<string>('');
-export const activePaintTool = ref<'' | 'pencil' | 'erase' | 'eyedropper' | 'marquee'>('');
-export const activeAtlasTool = ref<'' | 'sprite-move'>('');
-export const activePaintColor = ref('#e8e2d4');
-export const paintToolSize = ref(1);
 export const paintPalette = ref<string[]>([]);
 export const projectPalettes = ref<SpanFilePalette[]>([]);
 export const activeProjectPaletteId = ref<string | null>(null);
@@ -633,29 +629,6 @@ export const hasUnsavedImageEdits = computed(() =>
   Object.values(editedSheetState.value).some((entry) => entry.dirty)
 );
 
-export function setSelectTool() {
-  activeTool.value = '';
-  activePaintTool.value = '';
-  activeAtlasTool.value = '';
-}
-
-export function setEntityTool(label: string) {
-  activePaintTool.value = '';
-  activeAtlasTool.value = '';
-  activeTool.value = label;
-}
-
-export function setPaintTool(tool: '' | 'pencil' | 'erase' | 'eyedropper' | 'marquee') {
-  activeTool.value = '';
-  activeAtlasTool.value = '';
-  activePaintTool.value = tool;
-}
-
-export function setAtlasTool(tool: '' | 'sprite-move') {
-  activeTool.value = '';
-  activePaintTool.value = '';
-  activeAtlasTool.value = tool;
-}
 
 let copyPixelSelectionHandler: () => boolean = () => false;
 let cutPixelSelectionHandler: () => boolean = () => false;
@@ -918,12 +891,6 @@ async function savePendingImageEdits() {
     });
   }
 }
-
-// Eyedropper state: when non-null, the canvas is in eyedropper mode
-export const activeEyedropper = ref<{
-  callback: (hex: string) => void;
-  originalValue: string;
-} | null>(null);
 
 // Per-entity preview shape override (entityLabel → shapeName)
 // Used by GalleryPanel to know which shape to clip for thumbnails

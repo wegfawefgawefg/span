@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import {
-  activePaintColor,
-  activePaintTool,
   activeProjectPalette,
   activeProjectPaletteId,
   availablePaintSwatches,
@@ -13,13 +11,13 @@ import {
   importPaletteFromPath,
   paintPalette,
   paintPixelSelection,
-  paintToolSize,
   pastePixelSelection,
   projectPalettes,
   redoPaintEdit,
   setActiveProjectPalette,
   undoPaintEdit,
 } from '../state';
+import { activePaintColor, activePaintTool, paintToolSize } from '../state/toolState';
 import { api } from '../platform/adapter';
 
 const supportedSheet = () =>

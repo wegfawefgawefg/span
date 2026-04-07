@@ -9,9 +9,6 @@ import {
   selectedId,
   selectAnnotation,
   activeSpec,
-  activeTool,
-  activePaintTool,
-  activePaintColor,
   paintPixelSelection,
   currentSheetImageSrc,
   imageWidth,
@@ -23,7 +20,6 @@ import {
   duplicateSelected,
   deleteSelected,
   selectedAnnotation,
-  activeEyedropper,
   canvasGridEnabled,
   canvasGridWidth,
   canvasGridHeight,
@@ -33,12 +29,18 @@ import {
   registerPaintClipboardHandlers,
   registerResizeCanvasHandler,
   redoPaintEdit,
-  setPaintTool,
   statusText,
   markDirty,
-  activeAtlasTool,
+  ZOOM_FACTOR,
 } from '../state';
-import { ZOOM_FACTOR } from '../state';
+import {
+  activeTool,
+  activePaintTool,
+  activePaintColor,
+  activeEyedropper,
+  activeAtlasTool,
+  setPaintTool,
+} from '../state/toolState';
 import { useCanvas } from '../composables/useCanvas';
 import { useCanvasPanning } from '../composables/useCanvasPanning';
 import { useCanvasRendering } from '../composables/useCanvasRendering';

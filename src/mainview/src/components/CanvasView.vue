@@ -20,7 +20,6 @@ import {
   registerFitZoomFn,
   persistCurrentCanvasViewport,
   addAnnotation,
-  addAnnotationWithSize,
   duplicateSelected,
   deleteSelected,
   selectedAnnotation,
@@ -46,6 +45,7 @@ import { useCanvasRendering } from '../composables/useCanvasRendering';
 import { useCanvasPaint } from '../composables/useCanvasPaint';
 import { usePixelSelection } from '../composables/usePixelSelection';
 import { useSpriteMove } from '../composables/useSpriteMove';
+import { useAnnotationDrawing } from '../composables/useAnnotationDrawing';
 import { api } from '../platform/adapter';
 import ContextMenu from './ContextMenu.vue';
 import type { MenuEntry } from './ContextMenu.vue';
@@ -62,16 +62,13 @@ const { zoomTo, normalizeZoom, startDrag, onPointerMove, endDrag } =
 const PAN_MARGIN = 384;
 const FIT_PADDING = 32;
 
-interface DrawingState {
-  originX: number;
-  originY: number;
-  currentX: number;
-  currentY: number;
-  entityType: string;
-  shapeType: 'rect' | 'point';
-}
-
-const drawing = ref<DrawingState | null>(null);
+const {
+  drawing,
+  getPrimaryShapeKind,
+  getAnnotationLabel,
+  annotationAtPoint,
+  commitDrawing,
+} = useAnnotationDrawing();
 const displayCanvasKey = computed(() => currentSheet.value?.path ?? 'no-sheet');
 
 const stageWidth = computed(() => Math.round(imageWidth.value * zoom.value));
@@ -539,17 +536,6 @@ function stagePixelFromClient(
   return { x: imgX, y: imgY };
 }
 
-function annotationAtPoint(point: { x: number; y: number }): Annotation | null {
-  for (let index = annotations.value.length - 1; index >= 0; index -= 1) {
-    const annotation = annotations.value[index];
-    if (!annotation.aabb) continue;
-    if (pointInRect(point, annotation.aabb)) {
-      return annotation;
-    }
-  }
-  return null;
-}
-
 function resizeCurrentCanvas(width: number, height: number): boolean {
   const sheet = currentSheet.value;
   if (!sheet || !isPaintableCurrentSheet.value) return false;
@@ -667,35 +653,6 @@ function normalizeCheckerStrength() {
   );
 }
 
-// --- Primary shape helper ---
-
-function getPrimaryShapeKind(annotation: Annotation): 'rect' | 'point' | null {
-  if (!activeSpec.value) return null;
-  const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
-  if (!entity) return null;
-  return entity.primaryShape.kind;
-}
-
-// --- Annotation display helpers ---
-
-function getAnnotationLabel(annotation: Annotation): string {
-  if (!activeSpec.value) return annotation.entityType;
-  const entity = getEntityByLabel(activeSpec.value, annotation.entityType);
-  if (!entity) return annotation.entityType;
-  if (entity.nameField) {
-    const val = annotation.properties.name;
-    if (val && typeof val === 'string') return val;
-  }
-  // Fallback to first string property
-  for (const field of entity.properties) {
-    if (field.kind === 'scalar' && field.type === 'string') {
-      const val = annotation.properties[field.name];
-      if (val && typeof val === 'string') return val;
-    }
-  }
-  return annotation.entityType;
-}
-
 // --- Shape geometry helpers ---
 
 // --- Box (rect) handlers ---
@@ -775,7 +732,7 @@ function handleLayerPointerDown(event: PointerEvent) {
 
     const point = stagePixelFromClient(event.clientX, event.clientY);
     if (!point) return;
-    const hit = annotationAtPoint(point);
+    const hit = annotationAtPoint(point, annotations.value);
     if (hit?.aabb) {
       if (event.shiftKey) {
         if (atlasMoveSelectionIds.value.includes(hit.id)) {
@@ -1039,24 +996,6 @@ function handleLayerPointerCancel() {
   renderDisplayCanvas();
   drawing.value = null;
   endDrag();
-}
-
-const DRAW_MIN_THRESHOLD = 4; // image-space pixels
-
-function commitDrawing() {
-  const d = drawing.value;
-  drawing.value = null;
-  if (!d) return;
-
-  if (d.shapeType === 'rect') {
-    const w = Math.abs(d.currentX - d.originX);
-    const h = Math.abs(d.currentY - d.originY);
-    if (w < DRAW_MIN_THRESHOLD || h < DRAW_MIN_THRESHOLD) return;
-
-    const x = Math.min(d.originX, d.currentX);
-    const y = Math.min(d.originY, d.currentY);
-    addAnnotationWithSize(d.entityType, x, y, w, h);
-  }
 }
 
 // --- Style helpers ---

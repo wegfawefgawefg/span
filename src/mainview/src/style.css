@@ -271,9 +271,10 @@ textarea {
 	--dv-separator-border: var(--color-border);
 	--dv-paneview-header-border-color: var(--color-border);
 
-	/* Drag & drop */
-	--dv-drag-over-background-color: var(--color-copper-glow);
-	--dv-drag-over-border-color: var(--color-copper);
+	/* Drag & drop — subtle copper wash */
+	--dv-drag-over-background-color: rgba(200, 136, 90, 0.08);
+	--dv-drag-over-border: 1px solid rgba(200, 136, 90, 0.25);
+	--dv-transition-duration: 150ms;
 
 	/* Focus & interaction */
 	--dv-paneview-active-outline-color: var(--color-copper);
@@ -329,6 +330,17 @@ textarea {
 	& .dv-sash:hover,
 	& .dv-sash:active {
 		box-shadow: 0 0 8px rgba(200, 136, 90, 0.25);
+	}
+
+	/* Whisper: rounded drop targets */
+	& .dv-drop-target-selection {
+		border-radius: 4px;
+		margin: 4px;
+	}
+
+	/* Whisper: dragged tab ghost */
+	& .dv-tab.dv-tab-dragging {
+		opacity: 0.5;
 	}
 }
 

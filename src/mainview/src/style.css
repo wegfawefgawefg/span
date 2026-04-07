@@ -308,6 +308,12 @@ textarea {
 		padding: 0 10px;
 		min-width: 0;
 	}
+
+	/* Whisper: copper glow on active tab in active group */
+	& .dv-groupview.dv-active-group .dv-tab.dv-active-tab .dv-default-tab {
+		font-weight: 500;
+		text-shadow: 0 0 10px rgba(200, 136, 90, 0.3);
+	}
 }
 
 /* --- Canvas --- */

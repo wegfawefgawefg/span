@@ -59,6 +59,29 @@ function formatShortcut(shortcut: string): string {
 			<div v-if="openMenu === section.label" class="menu-dropdown">
 				<template v-for="(item, i) in section.items" :key="i">
 					<div v-if="item.separator" class="menu-separator" />
+					<div v-else-if="item.children" class="menu-item-submenu-wrapper">
+						<button type="button" class="menu-item">
+							<span class="menu-item-check"></span>
+							<span class="menu-item-label">{{ item.label }}</span>
+							<span class="menu-item-shortcut">&#x25B8;</span>
+						</button>
+						<div class="menu-submenu">
+							<template v-for="(child, j) in item.children" :key="j">
+								<div v-if="child.separator" class="menu-separator" />
+								<button
+									v-else
+									type="button"
+									class="menu-item"
+									:disabled="child.disabled?.()"
+									@click="handleAction(child)"
+								>
+									<span class="menu-item-check">{{ child.checked ? "✓" : "" }}</span>
+									<span class="menu-item-label">{{ child.label }}</span>
+									<span v-if="child.shortcut" class="menu-item-shortcut">{{ formatShortcut(child.shortcut) }}</span>
+								</button>
+							</template>
+						</div>
+					</div>
 					<button
 						v-else
 						type="button"
@@ -172,5 +195,27 @@ function formatShortcut(shortcut: string): string {
 	height: 1px;
 	margin: 4px 8px;
 	background: var(--color-border);
+}
+
+.menu-item-submenu-wrapper {
+	position: relative;
+}
+
+.menu-submenu {
+	display: none;
+	position: absolute;
+	top: -4px;
+	left: 100%;
+	min-width: 180px;
+	padding: 4px 0;
+	background: var(--color-surface-2);
+	border: 1px solid var(--color-border);
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+	z-index: 1001;
+}
+
+.menu-item-submenu-wrapper:hover > .menu-submenu {
+	display: block;
 }
 </style>

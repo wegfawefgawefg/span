@@ -317,6 +317,22 @@ textarea {
 /* --- Whisper theme --- */
 
 .dv-theme-whisper.dv-theme-whisper {
+	/* App tokens */
+	--color-surface-0: #0c0d0f;
+	--color-surface-1: #121417;
+	--color-surface-2: #1a1c20;
+	--color-surface-3: #22252a;
+	--color-border: #2a2e35;
+	--color-border-strong: #3a3f48;
+	--color-text: #e8e2d4;
+	--color-text-dim: #9b9484;
+	--color-text-faint: #6b6558;
+	--color-copper: #c8885a;
+	--color-copper-bright: #e4a46e;
+	--color-copper-glow: rgba(200, 136, 90, 0.15);
+	--color-copper-glow-strong: rgba(228, 164, 110, 0.25);
+	--color-danger: #c45c5c;
+
 	/* Backgrounds */
 	--dv-background-color: #0c0d0f;
 	--dv-group-view-background-color: #121417;
@@ -375,6 +391,22 @@ textarea {
 /* --- Frost theme --- */
 
 .dv-theme-frost.dv-theme-frost {
+	/* App tokens */
+	--color-surface-0: #0b0d10;
+	--color-surface-1: #10141a;
+	--color-surface-2: #181e28;
+	--color-surface-3: #1e2836;
+	--color-border: #1e2836;
+	--color-border-strong: #2a3648;
+	--color-text: #d8e0ea;
+	--color-text-dim: #7a8a9e;
+	--color-text-faint: #4a5568;
+	--color-copper: #6a9fd8;
+	--color-copper-bright: #88b4e0;
+	--color-copper-glow: rgba(106, 159, 216, 0.15);
+	--color-copper-glow-strong: rgba(136, 180, 224, 0.25);
+	--color-danger: #c45c5c;
+
 	--dv-background-color: #0b0d10;
 	--dv-group-view-background-color: #10141a;
 	--dv-tabs-and-actions-container-background-color: #0b0d10;
@@ -413,6 +445,22 @@ textarea {
 /* --- Ember theme --- */
 
 .dv-theme-ember.dv-theme-ember {
+	/* App tokens */
+	--color-surface-0: #100c0a;
+	--color-surface-1: #171210;
+	--color-surface-2: #201a16;
+	--color-surface-3: #2a2220;
+	--color-border: #2a2220;
+	--color-border-strong: #3a302a;
+	--color-text: #e8ddd4;
+	--color-text-dim: #9e8070;
+	--color-text-faint: #5e4a3e;
+	--color-copper: #d4734a;
+	--color-copper-bright: #e8956a;
+	--color-copper-glow: rgba(212, 115, 74, 0.15);
+	--color-copper-glow-strong: rgba(232, 149, 106, 0.25);
+	--color-danger: #c45c5c;
+
 	--dv-background-color: #100c0a;
 	--dv-group-view-background-color: #171210;
 	--dv-tabs-and-actions-container-background-color: #100c0a;
@@ -451,6 +499,22 @@ textarea {
 /* --- Daylight theme --- */
 
 .dv-theme-daylight.dv-theme-daylight {
+	/* App tokens */
+	--color-surface-0: #f5f2ed;
+	--color-surface-1: #ece8e0;
+	--color-surface-2: #e2ddd4;
+	--color-surface-3: #d8d2c8;
+	--color-border: #d0c8bc;
+	--color-border-strong: #b8b0a4;
+	--color-text: #2a2520;
+	--color-text-dim: #6a6258;
+	--color-text-faint: #9a9288;
+	--color-copper: #a0693e;
+	--color-copper-bright: #8a5830;
+	--color-copper-glow: rgba(160, 105, 62, 0.12);
+	--color-copper-glow-strong: rgba(160, 105, 62, 0.22);
+	--color-danger: #b84a4a;
+
 	--dv-background-color: #f5f2ed;
 	--dv-group-view-background-color: #ece8e0;
 	--dv-tabs-and-actions-container-background-color: #f5f2ed;
@@ -489,6 +553,22 @@ textarea {
 /* --- Aseprite theme --- */
 
 .dv-theme-aseprite.dv-theme-aseprite {
+	/* App tokens */
+	--color-surface-0: #1f1f24;
+	--color-surface-1: #28282e;
+	--color-surface-2: #30303a;
+	--color-surface-3: #3a3a44;
+	--color-border: #35353c;
+	--color-border-strong: #45454e;
+	--color-text: #e0dce6;
+	--color-text-dim: #8a8a96;
+	--color-text-faint: #555560;
+	--color-copper: #a86cc1;
+	--color-copper-bright: #c490d8;
+	--color-copper-glow: rgba(168, 108, 193, 0.15);
+	--color-copper-glow-strong: rgba(196, 144, 216, 0.25);
+	--color-danger: #c45c5c;
+
 	--dv-background-color: #1f1f24;
 	--dv-group-view-background-color: #28282e;
 	--dv-tabs-and-actions-container-background-color: #1f1f24;
@@ -527,6 +607,22 @@ textarea {
 /* --- GameMaker theme --- */
 
 .dv-theme-gamemaker.dv-theme-gamemaker {
+	/* App tokens */
+	--color-surface-0: #d4d4d4;
+	--color-surface-1: #e0e0e0;
+	--color-surface-2: #c8c8c8;
+	--color-surface-3: #bcbcbc;
+	--color-border: #b0b0b0;
+	--color-border-strong: #999999;
+	--color-text: #1a1a1a;
+	--color-text-dim: #555555;
+	--color-text-faint: #888888;
+	--color-copper: #4a7abf;
+	--color-copper-bright: #3a6aa0;
+	--color-copper-glow: rgba(74, 122, 191, 0.12);
+	--color-copper-glow-strong: rgba(74, 122, 191, 0.22);
+	--color-danger: #b84a4a;
+
 	--dv-background-color: #d4d4d4;
 	--dv-group-view-background-color: #e0e0e0;
 	--dv-tabs-and-actions-container-background-color: #d4d4d4;

@@ -39,6 +39,26 @@ import {
   defaultProjectSpecPathForWorkspace,
   makeWorkspaceRelativePath,
 } from './state/specState';
+import {
+  bindCanvasPrefsRefs,
+  loadCheckerStrength,
+  loadCanvasPrefsForSheet,
+  saveCanvasPrefsForSheet,
+} from './state/canvasPrefs';
+export type { CanvasSheetPrefs } from './state/canvasPrefs';
+export {
+  applyingCanvasPrefs,
+  normalizeCanvasPrefs,
+  loadCheckerStrength,
+  getCanvasPrefsMap,
+  setCanvasPrefsMap,
+  getCanvasPrefsId,
+  getCurrentCanvasPrefs,
+  applyCanvasPrefs,
+  loadCanvasPrefsForSheet,
+  saveCanvasPrefsForSheet,
+  saveCanvasPrefsForSheetWithOptions,
+} from './state/canvasPrefs';
 import type { Annotation } from './annotation';
 import {
   createAnnotation,
@@ -136,43 +156,9 @@ export const imageHeight = ref(0);
 // Wire up refs needed by paintHistory (avoids circular import)
 bindPaintHistoryRefs({ currentSheetImageSrc, imageWidth, imageHeight, statusText });
 
-const CANVAS_PREFS_STORAGE_KEY = 'span-canvas-sheet-prefs:v2';
-const CHECKER_STRENGTH_STORAGE_KEY = 'span-canvas-checker-strength:v1';
-
-interface CanvasSheetPrefs {
-  gridEnabled: boolean;
-  gridWidth: number;
-  gridHeight: number;
-  zoom: number;
-  centerX: number | null;
-  centerY: number | null;
-}
-
-function normalizeCanvasPrefs(raw: Partial<CanvasSheetPrefs> | null | undefined): CanvasSheetPrefs {
-  const centerX = typeof raw?.centerX === 'number' && Number.isFinite(raw.centerX) ? raw.centerX : null;
-  const centerY = typeof raw?.centerY === 'number' && Number.isFinite(raw.centerY) ? raw.centerY : null;
-  return {
-    gridEnabled: raw?.gridEnabled ?? false,
-    gridWidth: Math.max(1, Math.round(raw?.gridWidth ?? 16)),
-    gridHeight: Math.max(1, Math.round(raw?.gridHeight ?? 16)),
-    zoom: Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Number(raw?.zoom ?? 2))),
-    centerX,
-    centerY,
-  };
-}
-
-function loadCheckerStrength(): number {
-  try {
-    const raw = localStorage.getItem(CHECKER_STRENGTH_STORAGE_KEY);
-    if (!raw) return 35;
-    return Math.max(0, Math.min(100, Math.round(Number(raw))));
-  } catch {
-    return 35;
-  }
-}
 
 export const canvasCheckerStrength = ref(loadCheckerStrength());
-let getFitZoomForImage: (width: number, height: number) => number | null = () => null;
+let _getFitZoomForImage: (width: number, height: number) => number | null = () => null;
 
 function getPersistedSelectedAnnotationId(): string | null {
   const sheet = currentSheet.value;
@@ -189,127 +175,23 @@ function scheduleWorkspaceUiStateSave() {
 }
 
 
-function getCanvasPrefsMap(): Record<string, CanvasSheetPrefs> {
-  try {
-    const raw = localStorage.getItem(CANVAS_PREFS_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function setCanvasPrefsMap(map: Record<string, CanvasSheetPrefs>) {
-  try {
-    localStorage.setItem(CANVAS_PREFS_STORAGE_KEY, JSON.stringify(map));
-  } catch (e) {
-    console.error('Failed to persist canvas sheet prefs:', e);
-  }
-}
-
-function getCanvasPrefsId(sheet: WorkspaceSheet | null): string | null {
-  if (!sheet) return null;
-  return sheet.absolutePath || sheet.path || null;
-}
-
-function getCurrentCanvasPrefs(): CanvasSheetPrefs {
-  const center = getViewportCenter();
-  return normalizeCanvasPrefs({
-    gridEnabled: canvasGridEnabled.value,
-    gridWidth: canvasGridWidth.value,
-    gridHeight: canvasGridHeight.value,
-    zoom: zoom.value,
-    centerX: center.x,
-    centerY: center.y,
-  });
-}
-
-function applyCanvasPrefs(normalized: CanvasSheetPrefs) {
-  applyingCanvasPrefs.value = true;
-  canvasGridEnabled.value = normalized.gridEnabled;
-  canvasGridWidth.value = normalized.gridWidth;
-  canvasGridHeight.value = normalized.gridHeight;
-  zoom.value = normalized.zoom;
-  applyingCanvasPrefs.value = false;
-}
-
-function loadCanvasPrefsForSheet(sheet: WorkspaceSheet | null): boolean {
-  if (sheet?.view) {
-    const normalized = normalizeCanvasPrefs(sheet.view);
-    sheet.view = normalized;
-    applyCanvasPrefs(normalized);
-    return false;
-  }
-  const prefsId = getCanvasPrefsId(sheet);
-  const prefs = prefsId ? getCanvasPrefsMap()[prefsId] : null;
-  if (prefs) {
-    const normalized = normalizeCanvasPrefs(prefs);
-    if (sheet) {
-      sheet.view = normalized;
-    }
-    applyCanvasPrefs(normalized);
-    return false;
-  }
-
-  const inherited = normalizeCanvasPrefs(
-    sheet
-      ? {
-          gridEnabled: canvasGridEnabled.value,
-          gridWidth: canvasGridWidth.value,
-          gridHeight: canvasGridHeight.value,
-          centerX: null,
-          centerY: null,
-        }
-      : null
-  );
-  if (sheet && sheet.width > 0 && sheet.height > 0) {
-    const fitZoom = getFitZoomForImage(sheet.width, sheet.height);
-    if (typeof fitZoom === 'number' && Number.isFinite(fitZoom)) {
-      inherited.zoom = normalizeCanvasPrefs({ zoom: fitZoom }).zoom;
-    }
-  }
-  if (sheet) {
-    sheet.view = inherited;
-  }
-  applyCanvasPrefs(inherited);
-  return !!sheet;
-}
-
-function saveCanvasPrefsForSheet(sheet: WorkspaceSheet | null) {
-  saveCanvasPrefsForSheetWithOptions(sheet);
-}
-
-function saveCanvasPrefsForSheetWithOptions(
-  sheet: WorkspaceSheet | null,
-  options?: { preserveCenter?: boolean }
-) {
-  if (applyingCanvasPrefs.value) return;
-  const preserveCenter = options?.preserveCenter ?? false;
-  const existing = sheet?.view ? normalizeCanvasPrefs(sheet.view) : null;
-  const viewportCenter = getViewportCenter();
-  const normalized = normalizeCanvasPrefs({
-    gridEnabled: canvasGridEnabled.value,
-    gridWidth: canvasGridWidth.value,
-    gridHeight: canvasGridHeight.value,
-    zoom: zoom.value,
-    centerX: preserveCenter ? existing?.centerX ?? null : viewportCenter.x,
-    centerY: preserveCenter ? existing?.centerY ?? null : viewportCenter.y,
-  });
-  if (sheet) {
-    sheet.view = normalized;
-  }
-  const prefsId = getCanvasPrefsId(sheet);
-  if (!prefsId) return;
-  const map = getCanvasPrefsMap();
-  map[prefsId] = normalized;
-  setCanvasPrefsMap(map);
-}
-
-const applyingCanvasPrefs = ref(false);
 
 // Wire up refs needed by specState (avoids circular import)
 bindSpecStateRefs({ statusText, markDirty, debouncedSave: debouncedSave, performSave });
+
+// Wire up refs needed by canvasPrefs (avoids circular import)
+bindCanvasPrefsRefs({
+  canvasGridEnabled,
+  canvasGridWidth,
+  canvasGridHeight,
+  canvasCheckerStrength,
+  zoom,
+  ZOOM_MIN,
+  ZOOM_MAX,
+  getViewportCenter: () => getViewportCenter(),
+  getFitZoomForImage: () => _getFitZoomForImage,
+  performSave,
+});
 
 export const paintPixelSelection = ref<{ x: number; y: number; w: number; h: number } | null>(null);
 export const hasPaintClipboard = ref(false);
@@ -515,32 +397,6 @@ watch(currentSheet, async (sheet, previousSheet) => {
   scheduleWorkspaceUiStateSave();
 }, { flush: 'sync' });
 
-watch(
-  [
-    canvasGridEnabled,
-    canvasGridWidth,
-    canvasGridHeight,
-    zoom,
-  ],
-  () => {
-    saveCanvasPrefsForSheetWithOptions(currentSheet.value, { preserveCenter: true });
-    if (spanFilePath.value || platform.value === 'web') {
-      debouncedSave(performSave, 250);
-    }
-  }
-);
-
-watch(canvasCheckerStrength, (value) => {
-  try {
-    localStorage.setItem(
-      CHECKER_STRENGTH_STORAGE_KEY,
-      String(Math.max(0, Math.min(100, Math.round(value))))
-    );
-  } catch (e) {
-    console.error('Failed to persist checker strength:', e);
-  }
-});
-
 // --- Viewport center callback (set by CanvasView on mount) ---
 
 let getViewportCenter: () => { x: number; y: number } = () => ({
@@ -560,7 +416,7 @@ export function persistCurrentCanvasViewport() {
 }
 
 export function registerFitZoomFn(fn: (width: number, height: number) => number | null) {
-  getFitZoomForImage = fn;
+  _getFitZoomForImage = fn;
 }
 
 /** Called from desktop menu handler — passes current viewport center */

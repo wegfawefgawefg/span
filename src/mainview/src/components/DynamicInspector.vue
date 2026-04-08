@@ -20,6 +20,7 @@ import {
   currentSheetImageSrc,
 } from '../state';
 import ShapeCanvas from './ShapeCanvas.vue';
+import ColorPicker from './ColorPicker.vue';
 
 const props = defineProps<{
   annotation: Annotation;

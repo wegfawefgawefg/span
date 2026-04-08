@@ -5,7 +5,7 @@
   "palettes": [],
   "activePaletteId": null,
   "lastOpenSheetPath": "01 - Link.png",
-  "selectedAnnotationId": null,
+  "selectedAnnotationId": "a114985c-142e-4687-97e4-c1490ed6b421",
   "sheets": [
     {
       "path": "01 - Link.png",
@@ -99,9 +99,9 @@
         "gridEnabled": false,
         "gridWidth": 16,
         "gridHeight": 16,
-        "zoom": 12.513,
-        "centerX": 75.64133301366579,
-        "centerY": 75.04195636538
+        "zoom": 6.406,
+        "centerX": 57.60224789260069,
+        "centerY": 42.538245394942244
       }
     },
     {
@@ -112,8 +112,8 @@
         "gridWidth": 16,
         "gridHeight": 16,
         "zoom": 2.069,
-        "centerX": 262.4456259062349,
-        "centerY": 181.48864185596906
+        "centerX": 262.2039632672789,
+        "centerY": 181.24697921701306
       }
     },
     {
@@ -209,13 +209,21 @@
         "gridWidth": 16,
         "gridHeight": 16,
         "zoom": 16.663,
-        "centerX": 41.349096801296284,
-        "centerY": 20.404488987577267
+        "centerX": 41.31909019984396,
+        "centerY": 24.035287763307927
       }
     },
     {
       "path": "04 - Overworld Enemies.png",
-      "annotations": []
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 2.573,
+        "centerX": 163.42790516906337,
+        "centerY": 146.91022153128642
+      }
     },
     {
       "path": "05 - Overworld (First Quest).png",
@@ -233,8 +241,8 @@
         "gridWidth": 16,
         "gridHeight": 16,
         "zoom": 0.485,
-        "centerX": 1119.5876288659795,
-        "centerY": 774.2268041237114
+        "centerX": 1118.5567010309278,
+        "centerY": 773.1958762886599
       }
     },
     {

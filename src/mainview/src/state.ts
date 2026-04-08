@@ -40,6 +40,16 @@ import {
   loadCanvasPrefsForSheet,
   saveCanvasPrefsForSheet,
 } from './state/canvasPrefs';
+import {
+  selectedId,
+  selectedIds,
+  selectedAnnotation,
+  selectedAnnotations,
+  selectSingleAnnotation,
+  setSelectedAnnotationIds as applySelectedAnnotationIds,
+  toggleSelectedAnnotation,
+  retainSelectionForCurrentSheet,
+} from './state/selectionState';
 export type { CanvasSheetPrefs } from './state/canvasPrefs';
 export {
   applyingCanvasPrefs,
@@ -171,13 +181,20 @@ export {
   setSelectTool,
 };
 
+// Re-export selection state for consumers
+export {
+  selectedId,
+  selectedIds,
+  selectedAnnotation,
+  selectedAnnotations,
+};
+
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 32;
 export const ZOOM_FACTOR = 1.25;
 
 // --- Core state ---
 
-export const selectedId = ref<string | null>(null);
 export const zoom = ref(2);
 export const dirty = ref(false);
 export const statusText = ref('Ready');
@@ -195,6 +212,7 @@ bindPaintHistoryRefs({
   imageHeight,
   statusText,
   selectedId,
+  selectedIds,
   markDirty,
 });
 export const canvasCheckerStrength = ref(loadCheckerStrength());
@@ -348,10 +366,6 @@ export const annotations = computed<Annotation[]>(
   () => currentSheet.value?.annotations ?? []
 );
 
-export const selectedAnnotation = computed<Annotation | null>(
-  () => annotations.value.find((a) => a.id === selectedId.value) ?? null
-);
-
 /** Fulfill a missing sheet with image data. Replaces the object to trigger Vue reactivity. */
 export function fulfillSheet(
   sheet: WorkspaceSheet,
@@ -399,6 +413,8 @@ watch(currentSheet, async (sheet, previousSheet) => {
   if (previousSheet) {
     saveCanvasPrefsForSheet(previousSheet);
   }
+
+  retainSelectionForCurrentSheet();
 
   if (!sheet) {
     currentSheetImageSrc.value = '';
@@ -513,6 +529,7 @@ bindIoStateRefs({
   dirty,
   statusText,
   selectedId,
+  selectedIds,
   exportFilePath,
   paintPixelSelection,
   hasPaintClipboard,
@@ -553,7 +570,17 @@ function valuesMatch(left: unknown, right: unknown) {
 }
 
 export function selectAnnotation(id: string | null) {
-  selectedId.value = id;
+  selectSingleAnnotation(id);
+  scheduleWorkspaceUiStateSave();
+}
+
+export function setSelectedAnnotationIds(ids: string[]) {
+  applySelectedAnnotationIds(ids);
+  scheduleWorkspaceUiStateSave();
+}
+
+export function toggleAnnotationSelection(id: string) {
+  toggleSelectedAnnotation(id);
   scheduleWorkspaceUiStateSave();
 }
 
@@ -596,7 +623,7 @@ export function closeProject() {
   setSelectTool();
   specFilePath.value = null;
   resetToDefaultSpec(null);
-  selectedId.value = null;
+  selectSingleAnnotation(null);
   dirty.value = false;
   statusText.value = 'Closed project';
 }
@@ -610,7 +637,7 @@ export function addAnnotation(x: number = 0, y: number = 0) {
   recordCurrentSheetUndoSnapshot();
   const annotation = createAnnotation(spec, tool, { x, y });
   sheet.annotations.push(annotation);
-  selectedId.value = annotation.id;
+  selectSingleAnnotation(annotation.id);
   markDirty(true);
 }
 
@@ -644,29 +671,35 @@ export function addAnnotationWithSize(
 
   recordCurrentSheetUndoSnapshot();
   sheet.annotations.push(annotation);
-  selectedId.value = annotation.id;
+  selectSingleAnnotation(annotation.id);
   markDirty(true);
 }
 
 export function duplicateSelected() {
-  const ann = selectedAnnotation.value;
+  const anns = selectedAnnotations.value;
   const sheet = currentSheet.value;
-  if (!ann || !sheet) return;
+  if (anns.length === 0 || !sheet) return;
   recordCurrentSheetUndoSnapshot();
-  const copy = duplicateAnnotation(ann, activeSpec.value ?? undefined);
-  sheet.annotations.push(copy);
-  selectedId.value = copy.id;
+  const copies = anns.map((annotation) =>
+    duplicateAnnotation(annotation, activeSpec.value ?? undefined)
+  );
+  sheet.annotations.push(...copies);
+  applySelectedAnnotationIds(
+    copies.map((annotation) => annotation.id),
+    { primaryId: copies[0]?.id ?? null }
+  );
   markDirty(true);
 }
 
 export function deleteSelected() {
   const sheet = currentSheet.value;
-  if (!selectedId.value || !sheet) return;
+  const idsToDelete = new Set(selectedAnnotations.value.map((annotation) => annotation.id));
+  if (idsToDelete.size === 0 || !sheet) return;
   recordCurrentSheetUndoSnapshot();
   sheet.annotations = sheet.annotations.filter(
-    (a) => a.id !== selectedId.value
+    (annotation) => !idsToDelete.has(annotation.id)
   );
-  selectedId.value = sheet.annotations[0]?.id ?? null;
+  selectSingleAnnotation(sheet.annotations[0]?.id ?? null);
   markDirty(true);
 }
 
@@ -675,29 +708,36 @@ export function updateShapeData(
   patch: Record<string, number>,
   options?: EditMutationOptions
 ) {
-  const ann = selectedAnnotation.value;
-  if (!ann) return;
+  const anns = selectedAnnotations.value;
+  if (anns.length === 0) return;
   const captureHistory = shouldCaptureHistory(options);
-  if (shapeName === 'aabb' && ann.aabb) {
-    const changed = Object.entries(patch).some(
-      ([key, value]) => (ann.aabb as Record<string, number>)[key] !== value
+  const targets = anns.filter((annotation) => {
+    const shape =
+      shapeName === 'aabb'
+        ? annotation.aabb
+        : shapeName === 'point'
+          ? annotation.point
+          : null;
+    if (!shape) return false;
+    return Object.entries(patch).some(
+      ([key, value]) => (shape as Record<string, number>)[key] !== value
     );
-    if (!changed) return;
-    if (captureHistory) {
-      recordCurrentSheetUndoSnapshot();
-    }
-    Object.assign(ann.aabb, patch);
-  } else if (shapeName === 'point' && ann.point) {
-    const changed = Object.entries(patch).some(
-      ([key, value]) => (ann.point as Record<string, number>)[key] !== value
-    );
-    if (!changed) return;
-    if (captureHistory) {
-      recordCurrentSheetUndoSnapshot();
-    }
-    Object.assign(ann.point, patch);
-  } else {
+  });
+  if (targets.length === 0) {
     return;
+  }
+  if (captureHistory) {
+    recordCurrentSheetUndoSnapshot();
+  }
+  for (const annotation of targets) {
+    const shape =
+      shapeName === 'aabb'
+        ? annotation.aabb
+        : shapeName === 'point'
+          ? annotation.point
+          : null;
+    if (!shape) continue;
+    Object.assign(shape, patch);
   }
   markDirty(true);
 }
@@ -706,16 +746,25 @@ export function updatePropertyData(
   patch: Record<string, unknown>,
   options?: EditMutationOptions
 ) {
-  const ann = selectedAnnotation.value;
-  if (!ann) return;
-  const changed = Object.entries(patch).some(
-    ([key, value]) => !valuesMatch(ann.properties[key], value)
+  const anns = selectedAnnotations.value;
+  if (anns.length === 0) return;
+  const changedTargets = anns.filter((annotation) =>
+    Object.entries(patch).some(
+      ([key, value]) => !valuesMatch(annotation.properties[key], value)
+    )
   );
-  if (!changed) return;
+  if (changedTargets.length === 0) return;
   if (shouldCaptureHistory(options)) {
     recordCurrentSheetUndoSnapshot();
   }
-  Object.assign(ann.properties, patch);
+  for (const annotation of changedTargets) {
+    for (const [key, value] of Object.entries(patch)) {
+      annotation.properties[key] =
+        value !== null && typeof value === 'object'
+          ? JSON.parse(JSON.stringify(value))
+          : value;
+    }
+  }
   markDirty(true);
 }
 

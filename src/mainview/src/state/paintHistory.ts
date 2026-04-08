@@ -23,6 +23,7 @@ export interface EditSnapshot {
   height: number;
   annotations: Annotation[];
   selectedAnnotationId: string | null;
+  selectedAnnotationIds: string[];
 }
 
 // --- Late-bound refs from state.ts (avoids circular import) ---
@@ -32,6 +33,7 @@ let _imageWidth: Ref<number>;
 let _imageHeight: Ref<number>;
 let _statusText: Ref<string>;
 let _selectedId: Ref<string | null>;
+let _selectedIds: Ref<string[]>;
 let _markDirty: (isDirty: boolean) => void;
 
 /** Called once by state.ts to wire up refs that live there. */
@@ -41,6 +43,7 @@ export function bindPaintHistoryRefs(refs: {
   imageHeight: Ref<number>;
   statusText: Ref<string>;
   selectedId: Ref<string | null>;
+  selectedIds: Ref<string[]>;
   markDirty: (isDirty: boolean) => void;
 }) {
   _currentSheetImageSrc = refs.currentSheetImageSrc;
@@ -48,6 +51,7 @@ export function bindPaintHistoryRefs(refs: {
   _imageHeight = refs.imageHeight;
   _statusText = refs.statusText;
   _selectedId = refs.selectedId;
+  _selectedIds = refs.selectedIds;
   _markDirty = refs.markDirty;
 }
 
@@ -88,12 +92,26 @@ export function ensureEditedSheetState(sheet: WorkspaceSheet): EditedSheetState 
 }
 
 function captureEditSnapshot(sheet: WorkspaceSheet): EditSnapshot {
+  const isCurrentSheet = getSheetKey(currentSheet.value) === getSheetKey(sheet);
+  const selectedAnnotationIds =
+    isCurrentSheet
+      ? normalizeSelectionForSheet(
+          sheet,
+          _selectedIds.value.length > 0
+            ? _selectedIds.value
+            : _selectedId.value
+              ? [_selectedId.value]
+              : []
+        )
+      : [];
+
   return {
     imageUrl: sheet.imageUrl,
     width: sheet.width,
     height: sheet.height,
     annotations: JSON.parse(JSON.stringify(sheet.annotations)),
-    selectedAnnotationId: currentSheet.value === sheet ? _selectedId.value : null,
+    selectedAnnotationId: isCurrentSheet ? _selectedId.value : null,
+    selectedAnnotationIds,
   };
 }
 
@@ -105,18 +123,43 @@ function applyEditSnapshot(sheet: WorkspaceSheet, snapshot: EditSnapshot) {
     snapshot.width,
     snapshot.height
   );
-  if (currentSheet.value === sheet) {
+  if (getSheetKey(currentSheet.value) === getSheetKey(sheet)) {
     const selectedId = snapshot.selectedAnnotationId;
-    const hasSelected = selectedId
-      ? sheet.annotations.some((annotation) => annotation.id === selectedId)
-      : false;
-    _selectedId.value = hasSelected ? selectedId : sheet.annotations[0]?.id ?? null;
+    const selectedIds = normalizeSelectionForSheet(
+      sheet,
+      snapshot.selectedAnnotationIds.length > 0
+        ? snapshot.selectedAnnotationIds
+        : selectedId
+          ? [selectedId]
+          : []
+    );
+    const fallbackId = sheet.annotations[0]?.id ?? null;
+    if (selectedIds.length === 0) {
+      _selectedIds.value = fallbackId ? [fallbackId] : [];
+      _selectedId.value = fallbackId;
+    } else {
+      _selectedIds.value = selectedIds;
+      _selectedId.value =
+        selectedId && selectedIds.includes(selectedId)
+          ? selectedId
+          : selectedIds[0] ?? null;
+    }
   }
   triggerRef(sheets);
 }
 
 function annotationsMatch(a: Annotation[], b: Annotation[]) {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function normalizeSelectionForSheet(sheet: WorkspaceSheet, ids: string[]) {
+  const availableIds = new Set(sheet.annotations.map((annotation) => annotation.id));
+  const normalized: string[] = [];
+  for (const id of ids) {
+    if (!availableIds.has(id) || normalized.includes(id)) continue;
+    normalized.push(id);
+  }
+  return normalized;
 }
 
 function snapshotTouchesWorkspace(
@@ -126,6 +169,7 @@ function snapshotTouchesWorkspace(
   return before.width !== after.width
     || before.height !== after.height
     || before.selectedAnnotationId !== after.selectedAnnotationId
+    || JSON.stringify(before.selectedAnnotationIds) !== JSON.stringify(after.selectedAnnotationIds)
     || !annotationsMatch(before.annotations, after.annotations);
 }
 

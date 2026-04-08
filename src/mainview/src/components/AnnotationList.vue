@@ -2,9 +2,11 @@
 import { computed, nextTick, ref, watch } from 'vue';
 import type { Annotation } from '../annotation';
 import {
-  annotations,
   selectedId,
+  selectedIds,
+  annotations,
   selectAnnotation,
+  toggleAnnotationSelection,
   duplicateSelected,
   deleteSelected,
   activeSpec,
@@ -102,7 +104,7 @@ function toggleGroup(key: string) {
   }
 }
 
-function setAnnotationButtonRef(annotationId: string, element: Element | null) {
+function setAnnotationButtonRef(annotationId: string, element: unknown) {
   if (element instanceof HTMLButtonElement) {
     annotationButtons.value.set(annotationId, element);
   } else {
@@ -122,6 +124,18 @@ function ensureSelectedAnnotationVisible() {
 
 const dragId = ref<string | null>(null);
 const dragOverId = ref<string | null>(null);
+
+function isAnnotationSelected(annotationId: string) {
+  return selectedIds.value.includes(annotationId);
+}
+
+function onAnnotationClick(event: MouseEvent, annotationId: string) {
+  if (event.shiftKey || event.metaKey || event.ctrlKey) {
+    toggleAnnotationSelection(annotationId);
+    return;
+  }
+  selectAnnotation(annotationId);
+}
 
 function onDragStart(event: DragEvent, id: string) {
   dragId.value = id;
@@ -155,7 +169,9 @@ function onDragEnd() {
 }
 
 function onContextMenu(event: MouseEvent, annotationId: string) {
-  selectAnnotation(annotationId);
+  if (!isAnnotationSelected(annotationId)) {
+    selectAnnotation(annotationId);
+  }
   const entries: MenuEntry[] = [
     { label: 'Duplicate', action: () => duplicateSelected() },
     { label: 'Delete', action: () => deleteSelected() },
@@ -199,7 +215,7 @@ watch(
           <span
             class="text-xs font-medium truncate"
             :class="
-              group.items.some((a) => a.id === selectedId)
+              group.items.some((a) => isAnnotationSelected(a.id))
                 ? 'text-copper-bright'
                 : 'text-text-dim'
             "
@@ -227,13 +243,13 @@ watch(
             :class="[
               controlListButtonClass,
               'w-full cursor-grab px-2 py-1 active:cursor-grabbing',
-              ann.id === selectedId
+              isAnnotationSelected(ann.id)
                 ? controlListButtonActiveClass
                 : controlListButtonDefaultClass,
               dragOverId === ann.id ? 'border-copper border-t-2' : '',
               dragId === ann.id ? 'opacity-40' : '',
             ]"
-            @click="selectAnnotation(ann.id)"
+            @click="onAnnotationClick($event, ann.id)"
             @contextmenu="onContextMenu($event, ann.id)"
             @dragstart="onDragStart($event, ann.id)"
             @dragover="onDragOver($event, ann.id)"
@@ -251,7 +267,9 @@ watch(
               <span
                 class="font-mono text-[10px] truncate"
                 :class="
-                  ann.id === selectedId ? 'text-copper-bright' : 'text-text-dim'
+                  isAnnotationSelected(ann.id)
+                    ? 'text-copper-bright'
+                    : 'text-text-dim'
                 "
               >
                 {{ ann.id.slice(0, 8) }}

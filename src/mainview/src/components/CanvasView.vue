@@ -6,8 +6,9 @@ import {
   zoom,
   annotations,
   currentSheet,
-  selectedId,
+  selectedIds,
   selectAnnotation,
+  toggleAnnotationSelection,
   activeSpec,
   paintPixelSelection,
   currentSheetImageSrc,
@@ -248,7 +249,6 @@ const {
 const {
   spriteMove,
   atlasMoveSelectionDrag,
-  atlasMoveSelectionIds,
   atlasSelectionPreviewRect,
   setAtlasSelection,
   beginSpriteMove,
@@ -465,7 +465,6 @@ watch(
     }
     resetCentered();
     clearPixelSelection();
-    atlasMoveSelectionIds.value = [];
     atlasMoveSelectionDrag.value = null;
     spriteMove.value = null;
     imageLoadVersion += 1;
@@ -490,7 +489,6 @@ watch(activeAtlasTool, (tool, previousTool) => {
     if (spriteMove.value) {
       finalizeSpriteMove({ apply: true });
     }
-    atlasMoveSelectionIds.value = [];
     atlasMoveSelectionDrag.value = null;
   }
 });
@@ -664,15 +662,9 @@ function resizeCurrentCanvas(width: number, height: number): boolean {
 }
 
 function getSelectedSpriteAnnotations(): Annotation[] {
-  const selectionIds =
-    atlasMoveSelectionIds.value.length > 0
-      ? atlasMoveSelectionIds.value
-      : selectedId.value
-        ? [selectedId.value]
-        : [];
-  if (selectionIds.length === 0) return [];
+  if (selectedIds.value.length === 0) return [];
   return annotations.value.filter(
-    (entry) => selectionIds.includes(entry.id) && !!entry.aabb
+    (entry) => selectedIds.value.includes(entry.id) && !!entry.aabb
   );
 }
 
@@ -865,6 +857,12 @@ function handleShapePointerDown(event: PointerEvent, annotation: Annotation) {
   const target = event.target as HTMLElement;
   const isResize = target.dataset.resize === 'true';
   const shapeName = annotation.aabb ? 'aabb' : 'point';
+  const isToggleSelection = event.shiftKey || event.metaKey || event.ctrlKey;
+
+  if (isToggleSelection && !isResize && !event.altKey) {
+    toggleAnnotationSelection(annotation.id);
+    return;
+  }
 
   // Alt/Option+drag: duplicate first, then drag the copy
   if (event.altKey && !isResize) {
@@ -934,18 +932,12 @@ function handleLayerPointerDown(event: PointerEvent) {
     if (!point) return;
     const hit = annotationAtPoint(point, annotations.value);
     if (hit?.aabb) {
-      if (event.shiftKey) {
-        if (atlasMoveSelectionIds.value.includes(hit.id)) {
-          setAtlasSelection(
-            atlasMoveSelectionIds.value.filter((id) => id !== hit.id)
-          );
-        } else {
-          setAtlasSelection([...atlasMoveSelectionIds.value, hit.id]);
-        }
+      if (event.shiftKey || event.metaKey || event.ctrlKey) {
+        toggleAnnotationSelection(hit.id);
         return;
       }
-      if (!atlasMoveSelectionIds.value.includes(hit.id)) {
-        setAtlasSelection([hit.id]);
+      if (!selectedIds.value.includes(hit.id)) {
+        selectAnnotation(hit.id);
       }
       if (beginSpriteMove(hit, point)) {
         const layerEl = event.currentTarget as HTMLElement;
@@ -1247,10 +1239,7 @@ const atlasSelectionPreviewStyle = computed(() =>
 );
 
 function isAnnotationCanvasSelected(annotation: Annotation) {
-  return (
-    annotation.id === selectedId.value ||
-    atlasMoveSelectionIds.value.includes(annotation.id)
-  );
+  return selectedIds.value.includes(annotation.id);
 }
 
 function boxStyle(annotation: Annotation, annIndex: number) {
@@ -1285,7 +1274,9 @@ function pointStyle(annotation: Annotation, annIndex: number) {
 const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 
 function onBoxContextMenu(event: MouseEvent, annotation: Annotation) {
-  selectAnnotation(annotation.id);
+  if (!selectedIds.value.includes(annotation.id)) {
+    selectAnnotation(annotation.id);
+  }
   const entries: MenuEntry[] = [
     { label: 'Duplicate', action: () => duplicateSelected() },
     { label: 'Delete', action: () => deleteSelected() },

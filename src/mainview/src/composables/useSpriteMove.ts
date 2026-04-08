@@ -1,7 +1,8 @@
 import { ref, computed, type Ref } from 'vue';
 import type { Annotation } from '../annotation';
 import {
-  selectedId,
+  selectedIds,
+  setSelectedAnnotationIds,
   annotations,
   currentSheet,
   statusText,
@@ -71,7 +72,6 @@ export function useSpriteMove(deps: {
 
   const spriteMove = ref<SpriteMoveState | null>(null);
   const atlasMoveSelectionDrag = ref<AtlasMoveSelectionDragState | null>(null);
-  const atlasMoveSelectionIds = ref<string[]>([]);
 
   const atlasSelectionPreviewRect = computed(() =>
     atlasMoveSelectionDrag.value
@@ -98,9 +98,15 @@ export function useSpriteMove(deps: {
     };
   }
 
+  function selectedSpriteIds() {
+    const selectedIdSet = new Set(selectedIds.value);
+    return annotations.value
+      .filter((annotation) => annotation.aabb && selectedIdSet.has(annotation.id))
+      .map((annotation) => annotation.id);
+  }
+
   function setAtlasSelection(ids: string[]) {
-    atlasMoveSelectionIds.value = [...new Set(ids)];
-    selectedId.value = atlasMoveSelectionIds.value[0] ?? null;
+    setSelectedAnnotationIds(ids);
   }
 
   function beginSpriteMove(
@@ -108,8 +114,9 @@ export function useSpriteMove(deps: {
     point: { x: number; y: number }
   ) {
     if (!annotation.aabb || !isPaintableCurrentSheet.value) return false;
-    const selectionIds = atlasMoveSelectionIds.value.includes(annotation.id)
-      ? atlasMoveSelectionIds.value
+    const currentSelectionIds = selectedSpriteIds();
+    const selectionIds = currentSelectionIds.includes(annotation.id)
+      ? currentSelectionIds
       : [annotation.id];
     const selectedAnnotations = annotations.value.filter(
       (entry) => selectionIds.includes(entry.id) && !!entry.aabb
@@ -258,7 +265,6 @@ export function useSpriteMove(deps: {
   return {
     spriteMove,
     atlasMoveSelectionDrag,
-    atlasMoveSelectionIds,
     atlasSelectionPreviewRect,
     setAtlasSelection,
     beginSpriteMove,

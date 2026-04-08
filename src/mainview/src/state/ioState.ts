@@ -47,6 +47,7 @@ import type { Ref } from 'vue';
 let _dirty: Ref<boolean>;
 let _statusText: Ref<string>;
 let _selectedId: Ref<string | null>;
+let _selectedIds: Ref<string[]>;
 let _exportFilePath: Ref<string | null>;
 let _paintPixelSelection: Ref<{ x: number; y: number; w: number; h: number } | null>;
 let _hasPaintClipboard: Ref<boolean>;
@@ -59,6 +60,7 @@ export function bindIoStateRefs(refs: {
   dirty: Ref<boolean>;
   statusText: Ref<string>;
   selectedId: Ref<string | null>;
+  selectedIds: Ref<string[]>;
   exportFilePath: Ref<string | null>;
   paintPixelSelection: Ref<{ x: number; y: number; w: number; h: number } | null>;
   hasPaintClipboard: Ref<boolean>;
@@ -70,6 +72,7 @@ export function bindIoStateRefs(refs: {
   _dirty = refs.dirty;
   _statusText = refs.statusText;
   _selectedId = refs.selectedId;
+  _selectedIds = refs.selectedIds;
   _exportFilePath = refs.exportFilePath;
   _paintPixelSelection = refs.paintPixelSelection;
   _hasPaintClipboard = refs.hasPaintClipboard;
@@ -192,6 +195,7 @@ export async function openProjectDirectory(
 ) {
   resetWorkspace();
   _selectedId.value = null;
+  _selectedIds.value = [];
   editedSheetState.value = {};
   projectPalettes.value = [];
   activeProjectPaletteId.value = null;
@@ -421,6 +425,7 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
   // Reset and load sheets
   resetWorkspace();
   _selectedId.value = null;
+  _selectedIds.value = [];
   editedSheetState.value = {};
   _paintPixelSelection.value = null;
   _hasPaintClipboard.value = false;
@@ -530,6 +535,7 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
       && currentSheet.value.annotations.some((annotation) => annotation.id === data.selectedAnnotationId)
       ? data.selectedAnnotationId
       : null;
+  _selectedIds.value = _selectedId.value ? [_selectedId.value] : [];
   _markDirty(false);
   _statusText.value = filePath
     ? `Opened ${filePath.split('/').pop()}${prunedMissingEmptySheets ? ' \u2022 pruned stale missing sheets' : ''}`

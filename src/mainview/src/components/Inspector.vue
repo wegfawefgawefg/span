@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { activeSpec, selectedAnnotation } from '../state';
+import { activeSpec, selectedAnnotation, selectedAnnotations } from '../state';
 import DynamicInspector from './DynamicInspector.vue';
 
 const FORM_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
@@ -30,7 +30,7 @@ function onContextMenu(event: MouseEvent) {
       >
     </div>
     <div
-      v-else-if="!selectedAnnotation"
+      v-else-if="selectedAnnotations.length === 0 || !selectedAnnotation"
       class="flex-1 flex flex-col items-center justify-center gap-2 text-center"
     >
       <svg
@@ -55,6 +55,7 @@ function onContextMenu(event: MouseEvent) {
     <DynamicInspector
       v-else
       :annotation="selectedAnnotation"
+      :annotations="selectedAnnotations"
       :spec="activeSpec"
     />
   </div>

@@ -11,6 +11,7 @@ const props = defineProps<{
   modelValue: string;
   imageSource: string;
   aabb: { x: number; y: number; w: number; h: number } | null;
+  placeholder?: string;
 }>();
 
 const emit = defineEmits<{
@@ -202,7 +203,7 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ''));
       <input
         type="text"
         :value="modelValue ?? ''"
-        :placeholder="isUnset ? 'none' : '#000000'"
+        :placeholder="props.placeholder ?? (isUnset ? 'none' : '#000000')"
         class="flex-1 min-w-0"
         @change="onHexInput"
       />

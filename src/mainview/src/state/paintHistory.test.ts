@@ -49,6 +49,7 @@ function bindTestHistoryRefs() {
 	const imageHeight = ref(0);
 	const statusText = ref("");
 	const selectedId = ref<string | null>(null);
+	const selectedIds = ref<string[]>([]);
 	const markDirtyCalls: boolean[] = [];
 
 	bindPaintHistoryRefs({
@@ -57,6 +58,7 @@ function bindTestHistoryRefs() {
 		imageHeight,
 		statusText,
 		selectedId,
+		selectedIds,
 		markDirty: (isDirty) => {
 			markDirtyCalls.push(isDirty);
 		},
@@ -68,6 +70,7 @@ function bindTestHistoryRefs() {
 		imageHeight,
 		statusText,
 		selectedId,
+		selectedIds,
 		markDirtyCalls,
 	};
 }
@@ -91,6 +94,7 @@ describe("paintHistory", () => {
 		sheets.value = [sheet];
 		currentSheet.value = sheet;
 		refs.selectedId.value = ann1.id;
+		refs.selectedIds.value = [ann1.id];
 		refs.currentSheetImageSrc.value = sheet.imageUrl;
 		refs.imageWidth.value = sheet.width;
 		refs.imageHeight.value = sheet.height;
@@ -101,6 +105,7 @@ describe("paintHistory", () => {
 		sheet.height = 24;
 		sheet.annotations = [ann1, ann2];
 		refs.selectedId.value = ann2.id;
+		refs.selectedIds.value = [ann1.id, ann2.id];
 
 		expect(undoPaintEdit()).toBe(true);
 		expect(sheet.imageUrl).toBe("data:image/png;base64,original");
@@ -108,6 +113,7 @@ describe("paintHistory", () => {
 		expect(sheet.height).toBe(16);
 		expect(sheet.annotations).toEqual([ann1]);
 		expect(refs.selectedId.value).toBe(ann1.id);
+		expect(refs.selectedIds.value).toEqual([ann1.id]);
 		expect(refs.currentSheetImageSrc.value).toBe("data:image/png;base64,original");
 		expect(refs.imageWidth.value).toBe(16);
 		expect(refs.imageHeight.value).toBe(16);
@@ -118,6 +124,7 @@ describe("paintHistory", () => {
 		expect(sheet.height).toBe(24);
 		expect(sheet.annotations).toEqual([ann1, ann2]);
 		expect(refs.selectedId.value).toBe(ann2.id);
+		expect(refs.selectedIds.value).toEqual([ann1.id, ann2.id]);
 		expect(refs.currentSheetImageSrc.value).toBe("data:image/png;base64,edited");
 		expect(refs.imageWidth.value).toBe(32);
 		expect(refs.imageHeight.value).toBe(24);
@@ -136,14 +143,17 @@ describe("paintHistory", () => {
 		sheets.value = [sheet];
 		currentSheet.value = sheet;
 		refs.selectedId.value = ann1.id;
+		refs.selectedIds.value = [ann1.id];
 
 		recordPaintUndoSnapshot(sheet);
 		sheet.annotations = [ann1, ann2];
 		refs.selectedId.value = ann2.id;
+		refs.selectedIds.value = [ann1.id, ann2.id];
 
 		expect(undoPaintEdit()).toBe(true);
 		expect(sheet.annotations).toEqual([ann1]);
 		expect(refs.selectedId.value).toBe(ann1.id);
+		expect(refs.selectedIds.value).toEqual([ann1.id]);
 		expect(refs.markDirtyCalls).toEqual([true]);
 	});
 });

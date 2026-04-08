@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, triggerRef } from 'vue';
+import { computed, ref, triggerRef } from 'vue';
 import type { Annotation } from '../annotation';
 import { migrateEntityType } from '../annotation';
 import type {
   SpanSpec,
   PropertyField,
   ScalarPropertyField,
-  EnumPropertyField,
-  ColorPropertyField,
   ShapePropertyField,
 } from '../spec/types';
 import { getEntityByLabel, getRequiredFields } from '../spec/types';
@@ -31,10 +29,13 @@ import {
 
 const props = defineProps<{
   annotation: Annotation;
+  annotations: Annotation[];
   spec: SpanSpec;
 }>();
 
 const SHAPE_COLORS = ['var(--color-copper)', '#5a8ac8', '#5ac878', '#8a5ac8'];
+const MIXED_TEXT = 'mixed';
+const MIXED_SELECT_VALUE = '__span_mixed__';
 
 const labelClass =
   'flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider';
@@ -43,8 +44,13 @@ const propHeaderClass = 'flex items-center gap-2';
 const propToggleClass = controlPropertyToggleButtonClass;
 const propTypeClass = 'text-[10px] font-normal text-text-faint';
 const propSyncClass = `${controlSubtleButtonClass} shrink-0 px-1.5 py-0.5 text-[10px]`;
+const selectionMetaClass = 'text-[10px] font-mono text-text-faint';
 
-// Track which sections are collapsed (by key: 'primary', 'required', 'properties', 'prop:<name>')
+const inspectedAnnotations = computed(() =>
+  props.annotations.length > 0 ? props.annotations : [props.annotation]
+);
+const isMultiSelection = computed(() => inspectedAnnotations.value.length > 1);
+
 const collapsed = ref<Set<string>>(new Set());
 
 function toggleSection(key: string) {
@@ -69,17 +75,56 @@ function recordUndoForAnnotationIds(annotationIds: string[]) {
   }
 }
 
-function onEntityTypeChange(newType: string) {
-  if (newType === props.annotation.entityType) return;
-  recordUndoForAnnotationIds([props.annotation.id]);
-  const migrated = migrateEntityType(props.annotation, props.spec, newType);
-  const idx = annotations.value.findIndex((a) => a.id === props.annotation.id);
-  if (idx !== -1) {
-    annotations.value[idx] = migrated;
-    triggerRef(annotations);
-    markDirty(true);
+function valuesMatch(left: unknown, right: unknown) {
+  if (Object.is(left, right)) return true;
+  if (
+    left === null ||
+    right === null ||
+    typeof left !== 'object' ||
+    typeof right !== 'object'
+  ) {
+    return false;
   }
-  // Reset collapsed state for new entity
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function getCommonValue(values: unknown[]) {
+  if (values.length === 0) {
+    return { mixed: false, value: null as unknown };
+  }
+  const first = values[0];
+  const mixed = values.some((value) => !valuesMatch(value, first));
+  return { mixed, value: first };
+}
+
+const entityTypeState = computed(() =>
+  getCommonValue(inspectedAnnotations.value.map((annotation) => annotation.entityType))
+);
+const hasMixedEntityTypes = computed(() => entityTypeState.value.mixed);
+const selectionSummary = computed(
+  () => `${inspectedAnnotations.value.length} selected`
+);
+
+function onEntityTypeChange(newType: string) {
+  const targets = inspectedAnnotations.value.filter(
+    (annotation) => annotation.entityType !== newType
+  );
+  if (targets.length === 0) return;
+
+  recordUndoForAnnotationIds(targets.map((annotation) => annotation.id));
+  for (const target of targets) {
+    const migrated = migrateEntityType(target, props.spec, newType);
+    const idx = annotations.value.findIndex((annotation) => annotation.id === target.id);
+    if (idx !== -1) {
+      annotations.value[idx] = migrated;
+    }
+  }
+  triggerRef(annotations);
+  markDirty(true);
   collapsed.value = new Set();
 }
 
@@ -104,7 +149,7 @@ function onPropertyInput(def: PropertyField, value: string | boolean) {
       case 'string[]':
         converted = (value as string)
           .split(',')
-          .map((s) => s.trim())
+          .map((entry) => entry.trim())
           .filter(Boolean);
         break;
       case 'string':
@@ -124,21 +169,32 @@ function onShapePropertyInput(
   value: string
 ) {
   const numValue = Number(value) || 0;
-  const current = props.annotation.properties[propName];
-
-  if (index === null) {
-    // Single shape
-    const shape = (current as Record<string, number>) ?? {};
-    const updated = { ...shape, [field]: numValue };
-    updatePropertyData({ [propName]: updated });
-  } else {
-    // Array shape
-    const arr = Array.isArray(current) ? [...current] : [];
-    if (index < arr.length) {
-      arr[index] = { ...arr[index], [field]: numValue };
-      updatePropertyData({ [propName]: arr });
+  const targets = inspectedAnnotations.value.filter((annotation) => {
+    const current = annotation.properties[propName];
+    if (index === null) {
+      const shape = (current as Record<string, number>) ?? {};
+      return shape[field] !== numValue;
     }
+    const arr = Array.isArray(current) ? current : [];
+    if (index >= arr.length) return false;
+    return ((arr[index] as Record<string, number>)?.[field] ?? 0) !== numValue;
+  });
+  if (targets.length === 0) return;
+
+  recordUndoForAnnotationIds(targets.map((annotation) => annotation.id));
+  for (const target of targets) {
+    const current = target.properties[propName];
+    if (index === null) {
+      const shape = (current as Record<string, number>) ?? {};
+      target.properties[propName] = { ...shape, [field]: numValue };
+      continue;
+    }
+    const arr = Array.isArray(current) ? [...current] : [];
+    if (index >= arr.length) continue;
+    arr[index] = { ...arr[index], [field]: numValue };
+    target.properties[propName] = arr;
   }
+  markDirty(true);
 }
 
 function addShapeArrayItem(propName: string, shapeType: 'rect' | 'point') {
@@ -163,6 +219,71 @@ function displayValue(def: ScalarPropertyField, value: unknown): string {
     return value.join(', ');
   }
   return String(value ?? '');
+}
+
+function propertyState(propName: string) {
+  return getCommonValue(
+    inspectedAnnotations.value.map((annotation) => annotation.properties[propName])
+  );
+}
+
+function propertyInputValue(def: ScalarPropertyField) {
+  const state = propertyState(def.name);
+  return state.mixed ? '' : displayValue(def, state.value);
+}
+
+function propertyPlaceholder(def: ScalarPropertyField) {
+  if (propertyState(def.name).mixed) return MIXED_TEXT;
+  return def.type === 'string[]' ? 'comma-separated values' : '';
+}
+
+function propertyBooleanValue(propName: string) {
+  const state = propertyState(propName);
+  return state.mixed ? false : !!state.value;
+}
+
+function propertySelectValue(propName: string) {
+  const state = propertyState(propName);
+  return state.mixed ? MIXED_SELECT_VALUE : String(state.value ?? '');
+}
+
+function primaryShapeFieldState(shapeName: 'aabb' | 'point', field: string) {
+  return getCommonValue(
+    inspectedAnnotations.value
+      .map((annotation) => (shapeName === 'aabb' ? annotation.aabb : annotation.point))
+      .filter(Boolean)
+      .map((shape) => (shape as Record<string, number>)[field] ?? 0)
+  );
+}
+
+function primaryShapeFieldValue(shapeName: 'aabb' | 'point', field: string) {
+  const state = primaryShapeFieldState(shapeName, field);
+  return state.mixed ? '' : String(state.value ?? 0);
+}
+
+function propertyShapeFieldState(
+  propName: string,
+  index: number | null,
+  field: string
+) {
+  const values = inspectedAnnotations.value.map((annotation) => {
+    const current = annotation.properties[propName];
+    if (index === null) {
+      return ((current as Record<string, number>) ?? {})[field] ?? 0;
+    }
+    const arr = Array.isArray(current) ? current : [];
+    return ((arr[index] as Record<string, number>) ?? {})[field] ?? 0;
+  });
+  return getCommonValue(values);
+}
+
+function propertyShapeFieldValue(
+  propName: string,
+  index: number | null,
+  field: string
+) {
+  const state = propertyShapeFieldState(propName, index, field);
+  return state.mixed ? '' : String(state.value ?? 0);
 }
 
 function getPropertyShapeData(def: ShapePropertyField): {
@@ -190,12 +311,10 @@ function onShapeCanvasUpdate(
   const current = props.annotation.properties[propName];
 
   if (index === null) {
-    // Single shape
     const shape = (current as Record<string, number>) ?? {};
     const updated = { ...shape, ...patch };
     updatePropertyData({ [propName]: updated }, { captureHistory });
   } else {
-    // Array shape
     const arr = Array.isArray(current) ? [...current] : [];
     if (index < arr.length) {
       arr[index] = { ...arr[index], ...patch };
@@ -205,16 +324,13 @@ function onShapeCanvasUpdate(
 }
 
 function getEntity() {
-  return getEntityByLabel(props.spec, props.annotation.entityType);
+  if (hasMixedEntityTypes.value) return null;
+  return getEntityByLabel(props.spec, String(entityTypeState.value.value ?? ''));
 }
 
 function getRequiredDefs(): PropertyField[] {
   const entity = getEntity();
   return entity ? getRequiredFields(entity) : [];
-}
-
-function deepClone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value));
 }
 
 function spriteIdentity(
@@ -236,8 +352,9 @@ function spriteIdentity(
   };
 }
 
-function canSyncProperty(propName: string): boolean {
+function canSyncProperty(propName: string) {
   return (
+    !isMultiSelection.value &&
     !['name', 'variant', 'frame'].includes(propName) &&
     spriteIdentity(props.annotation) !== null
   );
@@ -288,13 +405,28 @@ function syncPropertyAcrossSprite(propName: string) {
     class="instant-scroll flex-1 overflow-y-auto min-h-0 flex flex-col gap-3 px-2 pb-2 pt-2"
     @submit.prevent
   >
+    <div v-if="isMultiSelection" :class="selectionMetaClass">
+      {{ selectionSummary }}
+    </div>
+
     <!-- Entity type dropdown -->
     <label :class="labelClass">
       Entity Type
       <select
-        :value="annotation.entityType"
+        :value="
+          entityTypeState.mixed
+            ? MIXED_SELECT_VALUE
+            : String(entityTypeState.value ?? '')
+        "
         @change="onEntityTypeChange(($event.target as HTMLSelectElement).value)"
       >
+        <option
+          v-if="entityTypeState.mixed"
+          :value="MIXED_SELECT_VALUE"
+          disabled
+        >
+          {{ MIXED_TEXT }}
+        </option>
         <option
           v-for="entity in spec.entities"
           :key="entity.label"
@@ -305,8 +437,15 @@ function syncPropertyAcrossSprite(propName: string) {
       </select>
     </label>
 
+    <div
+      v-if="hasMixedEntityTypes"
+      class="rounded-sm border border-border bg-surface-0 px-2 py-1 text-xs text-text-faint"
+    >
+      Mixed entity types. Choose one to apply it to all selected annotations.
+    </div>
+
     <!-- Primary shape section -->
-    <template v-if="getEntity()">
+    <template v-else-if="getEntity()">
       <div class="flex flex-col gap-2">
         <button
           type="button"
@@ -327,7 +466,11 @@ function syncPropertyAcrossSprite(propName: string) {
 
         <!-- Mini-canvas for shape editing -->
         <ShapeCanvas
-          v-if="!collapsed.has('primary') && currentSheetImageSrc"
+          v-if="
+            !isMultiSelection &&
+            !collapsed.has('primary') &&
+            currentSheetImageSrc
+          "
           :annotation="annotation"
           :spec="spec"
           :shape-name="
@@ -354,7 +497,10 @@ function syncPropertyAcrossSprite(propName: string) {
             {{ field }}
             <input
               type="number"
-              :value="(annotation.aabb as any)[field] ?? 0"
+              :value="primaryShapeFieldValue('aabb', field)"
+              :placeholder="
+                primaryShapeFieldState('aabb', field).mixed ? MIXED_TEXT : ''
+              "
               @input="
                 onShapeInput(
                   'aabb',
@@ -379,7 +525,10 @@ function syncPropertyAcrossSprite(propName: string) {
             {{ field }}
             <input
               type="number"
-              :value="(annotation.point as any)[field] ?? 0"
+              :value="primaryShapeFieldValue('point', field)"
+              :placeholder="
+                primaryShapeFieldState('point', field).mixed ? MIXED_TEXT : ''
+              "
               @input="
                 onShapeInput(
                   'point',
@@ -441,7 +590,10 @@ function syncPropertyAcrossSprite(propName: string) {
               >
                 <input
                   type="number"
-                  :value="annotation.properties[def.name]"
+                  :value="propertyInputValue(def as ScalarPropertyField)"
+                  :placeholder="
+                    propertyState(def.name).mixed ? MIXED_TEXT : ''
+                  "
                   @input="
                     onPropertyInput(
                       def,
@@ -454,11 +606,9 @@ function syncPropertyAcrossSprite(propName: string) {
               <label v-else-if="def.kind === 'scalar'" :class="labelClass">
                 <input
                   type="text"
-                  :value="
-                    displayValue(
-                      def as ScalarPropertyField,
-                      annotation.properties[def.name]
-                    )
+                  :value="propertyInputValue(def as ScalarPropertyField)"
+                  :placeholder="
+                    propertyPlaceholder(def as ScalarPropertyField)
                   "
                   @input="
                     onPropertyInput(
@@ -472,7 +622,11 @@ function syncPropertyAcrossSprite(propName: string) {
               <template v-else-if="def.kind === 'shape'">
                 <div class="flex flex-col gap-1.5">
                   <ShapeCanvas
-                    v-if="currentSheetImageSrc && annotation.aabb"
+                    v-if="
+                      !isMultiSelection &&
+                      currentSheetImageSrc &&
+                      annotation.aabb
+                    "
                     :annotation="annotation"
                     :spec="spec"
                     :shape-name="def.name"
@@ -493,7 +647,12 @@ function syncPropertyAcrossSprite(propName: string) {
                       <input
                         type="number"
                         :value="
-                          (annotation.properties[def.name] as any)?.[field] ?? 0
+                          propertyShapeFieldValue(def.name, null, field)
+                        "
+                        :placeholder="
+                          propertyShapeFieldState(def.name, null, field).mixed
+                            ? MIXED_TEXT
+                            : ''
                         "
                         @input="
                           onShapePropertyInput(
@@ -576,9 +735,15 @@ function syncPropertyAcrossSprite(propName: string) {
                 v-if="def.kind === 'scalar' && def.type === 'boolean'"
                 :class="[labelClass, 'flex-row items-center']"
               >
+                <span
+                  v-if="propertyState(def.name).mixed"
+                  :class="selectionMetaClass"
+                >
+                  {{ MIXED_TEXT }}
+                </span>
                 <input
                   type="checkbox"
-                  :checked="!!annotation.properties[def.name]"
+                  :checked="propertyBooleanValue(def.name)"
                   @change="
                     onPropertyInput(
                       def,
@@ -591,7 +756,7 @@ function syncPropertyAcrossSprite(propName: string) {
               <!-- Enum select -->
               <label v-else-if="def.kind === 'enum'" :class="labelClass">
                 <select
-                  :value="annotation.properties[def.name]"
+                  :value="propertySelectValue(def.name)"
                   @change="
                     onPropertyInput(
                       def,
@@ -599,6 +764,13 @@ function syncPropertyAcrossSprite(propName: string) {
                     )
                   "
                 >
+                  <option
+                    v-if="propertyState(def.name).mixed"
+                    :value="MIXED_SELECT_VALUE"
+                    disabled
+                  >
+                    {{ MIXED_TEXT }}
+                  </option>
                   <option
                     v-for="opt in (def as any).values"
                     :key="opt"
@@ -613,7 +785,12 @@ function syncPropertyAcrossSprite(propName: string) {
               <label v-else-if="def.kind === 'color'" :class="labelClass">
                 <ColorPicker
                   :model-value="
-                    (annotation.properties[def.name] as string) ?? ''
+                    propertyState(def.name).mixed
+                      ? ''
+                      : ((propertyState(def.name).value as string) ?? '')
+                  "
+                  :placeholder="
+                    propertyState(def.name).mixed ? MIXED_TEXT : undefined
                   "
                   :image-source="currentSheetImageSrc"
                   :aabb="annotation.aabb"
@@ -633,7 +810,10 @@ function syncPropertyAcrossSprite(propName: string) {
               >
                 <input
                   type="number"
-                  :value="annotation.properties[def.name]"
+                  :value="propertyInputValue(def as ScalarPropertyField)"
+                  :placeholder="
+                    propertyState(def.name).mixed ? MIXED_TEXT : ''
+                  "
                   @input="
                     onPropertyInput(
                       def,
@@ -647,14 +827,8 @@ function syncPropertyAcrossSprite(propName: string) {
               <label v-else-if="def.kind === 'scalar'" :class="labelClass">
                 <input
                   type="text"
-                  :value="
-                    displayValue(def as any, annotation.properties[def.name])
-                  "
-                  :placeholder="
-                    (def as any).type === 'string[]'
-                      ? 'comma-separated values'
-                      : ''
-                  "
+                  :value="propertyInputValue(def as ScalarPropertyField)"
+                  :placeholder="propertyPlaceholder(def as ScalarPropertyField)"
                   @input="
                     onPropertyInput(
                       def,
@@ -669,7 +843,11 @@ function syncPropertyAcrossSprite(propName: string) {
                 <div class="flex flex-col gap-1.5">
                   <!-- Mini-canvas preview -->
                   <ShapeCanvas
-                    v-if="currentSheetImageSrc && annotation.aabb"
+                    v-if="
+                      !isMultiSelection &&
+                      currentSheetImageSrc &&
+                      annotation.aabb
+                    "
                     :annotation="annotation"
                     :spec="spec"
                     :shape-name="def.name"
@@ -698,8 +876,12 @@ function syncPropertyAcrossSprite(propName: string) {
                         <input
                           type="number"
                           :value="
-                            (annotation.properties[def.name] as any)?.[field] ??
-                            0
+                            propertyShapeFieldValue(def.name, null, field)
+                          "
+                          :placeholder="
+                            propertyShapeFieldState(def.name, null, field).mixed
+                              ? MIXED_TEXT
+                              : ''
                           "
                           @input="
                             onShapePropertyInput(
@@ -731,8 +913,12 @@ function syncPropertyAcrossSprite(propName: string) {
                         <input
                           type="number"
                           :value="
-                            (annotation.properties[def.name] as any)?.[field] ??
-                            0
+                            propertyShapeFieldValue(def.name, null, field)
+                          "
+                          :placeholder="
+                            propertyShapeFieldState(def.name, null, field).mixed
+                              ? MIXED_TEXT
+                              : ''
                           "
                           @input="
                             onShapePropertyInput(
@@ -750,6 +936,13 @@ function syncPropertyAcrossSprite(propName: string) {
                   <!-- Array shapes -->
                   <template v-if="(def as ShapePropertyField).array">
                     <div
+                      v-if="isMultiSelection"
+                      class="rounded-sm border border-border bg-surface-0 px-2 py-1 text-xs text-text-faint"
+                    >
+                      Multi-edit for shape arrays is not supported.
+                    </div>
+                    <div
+                      v-else
                       v-for="(item, idx) in (annotation.properties[
                         def.name
                       ] as any[]) ?? []"
@@ -815,6 +1008,7 @@ function syncPropertyAcrossSprite(propName: string) {
                       </div>
                     </div>
                     <button
+                      v-if="!isMultiSelection"
                       type="button"
                       :class="controlSubtleButtonClass"
                       @click="

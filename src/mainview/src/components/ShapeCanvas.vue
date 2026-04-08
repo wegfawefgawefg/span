@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import type { Annotation } from '../annotation';
 import type { SpanSpec } from '../spec/types';
 import { getEntityByLabel } from '../spec/types';
-import { updateShapeData, markDirty } from '../state';
+import { currentSheet, recordPaintUndoSnapshot, updateShapeData } from '../state';
 import { activeEyedropper } from '../state/toolState';
 
 const props = defineProps<{
@@ -25,6 +25,7 @@ const emit = defineEmits<{
     propName: string,
     index: number | null,
     patch: Record<string, number>,
+    captureHistory?: boolean,
   ];
 }>();
 
@@ -255,6 +256,7 @@ interface DragState {
   // For property shapes
   propertyIndex: number | null;
   isPropertyShape: boolean;
+  historyRecorded: boolean;
 }
 
 const drag = ref<DragState | null>(null);
@@ -284,6 +286,7 @@ function onShapePointerDown(event: PointerEvent) {
     startData,
     propertyIndex: null,
     isPropertyShape: false,
+    historyRecorded: false,
   };
 
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -312,7 +315,24 @@ function onPointerMove(event: PointerEvent) {
   }
 
   if (Object.keys(patch).length > 0) {
-    updateShapeData(props.shapeName, patch);
+    const changed =
+      props.shapeName === 'aabb' && props.annotation.aabb
+        ? Object.entries(patch).some(
+            ([key, value]) =>
+              (props.annotation.aabb as Record<string, number>)[key] !== value
+          )
+        : props.shapeName === 'point' && props.annotation.point
+          ? Object.entries(patch).some(
+              ([key, value]) =>
+                (props.annotation.point as Record<string, number>)[key] !== value
+            )
+          : false;
+    if (!changed) return;
+    if (!d.historyRecorded && currentSheet.value) {
+      recordPaintUndoSnapshot(currentSheet.value);
+      d.historyRecorded = true;
+    }
+    updateShapeData(props.shapeName, patch, { captureHistory: false });
   }
 }
 
@@ -347,6 +367,7 @@ function onPropertyShapePointerDown(event: PointerEvent, idx: number) {
     startData,
     propertyIndex: props.propertyShapes?.array ? idx : null,
     isPropertyShape: true,
+    historyRecorded: false,
   };
 
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
@@ -375,7 +396,26 @@ function onPropertyPointerMove(event: PointerEvent) {
   }
 
   if (Object.keys(patch).length > 0) {
-    emit('update:propertyShape', props.shapeName, d.propertyIndex, patch);
+    const items = props.propertyShapes?.items ?? [];
+    const currentItem = items[d.propertyIndex ?? 0];
+    const changed = currentItem
+      ? Object.entries(patch).some(
+          ([key, value]) =>
+            (currentItem as Record<string, number | undefined>)[key] !== value
+        )
+      : false;
+    if (!changed) return;
+    if (!d.historyRecorded && currentSheet.value) {
+      recordPaintUndoSnapshot(currentSheet.value);
+      d.historyRecorded = true;
+    }
+    emit(
+      'update:propertyShape',
+      props.shapeName,
+      d.propertyIndex,
+      patch,
+      false
+    );
   }
 }
 
@@ -455,7 +495,13 @@ function onOverlayClick(event: PointerEvent) {
     !Array.isArray(props.annotation.properties[props.shapeName])
   ) {
     // Single point — just update position
-    emit('update:propertyShape', props.shapeName, null, { x: relX, y: relY });
+    emit(
+      'update:propertyShape',
+      props.shapeName,
+      null,
+      { x: relX, y: relY },
+      true
+    );
   }
 }
 </script>

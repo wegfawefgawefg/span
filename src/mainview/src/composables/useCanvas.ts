@@ -1,6 +1,6 @@
 import { ref, triggerRef } from "vue";
 import type { Annotation } from "../annotation";
-import { zoom, annotations, markDirty } from "../state";
+import { zoom, annotations, currentSheet, markDirty, recordPaintUndoSnapshot } from "../state";
 import { ZOOM_MIN, ZOOM_MAX } from "../state";
 
 function clamp(value: number, min: number, max: number): number {
@@ -18,6 +18,7 @@ export interface DragState {
 	startAabb: { x: number; y: number; w: number; h: number } | null;
 	startPoint: { x: number; y: number } | null;
 	startPropertyValue: unknown;
+	historyRecorded: boolean;
 }
 
 export function useCanvas() {
@@ -92,6 +93,7 @@ export function useCanvas() {
 			startPropertyValue: shapeName !== "aabb" && shapeName !== "point"
 				? JSON.parse(JSON.stringify(annotation.properties[shapeName]))
 				: null,
+			historyRecorded: false,
 		};
 	}
 
@@ -113,17 +115,40 @@ export function useCanvas() {
 			if (d.mode === "move") {
 				const w = ann.aabb.w;
 				const h = ann.aabb.h;
-				ann.aabb.x = clamp(Math.round(d.startAabb.x + deltaX), 0, imageWidth - w);
-				ann.aabb.y = clamp(Math.round(d.startAabb.y + deltaY), 0, imageHeight - h);
+				const nextX = clamp(Math.round(d.startAabb.x + deltaX), 0, imageWidth - w);
+				const nextY = clamp(Math.round(d.startAabb.y + deltaY), 0, imageHeight - h);
+				if (nextX === ann.aabb.x && nextY === ann.aabb.y) return;
+				if (!d.historyRecorded && currentSheet.value) {
+					recordPaintUndoSnapshot(currentSheet.value);
+					d.historyRecorded = true;
+				}
+				ann.aabb.x = nextX;
+				ann.aabb.y = nextY;
 			} else if (d.mode === "resize") {
 				const x = ann.aabb.x;
 				const y = ann.aabb.y;
-				ann.aabb.w = clamp(Math.round(d.startAabb.w + deltaX), 1, imageWidth - x);
-				ann.aabb.h = clamp(Math.round(d.startAabb.h + deltaY), 1, imageHeight - y);
+				const nextW = clamp(Math.round(d.startAabb.w + deltaX), 1, imageWidth - x);
+				const nextH = clamp(Math.round(d.startAabb.h + deltaY), 1, imageHeight - y);
+				if (nextW === ann.aabb.w && nextH === ann.aabb.h) return;
+				if (!d.historyRecorded && currentSheet.value) {
+					recordPaintUndoSnapshot(currentSheet.value);
+					d.historyRecorded = true;
+				}
+				ann.aabb.w = nextW;
+				ann.aabb.h = nextH;
 			}
 		} else if (d.shapeName === "point" && ann.point && d.startPoint) {
-			ann.point.x = clamp(Math.round(d.startPoint.x + deltaX), 0, imageWidth);
-			ann.point.y = clamp(Math.round(d.startPoint.y + deltaY), 0, imageHeight);
+			const nextX = clamp(Math.round(d.startPoint.x + deltaX), 0, imageWidth);
+			const nextY = clamp(Math.round(d.startPoint.y + deltaY), 0, imageHeight);
+			if (nextX === ann.point.x && nextY === ann.point.y) return;
+			if (!d.historyRecorded && currentSheet.value) {
+				recordPaintUndoSnapshot(currentSheet.value);
+				d.historyRecorded = true;
+			}
+			ann.point.x = nextX;
+			ann.point.y = nextY;
+		} else {
+			return;
 		}
 		// Property shape drag handling can be added later for the CRUD feature
 

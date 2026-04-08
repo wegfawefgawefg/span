@@ -14,6 +14,7 @@ import { getEntityByLabel, getRequiredFields } from '../spec/types';
 import {
   annotations,
   sheets,
+  recordPaintUndoSnapshot,
   updateShapeData,
   updatePropertyData,
   markDirty,
@@ -54,7 +55,23 @@ function toggleSection(key: string) {
   }
 }
 
+function recordUndoForAnnotationIds(annotationIds: string[]) {
+  const remaining = new Set(annotationIds);
+  if (remaining.size === 0) return;
+
+  for (const sheet of sheets.value) {
+    const touchesSheet = sheet.annotations.some((annotation) =>
+      remaining.has(annotation.id)
+    );
+    if (touchesSheet) {
+      recordPaintUndoSnapshot(sheet);
+    }
+  }
+}
+
 function onEntityTypeChange(newType: string) {
+  if (newType === props.annotation.entityType) return;
+  recordUndoForAnnotationIds([props.annotation.id]);
   const migrated = migrateEntityType(props.annotation, props.spec, newType);
   const idx = annotations.value.findIndex((a) => a.id === props.annotation.id);
   if (idx !== -1) {
@@ -167,7 +184,8 @@ function getPropertyShapeData(def: ShapePropertyField): {
 function onShapeCanvasUpdate(
   propName: string,
   index: number | null,
-  patch: Record<string, number>
+  patch: Record<string, number>,
+  captureHistory: boolean = true
 ) {
   const current = props.annotation.properties[propName];
 
@@ -175,13 +193,13 @@ function onShapeCanvasUpdate(
     // Single shape
     const shape = (current as Record<string, number>) ?? {};
     const updated = { ...shape, ...patch };
-    updatePropertyData({ [propName]: updated });
+    updatePropertyData({ [propName]: updated }, { captureHistory });
   } else {
     // Array shape
     const arr = Array.isArray(current) ? [...current] : [];
     if (index < arr.length) {
       arr[index] = { ...arr[index], ...patch };
-      updatePropertyData({ [propName]: arr });
+      updatePropertyData({ [propName]: arr }, { captureHistory });
     }
   }
 }
@@ -255,6 +273,7 @@ function syncPropertyAcrossSprite(propName: string) {
   );
   if (targets.length === 0) return;
 
+  recordUndoForAnnotationIds(targets.map((annotation) => annotation.id));
   for (const target of targets) {
     target.properties[propName] = deepClone(value);
   }

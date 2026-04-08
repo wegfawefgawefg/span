@@ -63,8 +63,8 @@ export function getMenus(options?: {
 		{
 			label: "Edit",
 			items: [
-				{ label: "Undo Paint", action: "undo", shortcut: "Cmd+Z" },
-				{ label: "Redo Paint", action: "redo", shortcut: "Cmd+Shift+Z" },
+				{ label: "Undo", action: "undo", shortcut: "Cmd+Z" },
+				{ label: "Redo", action: "redo", shortcut: "Cmd+Shift+Z" },
 				{ separator: true },
 				{ label: "Copy Pixels", action: "copyPixels", shortcut: "Cmd+C" },
 				{ label: "Cut Pixels", action: "cutPixels", shortcut: "Cmd+X" },

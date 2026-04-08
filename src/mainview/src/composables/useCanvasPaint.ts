@@ -4,7 +4,7 @@ import {
   currentSheet,
   statusText,
 } from '../state';
-import { applyPaintedSheetImage, recordPaintUndoSnapshot } from '../state/paintHistory';
+import { applyPaintedSheetImage } from '../state/paintHistory';
 import { setPaintPalette } from '../state/paletteState';
 import { activePaintColor, paintToolSize } from '../state/toolState';
 

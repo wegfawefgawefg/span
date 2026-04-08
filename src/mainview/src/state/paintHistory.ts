@@ -19,7 +19,10 @@ export interface EditedSheetState {
 
 export interface EditSnapshot {
   imageUrl: string;
+  width: number;
+  height: number;
   annotations: Annotation[];
+  selectedAnnotationId: string | null;
 }
 
 // --- Late-bound refs from state.ts (avoids circular import) ---
@@ -29,6 +32,7 @@ let _imageWidth: Ref<number>;
 let _imageHeight: Ref<number>;
 let _statusText: Ref<string>;
 let _selectedId: Ref<string | null>;
+let _markDirty: (isDirty: boolean) => void;
 
 /** Called once by state.ts to wire up refs that live there. */
 export function bindPaintHistoryRefs(refs: {
@@ -37,12 +41,14 @@ export function bindPaintHistoryRefs(refs: {
   imageHeight: Ref<number>;
   statusText: Ref<string>;
   selectedId: Ref<string | null>;
+  markDirty: (isDirty: boolean) => void;
 }) {
   _currentSheetImageSrc = refs.currentSheetImageSrc;
   _imageWidth = refs.imageWidth;
   _imageHeight = refs.imageHeight;
   _statusText = refs.statusText;
   _selectedId = refs.selectedId;
+  _markDirty = refs.markDirty;
 }
 
 // --- State ---
@@ -84,20 +90,43 @@ export function ensureEditedSheetState(sheet: WorkspaceSheet): EditedSheetState 
 function captureEditSnapshot(sheet: WorkspaceSheet): EditSnapshot {
   return {
     imageUrl: sheet.imageUrl,
+    width: sheet.width,
+    height: sheet.height,
     annotations: JSON.parse(JSON.stringify(sheet.annotations)),
+    selectedAnnotationId: currentSheet.value === sheet ? _selectedId.value : null,
   };
 }
 
 function applyEditSnapshot(sheet: WorkspaceSheet, snapshot: EditSnapshot) {
   sheet.annotations = JSON.parse(JSON.stringify(snapshot.annotations));
-  if (currentSheet.value === sheet && _selectedId.value) {
-    const hasSelected = sheet.annotations.some((annotation) => annotation.id === _selectedId.value);
-    if (!hasSelected) {
-      _selectedId.value = sheet.annotations[0]?.id ?? null;
-    }
+  updateSheetImageState(
+    sheet,
+    snapshot.imageUrl,
+    snapshot.width,
+    snapshot.height
+  );
+  if (currentSheet.value === sheet) {
+    const selectedId = snapshot.selectedAnnotationId;
+    const hasSelected = selectedId
+      ? sheet.annotations.some((annotation) => annotation.id === selectedId)
+      : false;
+    _selectedId.value = hasSelected ? selectedId : sheet.annotations[0]?.id ?? null;
   }
-  updateSheetImageState(sheet, snapshot.imageUrl, sheet.width, sheet.height);
   triggerRef(sheets);
+}
+
+function annotationsMatch(a: Annotation[], b: Annotation[]) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function snapshotTouchesWorkspace(
+  before: EditSnapshot,
+  after: EditSnapshot
+) {
+  return before.width !== after.width
+    || before.height !== after.height
+    || before.selectedAnnotationId !== after.selectedAnnotationId
+    || !annotationsMatch(before.annotations, after.annotations);
 }
 
 function replaceEditedSheetState(sheet: WorkspaceSheet, next: EditedSheetState) {
@@ -178,12 +207,13 @@ export function applyPaintedSheetImage(
 
 export function undoPaintEdit(): boolean {
   const sheet = currentSheet.value;
-  if (!sheet || !isPaintableSheet(sheet)) return false;
+  if (!sheet) return false;
   const state = ensureEditedSheetState(sheet);
   if (state.undo.length === 0) return false;
   const previous = state.undo[state.undo.length - 1];
   const nextUndo = state.undo.slice(0, -1);
-  const redo = [...state.redo, captureEditSnapshot(sheet)].slice(-64);
+  const current = captureEditSnapshot(sheet);
+  const redo = [...state.redo, current].slice(-64);
   const dirty = previous.imageUrl !== state.originalImageUrl;
   replaceEditedSheetState(sheet, {
     ...state,
@@ -192,17 +222,21 @@ export function undoPaintEdit(): boolean {
     dirty,
   });
   applyEditSnapshot(sheet, previous);
-  _statusText.value = `${sheet.path} \u2022 Undid image edit`;
+  if (snapshotTouchesWorkspace(current, previous)) {
+    _markDirty(true);
+  }
+  _statusText.value = `${sheet.path} \u2022 Undid edit`;
   return true;
 }
 
 export function redoPaintEdit(): boolean {
   const sheet = currentSheet.value;
-  if (!sheet || !isPaintableSheet(sheet)) return false;
+  if (!sheet) return false;
   const state = ensureEditedSheetState(sheet);
   if (state.redo.length === 0) return false;
   const next = state.redo[state.redo.length - 1];
-  const undo = [...state.undo, captureEditSnapshot(sheet)].slice(-64);
+  const current = captureEditSnapshot(sheet);
+  const undo = [...state.undo, current].slice(-64);
   const nextRedo = state.redo.slice(0, -1);
   const dirty = next.imageUrl !== state.originalImageUrl;
   replaceEditedSheetState(sheet, {
@@ -212,7 +246,10 @@ export function redoPaintEdit(): boolean {
     dirty,
   });
   applyEditSnapshot(sheet, next);
-  _statusText.value = `${sheet.path} \u2022 Redid image edit`;
+  if (snapshotTouchesWorkspace(current, next)) {
+    _markDirty(true);
+  }
+  _statusText.value = `${sheet.path} \u2022 Redid edit`;
   return true;
 }
 

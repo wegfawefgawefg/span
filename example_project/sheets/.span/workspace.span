@@ -5,7 +5,7 @@
   "palettes": [],
   "activePaletteId": null,
   "lastOpenSheetPath": "01 - Link.png",
-  "selectedAnnotationId": "a114985c-142e-4687-97e4-c1490ed6b421",
+  "selectedAnnotationId": "38a27376-e832-40d5-bb08-edade8f74a56",
   "sheets": [
     {
       "path": "01 - Link.png",
@@ -65,7 +65,7 @@
           "chromaKey": null,
           "properties": {
             "name": "link1",
-            "frame": 2,
+            "frame": 4,
             "duration": 10,
             "offset": {
               "x": 0,
@@ -209,7 +209,7 @@
         "gridWidth": 16,
         "gridHeight": 16,
         "zoom": 16.663,
-        "centerX": 41.31909019984396,
+        "centerX": 41.28908359839165,
         "centerY": 24.035287763307927
       }
     },
@@ -221,13 +221,21 @@
         "gridWidth": 16,
         "gridHeight": 16,
         "zoom": 2.573,
-        "centerX": 163.42790516906337,
-        "centerY": 146.91022153128642
+        "centerX": 108.43373493975903,
+        "centerY": 105.51884959191605
       }
     },
     {
       "path": "05 - Overworld (First Quest).png",
-      "annotations": []
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 0.173,
+        "centerX": 2242.7745664739887,
+        "centerY": 2274.5664739884396
+      }
     },
     {
       "path": "06 - Level 1 (Eagle).png",

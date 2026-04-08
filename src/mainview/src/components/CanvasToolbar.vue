@@ -63,10 +63,7 @@ function normalizeCheckerStrength() {
       </button>
     </div>
     <div class="canvas-toolbar-divider"></div>
-    <label
-      class="canvas-toolbar-toggle"
-      :class="{ active: canvasGridEnabled }"
-    >
+    <label class="canvas-toolbar-toggle" :class="{ active: canvasGridEnabled }">
       <input v-model="canvasGridEnabled" type="checkbox" class="sr-only" />
       <Grid3x3 :size="16" />
       <span class="canvas-toolbar-label">Grid</span>
@@ -107,9 +104,9 @@ function normalizeCheckerStrength() {
         class="canvas-toolbar-range"
         @change="normalizeCheckerStrength"
       />
-      <span class="canvas-toolbar-range-value">{{
-        canvasCheckerStrength
-      }}</span>
+      <span class="canvas-toolbar-range-value">
+        {{ canvasCheckerStrength }}
+      </span>
     </label>
   </div>
 </template>

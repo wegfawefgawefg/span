@@ -18,7 +18,11 @@ import {
   paintPalette,
   projectPalettes,
 } from '../state/paletteState';
-import { activePaintColor, activePaintTool, paintToolSize } from '../state/toolState';
+import {
+  activePaintColor,
+  activePaintTool,
+  paintToolSize,
+} from '../state/toolState';
 import { api } from '../platform/adapter';
 
 const supportedSheet = () =>
@@ -194,8 +198,9 @@ function handlePaletteSelection(event: Event) {
           <div class="flex flex-col gap-2">
             <label
               class="text-[11px] font-mono text-text-faint uppercase tracking-[0.12em]"
-              >Brush Size</label
             >
+              Brush Size
+            </label>
             <input
               v-model.number="paintToolSize"
               type="range"

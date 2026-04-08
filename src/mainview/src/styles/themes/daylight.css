@@ -2,6 +2,7 @@
 
 .dv-theme-daylight.dv-theme-daylight {
 	/* App tokens */
+	--control-color-scheme: light;
 	--color-surface-0: #f5f2ed;
 	--color-surface-1: #ece8e0;
 	--color-surface-2: #e2ddd4;

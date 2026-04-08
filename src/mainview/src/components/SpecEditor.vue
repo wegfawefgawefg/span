@@ -9,6 +9,12 @@ import {
 import { serializeSpecRaw } from '../spec/serialize';
 import type { SpecError, SpecDiff } from '../spec/types';
 import { DEFAULT_SPEC_FORMAT } from '../spec/default-spec';
+import {
+  controlButtonClass,
+  controlPrimaryButtonClass,
+  controlSegmentButtonActiveClass,
+  controlSegmentButtonClass,
+} from '../controlStyles';
 
 const REFERENCE_SPEC_RAW = `\
 - label: Sprite
@@ -183,30 +189,42 @@ function switchFormat(target: 'yaml' | 'json') {
 </script>
 
 <template>
-  <div class="spec-editor">
+  <div class="flex h-full flex-col bg-surface-0 text-text">
     <!-- Toolbar -->
-    <div class="spec-toolbar">
-      <div class="format-toggle">
+    <div
+      class="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-surface-1 px-2 py-1"
+    >
+      <div class="flex gap-0.5">
         <button
           type="button"
-          class="format-btn"
-          :class="{ active: editorFormat === 'yaml' }"
+          :class="[
+            controlSegmentButtonClass,
+            editorFormat === 'yaml' ? controlSegmentButtonActiveClass : '',
+          ]"
           @click="switchFormat('yaml')"
         >
           YAML
         </button>
         <button
           type="button"
-          class="format-btn"
-          :class="{ active: editorFormat === 'json' }"
+          :class="[
+            controlSegmentButtonClass,
+            editorFormat === 'json' ? controlSegmentButtonActiveClass : '',
+          ]"
           @click="switchFormat('json')"
         >
           JSON
         </button>
       </div>
       <div
-        class="status-dot"
-        :class="errors.length > 0 ? 'error' : pendingDiff ? 'warning' : 'valid'"
+        class="h-2 w-2 shrink-0 rounded-full"
+        :class="
+          errors.length > 0
+            ? 'bg-danger'
+            : pendingDiff
+              ? 'bg-amber-400'
+              : 'bg-emerald-400'
+        "
         :title="
           errors.length > 0
             ? 'Parse errors'
@@ -216,9 +234,11 @@ function switchFormat(target: 'yaml' | 'json') {
         "
       />
     </div>
-    <div class="spec-storage-note">
+    <div
+      class="shrink-0 border-b border-border bg-surface-1 px-2 py-1.5 text-[11px] leading-[1.4] text-text-faint"
+    >
       Spec edits auto-apply and save to
-      <code>{{
+      <code class="font-mono text-text-dim">{{
         specFilePath
           ? specFilePath.split('/').slice(-2).join('/')
           : '.span/spec.yaml'
@@ -227,32 +247,46 @@ function switchFormat(target: 'yaml' | 'json') {
     </div>
 
     <!-- Destructive change warning -->
-    <div v-if="pendingDiff" class="warning-banner">
-      <div class="warning-text">
+    <div
+      v-if="pendingDiff"
+      class="shrink-0 border-b border-amber-400/30 bg-amber-400/10 p-2"
+    >
+      <div class="mb-1.5 text-[11px] text-amber-400">
         <strong>Destructive changes detected:</strong>
-        <ul>
+        <ul class="mt-1 ml-4 list-disc p-0">
           <li
             v-for="change in pendingDiff.changes.filter((c) => c.destructive)"
             :key="change.description"
+            class="mt-0.5"
           >
             {{ change.description }}
           </li>
         </ul>
       </div>
-      <div class="warning-actions">
-        <button type="button" class="btn-apply" @click="confirmDestructive">
+      <div class="flex gap-1.5">
+        <button
+          type="button"
+          :class="controlPrimaryButtonClass"
+          @click="confirmDestructive"
+        >
           Apply
         </button>
-        <button type="button" class="btn-revert" @click="revertToLastApplied">
+        <button
+          type="button"
+          :class="controlButtonClass"
+          @click="revertToLastApplied"
+        >
           Revert
         </button>
       </div>
     </div>
 
-    <div class="spec-body">
+    <div
+      class="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_320px] max-[1100px]:grid-cols-1 max-[1100px]:grid-rows-[minmax(0,1fr)_auto]"
+    >
       <textarea
         v-model="editorText"
-        class="spec-textarea"
+        class="h-full min-h-0 w-full resize-none border-0 bg-surface-0 p-3 font-mono text-xs leading-[1.5] text-text outline-none placeholder:text-text-faint [tab-size:2]"
         spellcheck="false"
         autocomplete="off"
         autocorrect="off"
@@ -260,272 +294,45 @@ function switchFormat(target: 'yaml' | 'json') {
         @input="onInput"
       />
 
-      <aside class="spec-guide">
-        <div class="spec-guide-section">
-          <div class="spec-guide-title">Guide</div>
-          <ul class="spec-guide-list">
+      <aside
+        class="flex flex-col gap-3 overflow-y-auto border-l border-border bg-surface-1 p-2.5 max-[1100px]:max-h-[220px] max-[1100px]:border-l-0 max-[1100px]:border-t"
+      >
+        <div class="flex flex-col gap-1.5">
+          <div
+            class="text-[11px] font-semibold uppercase tracking-[0.04em] text-text-dim"
+          >
+            Guide
+          </div>
+          <ul class="m-0 flex list-disc flex-col gap-1 pl-4 text-[11px] text-text-faint">
             <li v-for="hint in syntaxHints" :key="hint">{{ hint }}</li>
           </ul>
         </div>
-        <div class="spec-guide-section">
-          <div class="spec-guide-title">
+        <div class="flex flex-col gap-1.5">
+          <div
+            class="text-[11px] font-semibold uppercase tracking-[0.04em] text-text-dim"
+          >
             Sample {{ editorFormat.toUpperCase() }}
           </div>
-          <pre class="spec-guide-sample"><code>{{ sampleSpec }}</code></pre>
+          <pre
+            class="m-0 overflow-x-auto rounded border border-border bg-surface-0 p-2 font-mono text-[11px] leading-[1.45] text-text"
+          ><code>{{ sampleSpec }}</code></pre>
         </div>
       </aside>
     </div>
 
     <!-- Error panel -->
-    <div v-if="errors.length > 0 && !pendingDiff" class="error-panel">
-      <div v-for="(err, i) in errors" :key="i" class="error-item">
-        <span class="error-path" v-if="err.path">{{ err.path }}:</span>
+    <div
+      v-if="errors.length > 0 && !pendingDiff"
+      class="max-h-[120px] shrink-0 overflow-y-auto border-t border-danger bg-red-500/10 px-2 py-1.5"
+    >
+      <div
+        v-for="(err, i) in errors"
+        :key="i"
+        class="py-0.5 font-mono text-[11px] text-danger"
+      >
+        <span v-if="err.path" class="mr-1 text-text-faint">{{ err.path }}:</span>
         {{ err.message }}
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.spec-editor {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background-color: var(--color-surface-0);
-  color: var(--color-text);
-}
-
-.spec-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--color-border);
-  background-color: var(--color-surface-1);
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.format-toggle {
-  display: flex;
-  gap: 2px;
-}
-
-.format-btn {
-  padding: 2px 8px;
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  background: transparent;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.format-btn:hover {
-  color: var(--color-text-dim);
-}
-
-.format-btn.active {
-  background-color: var(--color-copper-glow);
-  color: var(--color-copper-bright);
-  border-color: var(--color-copper);
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.status-dot.valid {
-  background-color: #4ade80;
-}
-
-.status-dot.error {
-  background-color: var(--color-danger);
-}
-
-.status-dot.warning {
-  background-color: #fbbf24;
-}
-
-.warning-banner {
-  padding: 8px;
-  background-color: #fbbf2418;
-  border-bottom: 1px solid #fbbf2444;
-  flex-shrink: 0;
-}
-
-.warning-text {
-  font-size: 11px;
-  color: #fbbf24;
-  margin-bottom: 6px;
-}
-
-.warning-text ul {
-  margin: 4px 0 0 16px;
-  padding: 0;
-}
-
-.warning-text li {
-  margin: 2px 0;
-}
-
-.warning-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.spec-storage-note {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--color-border);
-  background-color: var(--color-surface-1);
-  color: var(--color-text-faint);
-  font-size: 11px;
-  line-height: 1.4;
-  flex-shrink: 0;
-}
-
-.spec-storage-note code {
-  color: var(--color-text-dim);
-  font-family: var(--font-mono, monospace);
-}
-
-.btn-apply,
-.btn-revert {
-  padding: 2px 10px;
-  font-size: 11px;
-  border-radius: 3px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.btn-apply {
-  background-color: var(--color-copper);
-  color: var(--color-surface-0);
-}
-
-.btn-apply:hover {
-  filter: brightness(1.1);
-}
-
-.btn-revert {
-  background-color: var(--color-surface-1);
-  color: var(--color-text-dim);
-  border: 1px solid var(--color-border);
-}
-
-.btn-revert:hover {
-  color: var(--color-text);
-}
-
-.spec-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  min-height: 0;
-  flex: 1;
-}
-
-.spec-textarea {
-  min-width: 0;
-  resize: none;
-  border: none;
-  outline: none;
-  padding: 12px;
-  font-family: var(--font-mono, monospace);
-  font-size: 12px;
-  line-height: 1.5;
-  tab-size: 2;
-  background-color: var(--color-surface-0);
-  color: var(--color-text);
-}
-
-.spec-guide {
-  border-left: 1px solid var(--color-border);
-  background-color: var(--color-surface-1);
-  padding: 10px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.spec-guide-section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.spec-guide-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-text-dim);
-}
-
-.spec-guide-list {
-  margin: 0;
-  padding-left: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--color-text-faint);
-}
-
-.spec-guide-sample {
-  margin: 0;
-  padding: 8px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background-color: var(--color-surface-0);
-  color: var(--color-text);
-  font-size: 11px;
-  line-height: 1.45;
-  overflow-x: auto;
-  font-family: var(--font-mono, monospace);
-}
-
-.spec-textarea::placeholder {
-  color: var(--color-text-faint);
-}
-
-.error-panel {
-  max-height: 120px;
-  overflow-y: auto;
-  padding: 6px 8px;
-  border-top: 1px solid var(--color-danger);
-  background-color: #ef444418;
-  flex-shrink: 0;
-}
-
-.error-item {
-  font-size: 11px;
-  font-family: var(--font-mono, monospace);
-  color: var(--color-danger);
-  padding: 2px 0;
-}
-
-.error-path {
-  color: var(--color-text-faint);
-  margin-right: 4px;
-}
-
-@media (max-width: 1100px) {
-  .spec-body {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
-
-  .spec-guide {
-    border-left: none;
-    border-top: 1px solid var(--color-border);
-    max-height: 220px;
-  }
-}
-</style>

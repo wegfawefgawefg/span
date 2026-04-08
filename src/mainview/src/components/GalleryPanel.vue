@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import type { Annotation } from '../annotation';
 import {
   sheets,
@@ -13,6 +13,14 @@ import {
 import { getEntityByLabel } from '../spec/types';
 import ContextMenu from './ContextMenu.vue';
 import type { MenuEntry } from './ContextMenu.vue';
+import {
+  controlChipButtonActiveClass,
+  controlChipButtonClass,
+  controlListButtonActiveClass,
+  controlListButtonClass,
+  controlListButtonDefaultClass,
+  controlSliderClass,
+} from '../controlStyles';
 
 interface GalleryFrame {
   annotation: Annotation;
@@ -43,6 +51,11 @@ const galleryMsPerDuration = ref(loadGalleryMsPerDuration());
 const groupBySheet = ref(loadGroupBySheet());
 const collapsedSections = ref(new Set<string>());
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
+const sectionRefs = ref<Map<string, HTMLElement>>(new Map());
+const spriteNameCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: 'base',
+});
 
 // Invalidate cached images only when sheets are added/removed or images change (not on annotation edits)
 watch(
@@ -209,6 +222,12 @@ function getFrameDuration(ann: Annotation): number {
   return Math.max(1, Math.round(value));
 }
 
+function compareSpriteGroups(a: SpriteGroup, b: SpriteGroup): number {
+  const nameCompare = spriteNameCollator.compare(a.name, b.name);
+  if (nameCompare !== 0) return nameCompare;
+  return spriteNameCollator.compare(a.key, b.key);
+}
+
 function groupKey(ann: Annotation): string {
   const name = getAnnotationName(ann).trim();
   // Build extra grouping fields: all string properties except the first (name)
@@ -289,7 +308,7 @@ const groups = computed<SpriteGroup[]>(() => {
     g.previewBounds = computePreviewBounds(g.frames);
   }
 
-  result.sort((a, b) => a.name.localeCompare(b.name));
+  result.sort(compareSpriteGroups);
 
   return result;
 });
@@ -315,14 +334,10 @@ const sheetSections = computed<SheetSection[]>(() => {
   }
   const sections: SheetSection[] = [];
   for (const [sheetPath, sectionGroups] of sectionMap) {
+    sectionGroups.sort(compareSpriteGroups);
     sections.push({ sheetPath, groups: sectionGroups });
   }
-  sections.sort((a, b) => {
-    const currentPath = currentSheet.value?.path;
-    if (a.sheetPath === currentPath && b.sheetPath !== currentPath) return -1;
-    if (b.sheetPath === currentPath && a.sheetPath !== currentPath) return 1;
-    return a.sheetPath.localeCompare(b.sheetPath);
-  });
+  sections.sort((a, b) => spriteNameCollator.compare(a.sheetPath, b.sheetPath));
   return sections;
 });
 
@@ -444,6 +459,35 @@ function setCanvasRef(key: string, el: unknown) {
   }
 }
 
+function setSectionRef(sheetPath: string, el: unknown) {
+  if (el instanceof HTMLElement) {
+    sectionRefs.value.set(sheetPath, el);
+  } else {
+    sectionRefs.value.delete(sheetPath);
+  }
+}
+
+async function scrollCurrentSheetIntoView() {
+  if (!groupBySheet.value) return;
+  const sheetPath = currentSheet.value?.path;
+  if (!sheetPath) return;
+  await nextTick();
+  requestAnimationFrame(() => {
+    const section = sectionRefs.value.get(sheetPath);
+    if (!section) return;
+    section.scrollIntoView({
+      block: 'start',
+      inline: 'nearest',
+    });
+    requestAnimationFrame(() => {
+      section.scrollIntoView({
+        block: 'start',
+        inline: 'nearest',
+      });
+    });
+  });
+}
+
 watch(groups, () => {
   requestAnimationFrame(renderPreviews);
 });
@@ -451,6 +495,14 @@ watch(groups, () => {
 watch(previewScale, () => {
   requestAnimationFrame(renderPreviews);
 });
+
+watch(
+  [groupBySheet, () => currentSheet.value?.path, sheetSections],
+  () => {
+    void scrollCurrentSheetIntoView();
+  },
+  { immediate: true, flush: 'post' }
+);
 
 watch(galleryMsPerDuration, (value) => {
   const normalized = Math.max(16, Math.min(1000, Math.round(value || 60)));
@@ -529,7 +581,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
         max="8"
         step="1"
         :value="previewScale"
-        class="gallery-zoom-slider flex-1"
+        :class="[controlSliderClass, 'flex-1']"
         @input="
           previewScale = Number(($event.target as HTMLInputElement).value)
         "
@@ -549,8 +601,10 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
       </label>
       <button
         type="button"
-        class="text-[10px] font-mono shrink-0 border rounded-sm px-1 transition-colors"
-        :class="groupBySheet ? 'text-copper-bright border-copper/40 bg-copper-glow' : 'text-text-faint border-border hover:border-border-strong'"
+        :class="[
+          controlChipButtonClass,
+          groupBySheet ? controlChipButtonActiveClass : '',
+        ]"
         :title="groupBySheet ? 'Grouped by sheet — click to show flat list' : 'Flat list — click to group by sheet'"
         @click="toggleGroupBySheet"
       >sheet</button>
@@ -564,7 +618,12 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
     >
       <!-- Grouped by sheet -->
       <template v-if="groupBySheet">
-        <div v-for="section in sheetSections" :key="section.sheetPath" class="mb-3">
+        <div
+          v-for="section in sheetSections"
+          :key="section.sheetPath"
+          :ref="(el: unknown) => setSectionRef(section.sheetPath, el)"
+          class="mb-3"
+        >
           <button
             type="button"
             class="flex items-center gap-1 text-[10px] font-mono truncate mb-1 px-0.5 w-full text-left cursor-pointer hover:underline"
@@ -580,12 +639,13 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
               v-for="group in section.groups"
               :key="group.key"
               type="button"
-              class="inline-flex flex-col border rounded-sm text-left transition-all cursor-pointer active:translate-y-px overflow-hidden"
               :class="[
+                controlListButtonClass,
+                'inline-flex flex-col overflow-hidden',
                 previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
                 group.inCurrentSheet
-                  ? 'bg-copper-glow border-copper/30'
-                  : 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px',
+                  ? controlListButtonActiveClass
+                  : controlListButtonDefaultClass,
               ]"
               :style="
                 previewScale >= 3
@@ -600,7 +660,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
             >
               <canvas
                 :ref="(el: any) => setCanvasRef(group.key, el)"
-                class="gallery-preview"
+                class="block rounded-[2px] border border-border [image-rendering:pixelated] [background:repeating-conic-gradient(rgba(255,255,255,0.04)_0%_25%,transparent_0%_50%)_0_0/12px_12px,var(--color-surface-0)]"
                 :title="`${group.name} — ${group.frameCount}f`"
               ></canvas>
               <template v-if="previewScale >= 3">
@@ -626,12 +686,13 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
           v-for="group in groups"
           :key="group.key"
           type="button"
-          class="inline-flex flex-col border rounded-sm text-left transition-all cursor-pointer active:translate-y-px overflow-hidden"
           :class="[
+            controlListButtonClass,
+            'inline-flex flex-col overflow-hidden',
             previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
             group.inCurrentSheet
-              ? 'bg-copper-glow border-copper/30'
-              : 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px',
+              ? controlListButtonActiveClass
+              : controlListButtonDefaultClass,
           ]"
           :style="
             previewScale >= 3
@@ -646,7 +707,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
         >
           <canvas
             :ref="(el: any) => setCanvasRef(group.key, el)"
-            class="gallery-preview"
+            class="block rounded-[2px] border border-border [image-rendering:pixelated] [background:repeating-conic-gradient(rgba(255,255,255,0.04)_0%_25%,transparent_0%_50%)_0_0/12px_12px,var(--color-surface-0)]"
             :title="`${group.name} — ${group.frameCount}f`"
           ></canvas>
           <template v-if="previewScale >= 3">

@@ -24,6 +24,10 @@ import {
   paintToolSize,
 } from '../state/toolState';
 import { api } from '../platform/adapter';
+import {
+  controlButtonClass,
+  controlSliderClass,
+} from '../controlStyles';
 
 const supportedSheet = () =>
   !!currentSheet.value &&
@@ -43,6 +47,7 @@ function handlePaletteSelection(event: Event) {
   const value = (event.target as HTMLSelectElement).value || null;
   setActiveProjectPalette(value);
 }
+
 </script>
 
 <template>
@@ -96,7 +101,7 @@ function handlePaletteSelection(event: Event) {
             <div class="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                class="paint-action-button"
+                :class="controlButtonClass"
                 :disabled="!paintPixelSelection"
                 @click="copyPixelSelection()"
               >
@@ -104,7 +109,7 @@ function handlePaletteSelection(event: Event) {
               </button>
               <button
                 type="button"
-                class="paint-action-button"
+                :class="controlButtonClass"
                 :disabled="!paintPixelSelection"
                 @click="cutPixelSelection()"
               >
@@ -112,7 +117,7 @@ function handlePaletteSelection(event: Event) {
               </button>
               <button
                 type="button"
-                class="paint-action-button"
+                :class="controlButtonClass"
                 :disabled="!hasPaintClipboard"
                 @click="pastePixelSelection()"
               >
@@ -120,7 +125,7 @@ function handlePaletteSelection(event: Event) {
               </button>
               <button
                 type="button"
-                class="paint-action-button"
+                :class="controlButtonClass"
                 :disabled="!paintPixelSelection"
                 @click="deletePixelSelection()"
               >
@@ -136,7 +141,7 @@ function handlePaletteSelection(event: Event) {
             >
             <button
               type="button"
-              class="paint-action-button"
+              :class="controlButtonClass"
               @click="handleImportPalette()"
             >
               Import .HEX…
@@ -172,20 +177,20 @@ function handlePaletteSelection(event: Event) {
               <input
                 v-model="activePaintColor"
                 type="color"
-                class="paint-color-input"
+                class="h-7 w-10 cursor-pointer rounded border border-border bg-transparent p-0"
               />
               <span class="font-mono text-xs text-text-dim">{{
                 activePaintColor
               }}</span>
             </div>
-            <div class="paint-swatch-grid">
+            <div class="grid grid-cols-8 gap-1.5">
               <button
                 v-for="swatch in availablePaintSwatches"
                 :key="swatch"
                 type="button"
-                class="paint-swatch"
+                class="aspect-square w-full cursor-pointer rounded-sm border border-border p-0"
                 :class="{
-                  active:
+                  'outline outline-1 outline-offset-1 outline-copper':
                     swatch.toLowerCase() === activePaintColor.toLowerCase(),
                 }"
                 :style="{ backgroundColor: swatch }"
@@ -207,6 +212,7 @@ function handlePaletteSelection(event: Event) {
               min="1"
               max="8"
               step="1"
+              :class="controlSliderClass"
             />
             <div class="font-mono text-xs text-text-dim">
               {{ paintToolSize }} px
@@ -216,14 +222,14 @@ function handlePaletteSelection(event: Event) {
           <div class="flex gap-2 pt-1">
             <button
               type="button"
-              class="paint-action-button flex-1"
+              :class="[controlButtonClass, 'flex-1']"
               @click="undoPaintEdit()"
             >
               Undo
             </button>
             <button
               type="button"
-              class="paint-action-button flex-1"
+              :class="[controlButtonClass, 'flex-1']"
               @click="redoPaintEdit()"
             >
               Redo
@@ -234,72 +240,3 @@ function handlePaletteSelection(event: Event) {
     </div>
   </div>
 </template>
-
-<style scoped>
-.paint-action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font: inherit;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    background-color 0.15s,
-    color 0.15s;
-}
-
-.paint-action-button:hover {
-  border-color: var(--color-copper);
-  color: var(--color-copper-bright);
-  background: color-mix(
-    in srgb,
-    var(--color-surface-2) 82%,
-    var(--color-copper-glow)
-  );
-}
-
-.paint-action-button:disabled {
-  cursor: default;
-  opacity: 0.45;
-  color: var(--color-text-faint);
-  border-color: var(--color-border);
-  background: var(--color-surface-2);
-}
-
-.paint-color-input {
-  width: 40px;
-  height: 28px;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.paint-swatch-grid {
-  display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.paint-swatch {
-  width: 100%;
-  aspect-ratio: 1;
-  border: 1px solid var(--color-border);
-  border-radius: 3px;
-  cursor: pointer;
-}
-
-.paint-swatch.active {
-  outline: 1px solid var(--color-copper);
-  outline-offset: 1px;
-}
-</style>

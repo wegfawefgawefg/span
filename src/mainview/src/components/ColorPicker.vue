@@ -2,6 +2,10 @@
 import { ref, watch, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { Pipette, ChevronUp, ChevronDown } from 'lucide-vue-next';
 import { activeEyedropper } from '../state/toolState';
+import {
+  controlIconButtonClass,
+  controlTextButtonClass,
+} from '../controlStyles';
 
 const props = defineProps<{
   modelValue: string;
@@ -204,7 +208,7 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ''));
       />
       <button
         type="button"
-        class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border-none p-0"
+        :class="[controlIconButtonClass, 'h-6 w-6 border-0']"
         title="Pick color from canvas"
         @click="activateEyedropper"
       >
@@ -212,7 +216,7 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ''));
       </button>
       <button
         type="button"
-        class="w-6 h-6 flex items-center justify-center text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border-none p-0"
+        :class="[controlIconButtonClass, 'h-6 w-6 border-0']"
         title="Toggle palette"
         @click="toggleExpanded"
       >
@@ -255,7 +259,7 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ''));
       <div class="flex items-center gap-2 pt-0.5 border-t border-border">
         <button
           type="button"
-          class="flex items-center gap-1 text-[11px] text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border-none p-0"
+          :class="controlTextButtonClass"
           @click="activateEyedropper"
         >
           <Pipette :size="12" />
@@ -263,7 +267,7 @@ const isUnset = computed(() => !normalizeHex(props.modelValue ?? ''));
         </button>
         <button
           type="button"
-          class="flex items-center gap-1 text-[11px] text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border-none p-0 ml-auto"
+          :class="[controlTextButtonClass, 'ml-auto']"
           @click="openNativePicker"
         >
           <div

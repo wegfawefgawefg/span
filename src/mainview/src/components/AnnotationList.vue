@@ -13,6 +13,11 @@ import {
 import { getEntityByLabel } from '../spec/types';
 import ContextMenu from './ContextMenu.vue';
 import type { MenuEntry } from './ContextMenu.vue';
+import {
+  controlListButtonActiveClass,
+  controlListButtonClass,
+  controlListButtonDefaultClass,
+} from '../controlStyles';
 
 const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 const collapsed = ref<Set<string>>(new Set());
@@ -219,11 +224,12 @@ watch(
             :ref="(el) => setAnnotationButtonRef(ann.id, el)"
             type="button"
             draggable="true"
-            class="w-full text-left px-2 py-1 border rounded-sm transition-colors cursor-grab active:cursor-grabbing"
             :class="[
+              controlListButtonClass,
+              'w-full cursor-grab px-2 py-1 active:cursor-grabbing',
               ann.id === selectedId
-                ? 'bg-copper-glow border-copper'
-                : 'bg-surface-2 border-border hover:border-border-strong',
+                ? controlListButtonActiveClass
+                : controlListButtonDefaultClass,
               dragOverId === ann.id ? 'border-copper border-t-2' : '',
               dragId === ann.id ? 'opacity-40' : '',
             ]"

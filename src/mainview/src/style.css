@@ -1,6 +1,5 @@
 @import "./styles/tokens.css";
 @import "./styles/base.css";
-@import "./styles/app-shell.css";
 @import "./styles/dockview.css";
 @import "./styles/themes/whisper.css";
 @import "./styles/themes/frost.css";
@@ -8,6 +7,3 @@
 @import "./styles/themes/daylight.css";
 @import "./styles/themes/aseprite.css";
 @import "./styles/themes/gamemaker.css";
-@import "./styles/canvas.css";
-@import "./styles/annotations.css";
-@import "./styles/gallery.css";

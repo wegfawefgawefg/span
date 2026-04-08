@@ -44,6 +44,7 @@ import {
 import { parseSpec } from "./spec/parse";
 import { api, platform, setResetLayoutHandler, setAddPanelHandler, getResetLayoutHandler, getAddPanelHandler, setSetThemeHandler } from "./platform/adapter";
 import MenuBar from "./components/MenuBar.vue";
+import { controlButtonClass, controlPrimaryButtonClass } from "./controlStyles";
 
 const PANELS: Record<string, { component: string; title: string }> = {
 	sheets: { component: "sheets", title: "Sheets" },
@@ -668,15 +669,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-	<div :class="['app-shell', ...(currentTheme.cssClasses ?? [])]" @contextmenu.prevent>
+	<div :class="['flex h-screen flex-col overflow-hidden', ...(currentTheme.cssClasses ?? [])]" @contextmenu.prevent>
 		<MenuBar :is-panel-open="isPanelOpen" :current-theme-id="currentThemeId" @action="handleMenuAction" />
-		<div class="dockview-container">
+		<div class="relative min-h-0 flex-1 [&>div]:size-full">
 			<DockviewVue :theme="currentTheme.dockviewTheme" :class-name="(currentTheme.cssClasses ?? []).join(' ')" @ready="onReady" />
 		</div>
-		<div v-if="showResizeCanvasDialog" class="app-modal-backdrop">
-			<form class="app-modal-card" @submit.prevent="applyResizeCanvasDialog">
-				<div class="app-modal-title">Resize Canvas</div>
-				<div class="app-modal-copy">
+		<div v-if="showResizeCanvasDialog" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/62 p-6 backdrop-blur-[3px]">
+			<form
+				class="flex w-full max-w-[460px] flex-col gap-3.5 rounded-md border border-border-strong bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface-2)_90%,black_10%),var(--color-surface-1))] p-[18px] shadow-[0_18px_48px_rgba(0,0,0,0.5)]"
+				@submit.prevent="applyResizeCanvasDialog"
+			>
+				<div class="text-base font-semibold text-text">Resize Canvas</div>
+				<div class="flex flex-col gap-1.5 text-[12px] text-text-dim">
 					<div>Current: {{ currentCanvasSize.width }} × {{ currentCanvasSize.height }}</div>
 					<div>New space is transparent. Existing pixels stay top-left anchored.</div>
 					<div v-if="resizeCanvasImpact.affected > 0">
@@ -686,19 +690,30 @@ onUnmounted(() => {
 						{{ resizeCanvasImpact.fullyOutside }} will end up pinned to the new edge because it would otherwise fall fully outside.
 					</div>
 				</div>
-				<div class="app-modal-grid">
-					<label class="app-modal-field">
+				<div class="grid grid-cols-2 gap-3">
+					<label class="flex flex-col gap-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-text-faint">
 						<span>Width</span>
 						<input v-model="resizeCanvasWidth" type="number" min="1" step="1" autofocus />
 					</label>
-					<label class="app-modal-field">
+					<label class="flex flex-col gap-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-text-faint">
 						<span>Height</span>
 						<input v-model="resizeCanvasHeight" type="number" min="1" step="1" />
 					</label>
 				</div>
-				<div class="app-modal-actions">
-					<button type="button" class="app-modal-button ghost" @click="closeResizeCanvasDialog">Cancel</button>
-					<button type="submit" class="app-modal-button primary">Apply</button>
+				<div class="flex justify-end gap-2.5">
+					<button
+						type="button"
+						:class="[controlButtonClass, 'min-w-24 px-3 py-2']"
+						@click="closeResizeCanvasDialog"
+					>
+						Cancel
+					</button>
+					<button
+						type="submit"
+						:class="[controlPrimaryButtonClass, 'min-w-24 px-3 py-2']"
+					>
+						Apply
+					</button>
 				</div>
 			</form>
 		</div>

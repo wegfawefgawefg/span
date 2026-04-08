@@ -15,6 +15,14 @@ import type { WorkspaceSheet } from '../state';
 import { api, platform } from '../platform/adapter';
 import ContextMenu from './ContextMenu.vue';
 import type { MenuEntry } from './ContextMenu.vue';
+import {
+  controlButtonClass,
+  controlDangerButtonClass,
+  controlListButtonActiveClass,
+  controlListButtonClass,
+  controlListButtonDefaultClass,
+  controlPrimaryButtonClass,
+} from '../controlStyles';
 
 const filterQuery = ref('');
 const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
@@ -359,6 +367,9 @@ function onSheetContextMenu(
   ];
   ctxMenu.value?.show(event, entries);
 }
+
+const treeButtonClass =
+  'flex w-full items-center gap-1.5 rounded border border-transparent px-2 py-1.5 text-left text-xs transition-[background-color,border-color,color]';
 </script>
 
 <template>
@@ -370,14 +381,14 @@ function onSheetContextMenu(
       >
         <button
           type="button"
-          class="sheet-action-button"
+          :class="controlButtonClass"
           @click="openCreateDialog()"
         >
           New PNG
         </button>
         <button
           type="button"
-          class="sheet-action-button"
+          :class="controlButtonClass"
           :disabled="!currentSheet"
           @click="currentSheet && openDeleteDialog(currentSheet)"
         >
@@ -400,11 +411,12 @@ function onSheetContextMenu(
           v-for="sheet in filteredSheets"
           :key="sheet.path"
           type="button"
-          class="w-full text-left px-2.5 py-2 border rounded-sm transition-colors cursor-pointer active:translate-y-px"
           :class="[
+            controlListButtonClass,
+            'w-full px-2.5 py-2',
             currentSheet?.path === sheet.path
-              ? 'bg-copper-glow border-copper'
-              : 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px',
+              ? controlListButtonActiveClass
+              : controlListButtonDefaultClass,
             sheet.status === 'missing' ? 'opacity-50' : '',
           ]"
           @click="handleOpen(sheet.path)"
@@ -433,35 +445,35 @@ function onSheetContextMenu(
         </button>
       </template>
       <template v-else>
-        <ul class="sheet-tree">
+        <ul class="m-0 flex list-none flex-col gap-0.5 p-0">
           <li
             v-for="{ node, depth } in visibleTreeNodes"
             :key="node.id"
-            class="sheet-tree-node"
+            class="flex flex-col gap-0.5"
           >
             <button
               v-if="node.kind === 'folder'"
               type="button"
-              class="sheet-folder"
+              :class="[treeButtonClass, 'bg-transparent text-text-dim hover:border-border hover:bg-surface-2 hover:text-text']"
               :style="{ paddingLeft: `${8 + depth * 16}px` }"
               @click="toggleFolder(node.path)"
             >
-              <span class="sheet-folder-chevron">{{
+              <span class="w-2.5 shrink-0 text-[10px] text-text-faint">{{
                 isFolderExpanded(node.path) ? '▼' : '▶'
               }}</span>
-              <span class="sheet-folder-name">{{ node.name }}</span>
+              <span class="truncate">{{ node.name }}</span>
             </button>
             <button
               v-else
               type="button"
-              class="sheet-leaf"
-              :style="{ paddingLeft: `${28 + depth * 16}px` }"
               :class="[
+                treeButtonClass,
                 currentSheet?.path === node.sheet.path
-                  ? 'sheet-leaf-active'
-                  : '',
+                  ? controlListButtonActiveClass
+                  : 'bg-transparent text-text-dim hover:border-border hover:bg-surface-2 hover:text-text',
                 node.sheet.status === 'missing' ? 'opacity-50' : '',
               ]"
+              :style="{ paddingLeft: `${28 + depth * 16}px` }"
               @click="handleOpen(node.sheet.path)"
               @contextmenu.stop="onSheetContextMenu($event, node.sheet)"
             >
@@ -478,16 +490,22 @@ function onSheetContextMenu(
         </ul>
       </template>
     </div>
-    <div v-if="showCreateDialog" class="sheet-modal-backdrop">
-      <form class="sheet-modal-card" @submit.prevent="createSheet">
-        <div class="sheet-modal-title">New PNG</div>
-        <div class="sheet-modal-copy">
+    <div
+      v-if="showCreateDialog"
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-black/58 p-6"
+    >
+      <form
+        class="flex w-full max-w-[360px] flex-col gap-3 rounded-md border border-border-strong bg-surface-1 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.5)]"
+        @submit.prevent="createSheet"
+      >
+        <div class="text-[15px] font-semibold text-text">New PNG</div>
+        <div class="flex flex-col gap-1 text-[12px] text-text-dim">
           <div>
             Folder: <span class="font-mono">{{ targetFolderLabel }}</span>
           </div>
           <div>Creates a transparent PNG in the current sheet folder.</div>
         </div>
-        <label class="sheet-modal-field">
+        <label class="flex flex-col gap-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-text-faint">
           <span>Name</span>
           <input
             v-model="newSheetName"
@@ -496,34 +514,42 @@ function onSheetContextMenu(
             autofocus
           />
         </label>
-        <div class="sheet-modal-grid">
-          <label class="sheet-modal-field">
+        <div class="grid grid-cols-2 gap-3">
+          <label class="flex flex-col gap-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-text-faint">
             <span>Width</span>
             <input v-model="newSheetWidth" type="number" min="1" step="1" />
           </label>
-          <label class="sheet-modal-field">
+          <label class="flex flex-col gap-1.5 font-mono text-[11px] uppercase tracking-[0.04em] text-text-faint">
             <span>Height</span>
             <input v-model="newSheetHeight" type="number" min="1" step="1" />
           </label>
         </div>
-        <div class="sheet-modal-actions">
+        <div class="flex justify-end gap-2.5">
           <button
             type="button"
-            class="sheet-action-button ghost"
+            :class="controlButtonClass"
             @click="closeCreateDialog()"
           >
             Cancel
           </button>
-          <button type="submit" class="sheet-action-button primary">
+          <button
+            type="submit"
+            :class="controlPrimaryButtonClass"
+          >
             Create
           </button>
         </div>
       </form>
     </div>
-    <div v-if="showDeleteDialog && pendingDeleteSheet" class="sheet-modal-backdrop">
-      <div class="sheet-modal-card">
-        <div class="sheet-modal-title">Delete PNG</div>
-        <div class="sheet-modal-copy">
+    <div
+      v-if="showDeleteDialog && pendingDeleteSheet"
+      class="fixed inset-0 z-[120] flex items-center justify-center bg-black/58 p-6"
+    >
+      <div
+        class="flex w-full max-w-[360px] flex-col gap-3 rounded-md border border-border-strong bg-surface-1 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.5)]"
+      >
+        <div class="text-[15px] font-semibold text-text">Delete PNG</div>
+        <div class="flex flex-col gap-1 text-[12px] text-text-dim">
           <div>
             Delete
             <span class="font-mono">{{ filename(pendingDeleteSheet.path) }}</span>
@@ -537,17 +563,17 @@ function onSheetContextMenu(
           </div>
           <div v-else>This only removes the file and sheet entry.</div>
         </div>
-        <div class="sheet-modal-actions">
+        <div class="flex justify-end gap-2.5">
           <button
             type="button"
-            class="sheet-action-button ghost"
+            :class="controlButtonClass"
             @click="closeDeleteDialog()"
           >
             Cancel
           </button>
           <button
             type="button"
-            class="sheet-action-button danger"
+            :class="controlDangerButtonClass"
             @click="handleDeleteSheet(pendingDeleteSheet)"
           >
             Delete
@@ -558,188 +584,3 @@ function onSheetContextMenu(
     <ContextMenu ref="ctxMenu" />
   </div>
 </template>
-
-<style scoped>
-.sheet-action-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font: inherit;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  cursor: pointer;
-  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
-}
-
-.sheet-action-button:hover {
-  border-color: var(--color-copper);
-  color: var(--color-copper-bright);
-  background: color-mix(
-    in srgb,
-    var(--color-surface-2) 82%,
-    var(--color-copper-glow)
-  );
-}
-
-.sheet-action-button:disabled {
-  cursor: default;
-  opacity: 0.45;
-  color: var(--color-text-faint);
-  border-color: var(--color-border);
-  background: var(--color-surface-2);
-}
-
-.sheet-action-button.primary {
-  border-color: color-mix(in srgb, var(--color-copper) 60%, var(--color-border));
-  background: color-mix(
-    in srgb,
-    var(--color-copper-glow) 55%,
-    var(--color-surface-1)
-  );
-  color: var(--color-copper-bright);
-}
-
-.sheet-action-button.danger {
-  border-color: color-mix(in srgb, var(--color-danger) 60%, var(--color-border));
-  background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface-1));
-  color: #f0b0b0;
-}
-
-.sheet-action-button.danger:hover {
-  border-color: var(--color-danger);
-  color: #ffd1d1;
-  background: color-mix(in srgb, var(--color-danger) 28%, var(--color-surface-1));
-}
-
-.sheet-action-button.ghost {
-  background: transparent;
-}
-
-.sheet-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 120;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.58);
-}
-
-.sheet-modal-card {
-  width: min(360px, 100%);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 6px;
-  background: var(--color-surface-1);
-  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
-}
-
-.sheet-modal-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.sheet-modal-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  color: var(--color-text-dim);
-  font-size: 12px;
-}
-
-.sheet-modal-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.sheet-modal-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  color: var(--color-text-faint);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.sheet-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-</style>
-
-<style scoped>
-.sheet-tree {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.sheet-tree {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sheet-tree-node {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.sheet-folder,
-.sheet-leaf {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--color-text-dim);
-  cursor: pointer;
-  text-align: left;
-  font-size: 12px;
-}
-
-.sheet-folder:hover,
-.sheet-leaf:hover {
-  background: var(--color-surface-2);
-  border-color: var(--color-border);
-  color: var(--color-text);
-}
-
-.sheet-folder-chevron {
-  width: 10px;
-  flex: 0 0 10px;
-  font-size: 10px;
-  color: var(--color-text-faint);
-}
-
-.sheet-folder-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sheet-leaf-active {
-  background: var(--color-copper-glow);
-  border-color: var(--color-copper);
-  color: var(--color-copper-bright);
-}
-</style>

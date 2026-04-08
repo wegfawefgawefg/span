@@ -463,12 +463,15 @@ function onOverlayClick(event: PointerEvent) {
 <template>
   <div
     ref="container"
-    class="shape-canvas-container"
+    class="relative w-full overflow-hidden rounded-[2px] border border-border bg-surface-0"
     :style="{ height: canvasHeight + 'px' }"
   >
-    <canvas ref="bgCanvas" class="shape-canvas-bg" />
+    <canvas
+      ref="bgCanvas"
+      class="absolute left-0 top-0 [image-rendering:pixelated]"
+    />
     <div
-      class="shape-canvas-overlay"
+      class="pointer-events-none absolute left-0 top-0 [&>*]:pointer-events-auto"
       :style="{
         width: '100%',
         height: canvasHeight + 'px',
@@ -484,20 +487,23 @@ function onOverlayClick(event: PointerEvent) {
       <!-- Rect shape -->
       <div
         v-if="props.shapeName === 'aabb' && annotation.aabb"
-        class="annotation-box selected"
+        class="annotation-box absolute w-auto cursor-grab rounded-none border-2 border-[var(--shape-color-bright,var(--color-copper-bright))] bg-[var(--shape-glow-strong,var(--color-copper-glow-strong))] p-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4),0_0_16px_var(--shape-glow,var(--color-copper-glow)),0_0_4px_var(--shape-glow-strong,var(--color-copper-glow-strong))] transition-[border-color,background,box-shadow] duration-150 ease-linear touch-none [image-rendering:pixelated] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--shape-color-bright,var(--color-copper-bright))]"
         :style="shapeStyle"
         @pointerdown="onShapePointerDown"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
         @pointercancel="onPointerUp"
       >
-        <div class="resize-handle" data-resize="true"></div>
+        <div
+          class="absolute -bottom-1 -right-1 h-2 w-2 cursor-nwse-resize rounded-none border border-black/60 bg-copper-bright transition-[transform,background] duration-75 hover:scale-150 hover:bg-copper [image-rendering:pixelated]"
+          data-resize="true"
+        ></div>
       </div>
 
       <!-- Point shape -->
       <div
         v-else-if="props.shapeName === 'point' && annotation.point"
-        class="annotation-point selected"
+        class="annotation-point absolute -ml-2.5 -mt-2.5 h-5 w-5 cursor-grab touch-none before:absolute before:left-[9px] before:top-[2px] before:h-4 before:w-[2px] before:rounded-none before:bg-white before:content-[''] before:[image-rendering:pixelated] before:[mix-blend-mode:difference] after:absolute after:left-[2px] after:top-[9px] after:h-[2px] after:w-4 after:rounded-none after:bg-white after:content-[''] after:[image-rendering:pixelated] after:[mix-blend-mode:difference]"
         :style="shapeStyle"
         @pointerdown="onShapePointerDown"
         @pointermove="onPointerMove"
@@ -510,18 +516,21 @@ function onOverlayClick(event: PointerEvent) {
         <template v-for="(style, idx) in propertyShapeStyles" :key="idx">
           <div
             v-if="propertyShapes.type === 'rect'"
-            class="annotation-box selected"
+            class="annotation-box absolute w-auto cursor-grab rounded-none border-2 border-[var(--shape-color,var(--color-copper))] bg-[var(--shape-glow-strong,var(--color-copper-glow-strong))] p-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4),0_0_16px_var(--shape-glow,var(--color-copper-glow)),0_0_4px_var(--shape-glow-strong,var(--color-copper-glow-strong))] transition-[border-color,background,box-shadow] duration-150 ease-linear touch-none [image-rendering:pixelated] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--shape-color-bright,var(--color-copper-bright))]"
             :style="{ ...style, borderColor: shapeColor }"
             @pointerdown="onPropertyShapePointerDown($event, idx)"
             @pointermove="onPropertyPointerMove"
             @pointerup="onPropertyPointerUp"
             @pointercancel="onPropertyPointerUp"
           >
-            <div class="resize-handle" data-resize="true"></div>
+            <div
+              class="absolute -bottom-1 -right-1 h-2 w-2 cursor-nwse-resize rounded-none border border-black/60 bg-copper-bright transition-[transform,background] duration-75 hover:scale-150 hover:bg-copper [image-rendering:pixelated]"
+              data-resize="true"
+            ></div>
           </div>
           <div
             v-else
-            class="annotation-point selected"
+            class="annotation-point absolute -ml-2.5 -mt-2.5 h-5 w-5 cursor-grab touch-none before:absolute before:left-[9px] before:top-[2px] before:h-4 before:w-[2px] before:rounded-none before:bg-white before:content-[''] before:[image-rendering:pixelated] before:[mix-blend-mode:difference] after:absolute after:left-[2px] after:top-[9px] after:h-[2px] after:w-4 after:rounded-none after:bg-white after:content-[''] after:[image-rendering:pixelated] after:[mix-blend-mode:difference]"
             :style="style"
             @pointerdown="onPropertyShapePointerDown($event, idx)"
             @pointermove="onPropertyPointerMove"
@@ -533,32 +542,3 @@ function onOverlayClick(event: PointerEvent) {
     </div>
   </div>
 </template>
-
-<style scoped>
-.shape-canvas-container {
-  position: relative;
-  width: 100%;
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 2px;
-  background: var(--color-surface-0);
-}
-
-.shape-canvas-bg {
-  position: absolute;
-  top: 0;
-  left: 0;
-  image-rendering: pixelated;
-}
-
-.shape-canvas-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  pointer-events: none;
-}
-
-.shape-canvas-overlay > * {
-  pointer-events: auto;
-}
-</style>

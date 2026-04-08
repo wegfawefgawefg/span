@@ -51,45 +51,67 @@ function formatShortcut(shortcut: string): string {
 </script>
 
 <template>
-  <div class="menubar" @mouseleave="closeMenus">
+  <div
+    class="flex h-7 select-none items-center border-b border-border bg-surface-1 px-1 text-xs"
+    @mouseleave="closeMenus"
+  >
     <div
       v-for="section in menus"
       :key="section.label"
-      class="menu-trigger-wrapper"
+      class="relative"
     >
       <button
         type="button"
-        class="menu-trigger"
-        :class="{ active: openMenu === section.label }"
+        class="rounded-[3px] border-0 bg-transparent px-2 py-0.5 text-text-faint"
+        :class="
+          openMenu === section.label
+            ? 'bg-surface-2 text-text'
+            : 'hover:bg-surface-2 hover:text-text'
+        "
         @click="toggleMenu(section.label)"
         @mouseenter="hoverMenu(section.label)"
       >
         {{ section.label }}
       </button>
-      <div v-if="openMenu === section.label" class="menu-dropdown">
+      <div
+        v-if="openMenu === section.label"
+        class="absolute left-0 top-full z-[1000] min-w-[200px] rounded border border-border bg-surface-2 py-1 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+      >
         <template v-for="(item, i) in section.items" :key="i">
-          <div v-if="item.separator" class="menu-separator" />
-          <div v-else-if="item.children" class="menu-item-submenu-wrapper">
-            <button type="button" class="menu-item">
-              <span class="menu-item-check"></span>
-              <span class="menu-item-label">{{ item.label }}</span>
-              <span class="menu-item-shortcut">&#x25B8;</span>
+          <div v-if="item.separator" class="mx-2 my-1 h-px bg-border" />
+          <div v-else-if="item.children" class="group/submenu relative">
+            <button
+              type="button"
+              class="group/menu-item flex w-full items-center border-0 bg-transparent px-3 py-1 text-left text-xs text-text hover:bg-copper-glow hover:text-copper-bright"
+            >
+              <span class="mr-2 w-3.5 shrink-0 text-center text-copper-bright"></span>
+              <span class="flex-1">{{ item.label }}</span>
+              <span
+                class="ml-6 text-[11px] text-text-faint group-hover/menu-item:text-copper-bright group-hover/menu-item:opacity-70"
+              >
+                &#x25B8;
+              </span>
             </button>
-            <div class="menu-submenu">
+            <div
+              class="absolute left-full top-[-4px] z-[1001] hidden min-w-[180px] rounded border border-border bg-surface-2 py-1 shadow-[0_4px_12px_rgba(0,0,0,0.3)] group-hover/submenu:block"
+            >
               <template v-for="(child, j) in item.children" :key="j">
-                <div v-if="child.separator" class="menu-separator" />
+                <div v-if="child.separator" class="mx-2 my-1 h-px bg-border" />
                 <button
                   v-else
                   type="button"
-                  class="menu-item"
+                  class="group/menu-item flex w-full items-center border-0 bg-transparent px-3 py-1 text-left text-xs text-text enabled:hover:bg-copper-glow enabled:hover:text-copper-bright disabled:cursor-default disabled:text-text-faint"
                   :disabled="child.disabled?.()"
                   @click="handleAction(child)"
                 >
-                  <span class="menu-item-check">{{
+                  <span class="mr-2 w-3.5 shrink-0 text-center text-copper-bright">{{
                     child.checked ? '✓' : ''
                   }}</span>
-                  <span class="menu-item-label">{{ child.label }}</span>
-                  <span v-if="child.shortcut" class="menu-item-shortcut">{{
+                  <span class="flex-1">{{ child.label }}</span>
+                  <span
+                    v-if="child.shortcut"
+                    class="ml-6 text-[11px] text-text-faint group-hover/menu-item:text-copper-bright group-hover/menu-item:opacity-70"
+                  >{{
                     formatShortcut(child.shortcut)
                   }}</span>
                 </button>
@@ -99,13 +121,18 @@ function formatShortcut(shortcut: string): string {
           <button
             v-else
             type="button"
-            class="menu-item"
+            class="group/menu-item flex w-full items-center border-0 bg-transparent px-3 py-1 text-left text-xs text-text enabled:hover:bg-copper-glow enabled:hover:text-copper-bright disabled:cursor-default disabled:text-text-faint"
             :disabled="item.disabled?.()"
             @click="handleAction(item)"
           >
-            <span class="menu-item-check">{{ item.checked ? '✓' : '' }}</span>
-            <span class="menu-item-label">{{ item.label }}</span>
-            <span v-if="item.shortcut" class="menu-item-shortcut">{{
+            <span class="mr-2 w-3.5 shrink-0 text-center text-copper-bright">{{
+              item.checked ? '✓' : ''
+            }}</span>
+            <span class="flex-1">{{ item.label }}</span>
+            <span
+              v-if="item.shortcut"
+              class="ml-6 text-[11px] text-text-faint group-hover/menu-item:text-copper-bright group-hover/menu-item:opacity-70"
+            >{{
               formatShortcut(item.shortcut)
             }}</span>
           </button>
@@ -114,124 +141,3 @@ function formatShortcut(shortcut: string): string {
     </div>
   </div>
 </template>
-
-<style scoped>
-.menubar {
-  display: flex;
-  align-items: center;
-  height: 28px;
-  padding: 0 4px;
-  background: var(--color-surface-1);
-  border-bottom: 1px solid var(--color-border);
-  font-size: 12px;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.menu-trigger-wrapper {
-  position: relative;
-}
-
-.menu-trigger {
-  padding: 2px 8px;
-  border: none;
-  background: none;
-  color: var(--color-text-faint);
-  font-size: 12px;
-  cursor: pointer;
-  border-radius: 3px;
-}
-
-.menu-trigger:hover,
-.menu-trigger.active {
-  background: var(--color-surface-2);
-  color: var(--color-text);
-}
-
-.menu-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 200px;
-  padding: 4px 0;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 1000;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  padding: 4px 12px;
-  border: none;
-  background: none;
-  color: var(--color-text);
-  font-size: 12px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.menu-item-check {
-  width: 14px;
-  margin-right: 8px;
-  color: var(--color-copper-bright);
-  flex-shrink: 0;
-  text-align: center;
-}
-
-.menu-item-label {
-  flex: 1;
-}
-
-.menu-item:hover:not(:disabled) {
-  background: var(--color-copper-glow);
-  color: var(--color-copper-bright);
-}
-
-.menu-item:disabled {
-  color: var(--color-text-faint);
-  cursor: default;
-}
-
-.menu-item-shortcut {
-  margin-left: 24px;
-  color: var(--color-text-faint);
-  font-size: 11px;
-}
-
-.menu-item:hover:not(:disabled) .menu-item-shortcut {
-  color: var(--color-copper-bright);
-  opacity: 0.7;
-}
-
-.menu-separator {
-  height: 1px;
-  margin: 4px 8px;
-  background: var(--color-border);
-}
-
-.menu-item-submenu-wrapper {
-  position: relative;
-}
-
-.menu-submenu {
-  display: none;
-  position: absolute;
-  top: -4px;
-  left: 100%;
-  min-width: 180px;
-  padding: 4px 0;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  z-index: 1001;
-}
-
-.menu-item-submenu-wrapper:hover > .menu-submenu {
-  display: block;
-}
-</style>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { controlPrimaryButtonClass } from '../controlStyles';
 
 defineProps<{
   externalError?: string;
@@ -58,7 +59,7 @@ function onFileInputChange(e: Event) {
 
       <button
         type="button"
-        class="px-5 py-2 bg-copper text-surface-0 font-medium text-sm rounded cursor-pointer hover:brightness-110 active:translate-y-px transition-all"
+        :class="[controlPrimaryButtonClass, 'px-5 font-body text-sm']"
         @click="fileInput?.click()"
       >
         Select Files

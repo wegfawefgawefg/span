@@ -146,6 +146,25 @@ const layerCursorClass = computed(() => {
   if (activeTool.value) return 'cursor-crosshair';
   return 'cursor-default';
 });
+const annotationBoxClass =
+  'annotation-box absolute w-auto cursor-grab rounded-none border-2 border-[var(--shape-color,var(--color-copper))] bg-[var(--shape-glow,var(--color-copper-glow))] p-0 shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4)] transition-[border-color,background,box-shadow] duration-150 ease-linear touch-none [image-rendering:pixelated] focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-2 focus-visible:outline-[var(--shape-color-bright,var(--color-copper-bright))]';
+const annotationBoxSelectedClass =
+  'border-[var(--shape-color-bright,var(--color-copper-bright))] bg-[var(--shape-glow-strong,var(--color-copper-glow-strong))] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.4),0_0_16px_var(--shape-glow,var(--color-copper-glow)),0_0_4px_var(--shape-glow-strong,var(--color-copper-glow-strong))]';
+const annotationLabelClass =
+  'pointer-events-none absolute left-0 top-[-20px] max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap rounded-[2px] border border-border bg-[color-mix(in_srgb,var(--color-surface-0)_92%,transparent)] px-1.5 py-px font-mono text-[10px] text-text-dim';
+const annotationLabelSelectedClass = 'border-copper text-copper-bright';
+const resizeHandleClass =
+  'absolute -bottom-1 -right-1 h-2 w-2 cursor-nwse-resize rounded-none border border-black/60 bg-copper-bright transition-[transform,background] duration-75 hover:scale-150 hover:bg-copper [image-rendering:pixelated]';
+const annotationPointClass =
+  "annotation-point absolute -ml-2.5 -mt-2.5 h-5 w-5 cursor-grab touch-none before:absolute before:left-[9px] before:top-[2px] before:h-4 before:w-[2px] before:rounded-none before:bg-white before:content-[''] before:[image-rendering:pixelated] before:[mix-blend-mode:difference] after:absolute after:left-[2px] after:top-[9px] after:h-[2px] after:w-4 after:rounded-none after:bg-white after:content-[''] after:[image-rendering:pixelated] after:[mix-blend-mode:difference]";
+const drawPreviewClass =
+  'pointer-events-none absolute z-[9999] border-2 border-dashed border-copper-bright bg-[color-mix(in_srgb,var(--color-copper-bright)_8%,transparent)] [image-rendering:pixelated]';
+const pixelSelectionClass =
+  'pointer-events-none absolute z-[9998] border-2 border-dashed border-copper-bright bg-[linear-gradient(90deg,color-mix(in_srgb,var(--color-copper-glow)_18%,transparent)_50%,transparent_50%),linear-gradient(color-mix(in_srgb,var(--color-copper-glow)_18%,transparent)_50%,transparent_50%)] bg-[length:8px_8px] [image-rendering:pixelated]';
+const pixelSelectionPreviewClass = `${pixelSelectionClass} border-copper`;
+const annotationSelectionAnimation = {
+  animation: 'select-pulse 0.4s steps(4), pixel-pop 0.25s steps(3)',
+};
 const isPaintMode = computed(() => activePaintTool.value !== '');
 const isPaintableCurrentSheet = computed(
   () =>
@@ -1303,16 +1322,10 @@ function onCanvasContextMenu(event: MouseEvent) {
 </script>
 
 <template>
-  <div class="canvas-shell" style="display: flex">
+  <div class="flex h-full overflow-hidden bg-surface-0">
     <ToolPalette />
     <div
-      style="
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-      "
+      class="flex h-full min-w-0 flex-1 flex-col"
     >
       <CanvasToolbar
         :zoom-label="zoomLabel"
@@ -1322,7 +1335,7 @@ function onCanvasContextMenu(event: MouseEvent) {
       />
       <div
         ref="scroller"
-        class="canvas-scroller"
+        class="instant-scroll flex-1 min-h-0 overflow-auto bg-surface-0 [image-rendering:pixelated] [scroll-behavior:auto] [overscroll-behavior:none] [-webkit-overflow-scrolling:auto]"
         :class="{
           'cursor-grab': spaceHeld && !isPanning,
           'cursor-grabbing': isPanning,
@@ -1337,7 +1350,7 @@ function onCanvasContextMenu(event: MouseEvent) {
       >
         <div
           ref="workspace"
-          class="canvas-workspace"
+          class="relative min-h-full min-w-full"
           :style="{
             width: workspaceWidth + 'px',
             height: workspaceHeight + 'px',
@@ -1345,7 +1358,7 @@ function onCanvasContextMenu(event: MouseEvent) {
         >
           <div
             ref="stage"
-            class="canvas-stage"
+            class="absolute [image-rendering:pixelated]"
             :style="{
               width: stageWidth + 'px',
               height: stageHeight + 'px',
@@ -1356,14 +1369,14 @@ function onCanvasContextMenu(event: MouseEvent) {
             <canvas
               :key="displayCanvasKey"
               ref="displayCanvas"
-              class="sheet-canvas"
+              class="relative z-[1] block select-none [image-rendering:pixelated]"
               :style="{
                 width: stageWidth + 'px',
                 height: stageHeight + 'px',
               }"
             ></canvas>
             <div
-              class="annotation-layer"
+              class="absolute inset-0 z-[3]"
               :class="layerCursorClass"
               :style="{
                 width: stageWidth + 'px',
@@ -1385,12 +1398,19 @@ function onCanvasContextMenu(event: MouseEvent) {
                     annotation.aabb
                   "
                   type="button"
-                  class="annotation-box"
-                  :class="{ selected: isAnnotationCanvasSelected(annotation) }"
+                  :class="[
+                    annotationBoxClass,
+                    isAnnotationCanvasSelected(annotation)
+                      ? annotationBoxSelectedClass
+                      : '',
+                    isPaintMode || activeAtlasTool === 'sprite-move'
+                      ? 'pointer-events-none'
+                      : '',
+                  ]"
                   :style="[
                     boxStyle(annotation, annIndex),
-                    isPaintMode || activeAtlasTool === 'sprite-move'
-                      ? { pointerEvents: 'none' }
+                    isAnnotationCanvasSelected(annotation)
+                      ? annotationSelectionAnimation
                       : null,
                   ]"
                   @pointerdown="handleShapePointerDown($event, annotation)"
@@ -1399,10 +1419,17 @@ function onCanvasContextMenu(event: MouseEvent) {
                   @pointercancel="handleBoxPointerUp"
                   @contextmenu.stop="onBoxContextMenu($event, annotation)"
                 >
-                  <div class="annotation-label">
+                  <div
+                    :class="[
+                      annotationLabelClass,
+                      isAnnotationCanvasSelected(annotation)
+                        ? annotationLabelSelectedClass
+                        : '',
+                    ]"
+                  >
                     {{ getAnnotationLabel(annotation) }}
                   </div>
-                  <div class="resize-handle" data-resize="true"></div>
+                  <div :class="resizeHandleClass" data-resize="true"></div>
                 </button>
 
                 <!-- Point shape -->
@@ -1412,13 +1439,14 @@ function onCanvasContextMenu(event: MouseEvent) {
                     annotation.point
                   "
                   type="button"
-                  class="annotation-point"
-                  :class="{ selected: isAnnotationCanvasSelected(annotation) }"
+                  :class="[
+                    annotationPointClass,
+                    isPaintMode || activeAtlasTool === 'sprite-move'
+                      ? 'pointer-events-none'
+                      : '',
+                  ]"
                   :style="[
                     pointStyle(annotation, annIndex),
-                    isPaintMode || activeAtlasTool === 'sprite-move'
-                      ? { pointerEvents: 'none' }
-                      : null,
                   ]"
                   @pointerdown="handleShapePointerDown($event, annotation)"
                   @pointermove="handleBoxPointerMove"
@@ -1430,17 +1458,17 @@ function onCanvasContextMenu(event: MouseEvent) {
               <!-- Drawing preview -->
               <div
                 v-if="drawing"
-                class="draw-preview"
+                :class="drawPreviewClass"
                 :style="drawPreviewStyle"
               ></div>
               <div
                 v-if="paintPixelSelection && !pixelSelectionDrag"
-                class="pixel-selection-box"
+                :class="pixelSelectionClass"
                 :style="marqueeSelectionStyle"
               ></div>
               <div
                 v-if="pixelSelectionDrag && marqueePreviewRect"
-                class="pixel-selection-box preview"
+                :class="pixelSelectionPreviewClass"
                 :style="marqueePreviewStyle"
               ></div>
               <div
@@ -1449,7 +1477,7 @@ function onCanvasContextMenu(event: MouseEvent) {
                   atlasMoveSelectionDrag &&
                   atlasSelectionPreviewRect
                 "
-                class="pixel-selection-box preview"
+                :class="pixelSelectionPreviewClass"
                 :style="atlasSelectionPreviewStyle"
               ></div>
             </div>

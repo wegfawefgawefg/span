@@ -21,6 +21,12 @@ import {
 } from '../state';
 import ShapeCanvas from './ShapeCanvas.vue';
 import ColorPicker from './ColorPicker.vue';
+import {
+  controlDisclosureButtonClass,
+  controlPropertyToggleButtonClass,
+  controlSubtleButtonClass,
+  controlTextDangerButtonClass,
+} from '../controlStyles';
 
 const props = defineProps<{
   annotation: Annotation;
@@ -31,6 +37,11 @@ const SHAPE_COLORS = ['var(--color-copper)', '#5a8ac8', '#5ac878', '#8a5ac8'];
 
 const labelClass =
   'flex flex-col gap-1 text-[11px] font-medium text-text-dim uppercase tracking-wider';
+const sectionToggleClass = controlDisclosureButtonClass;
+const propHeaderClass = 'flex items-center gap-2';
+const propToggleClass = controlPropertyToggleButtonClass;
+const propTypeClass = 'text-[10px] font-normal text-text-faint';
+const propSyncClass = `${controlSubtleButtonClass} shrink-0 px-1.5 py-0.5 text-[10px]`;
 
 // Track which sections are collapsed (by key: 'primary', 'required', 'properties', 'prop:<name>')
 const collapsed = ref<Set<string>>(new Set());
@@ -280,7 +291,7 @@ function syncPropertyAcrossSprite(propName: string) {
       <div class="flex flex-col gap-2">
         <button
           type="button"
-          class="flex items-center gap-2 text-[10px] font-medium text-text-faint uppercase tracking-wider cursor-pointer hover:text-text-dim transition-colors text-left"
+          :class="sectionToggleClass"
           @click="toggleSection('primary')"
         >
           <span
@@ -367,7 +378,7 @@ function syncPropertyAcrossSprite(propName: string) {
     <div v-if="getRequiredDefs().length > 0" class="flex flex-col gap-2">
       <button
         type="button"
-        class="section-toggle"
+        :class="sectionToggleClass"
         @click="toggleSection('required')"
       >
         Required
@@ -381,14 +392,14 @@ function syncPropertyAcrossSprite(propName: string) {
           :key="`required:${def.name}`"
         >
           <div class="flex flex-col gap-1">
-            <div class="prop-header">
+            <div :class="propHeaderClass">
               <button
                 type="button"
-                class="prop-toggle"
+                :class="propToggleClass"
                 @click="toggleSection('required:' + def.name)"
               >
                 <span>{{ def.name }}</span>
-                <span class="prop-type">{{
+                <span :class="propTypeClass">{{
                   def.kind === 'scalar'
                     ? (def as ScalarPropertyField).type
                     : (def as ShapePropertyField).shapeType
@@ -491,7 +502,7 @@ function syncPropertyAcrossSprite(propName: string) {
     >
       <button
         type="button"
-        class="section-toggle"
+        :class="sectionToggleClass"
         @click="toggleSection('properties')"
       >
         Properties
@@ -503,14 +514,14 @@ function syncPropertyAcrossSprite(propName: string) {
         <template v-for="def in getEntity()!.properties" :key="def.name">
           <!-- Property header (collapsible) -->
           <div class="flex flex-col gap-1">
-            <div class="prop-header">
+            <div :class="propHeaderClass">
               <button
                 type="button"
-                class="prop-toggle"
+                :class="propToggleClass"
                 @click="toggleSection('prop:' + def.name)"
               >
                 <span>{{ def.name }}</span>
-                <span class="prop-type">{{
+                <span :class="propTypeClass">{{
                   def.kind === 'scalar'
                     ? (def as ScalarPropertyField).type
                     : def.kind === 'enum'
@@ -527,7 +538,7 @@ function syncPropertyAcrossSprite(propName: string) {
               <button
                 v-if="canSyncProperty(def.name)"
                 type="button"
-                class="prop-sync"
+                :class="propSyncClass"
                 :title="
                   syncCountForProperty(def.name) > 0
                     ? `Copy this field to ${syncCountForProperty(def.name)} matching frame${syncCountForProperty(def.name) === 1 ? '' : 's'}`
@@ -732,7 +743,7 @@ function syncPropertyAcrossSprite(propName: string) {
                         >
                         <button
                           type="button"
-                          class="text-[10px] text-text-faint hover:text-danger transition-colors cursor-pointer bg-transparent border-none p-0"
+                          :class="controlTextDangerButtonClass"
                           @click="removeShapeArrayItem(def.name, idx)"
                         >
                           remove
@@ -786,7 +797,7 @@ function syncPropertyAcrossSprite(propName: string) {
                     </div>
                     <button
                       type="button"
-                      class="text-[11px] text-text-dim hover:text-copper transition-colors cursor-pointer bg-transparent border border-border rounded px-2 py-1 self-start"
+                      :class="controlSubtleButtonClass"
                       @click="
                         addShapeArrayItem(
                           def.name,
@@ -806,84 +817,3 @@ function syncPropertyAcrossSprite(propName: string) {
     </div>
   </form>
 </template>
-
-<style scoped>
-.section-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-faint);
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  padding: 0;
-  text-align: left;
-  transition: color 0.15s;
-}
-
-.section-toggle:hover {
-  color: var(--color-text-dim);
-}
-
-.prop-toggle {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--color-text-dim);
-  cursor: pointer;
-  background: transparent;
-  border: none;
-  padding: 2px 0;
-  text-align: left;
-  transition: color 0.15s;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.prop-toggle:hover {
-  color: var(--color-text);
-}
-
-.prop-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.prop-type {
-  font-size: 10px;
-  font-weight: 400;
-  color: var(--color-text-faint);
-}
-
-.prop-sync {
-  flex: 0 0 auto;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--color-text-faint);
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  padding: 2px 6px;
-  cursor: pointer;
-  transition:
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.prop-sync:hover:not(:disabled) {
-  color: var(--color-copper);
-  border-color: var(--color-copper);
-}
-
-.prop-sync:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-</style>

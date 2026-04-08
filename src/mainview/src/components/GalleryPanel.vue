@@ -38,7 +38,10 @@ interface SpriteGroup {
 
 const previewScale = ref(3);
 const GALLERY_DURATION_RATE_STORAGE_KEY = 'span-gallery-ms-per-duration:v1';
+const GALLERY_GROUP_BY_SHEET_KEY = 'span-gallery-group-by-sheet:v1';
 const galleryMsPerDuration = ref(loadGalleryMsPerDuration());
+const groupBySheet = ref(loadGroupBySheet());
+const collapsedSections = ref(new Set<string>());
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
 // Invalidate cached images only when sheets are added/removed or images change (not on annotation edits)
@@ -65,6 +68,33 @@ function loadGalleryMsPerDuration(): number {
   } catch {
     return 60;
   }
+}
+
+function loadGroupBySheet(): boolean {
+  try {
+    return localStorage.getItem(GALLERY_GROUP_BY_SHEET_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function toggleGroupBySheet() {
+  groupBySheet.value = !groupBySheet.value;
+  try {
+    localStorage.setItem(GALLERY_GROUP_BY_SHEET_KEY, String(groupBySheet.value));
+  } catch {
+    // ignore persistence failures
+  }
+}
+
+function toggleSection(sheetPath: string) {
+  const next = new Set(collapsedSections.value);
+  if (next.has(sheetPath)) {
+    next.delete(sheetPath);
+  } else {
+    next.add(sheetPath);
+  }
+  collapsedSections.value = next;
 }
 
 const isRectEntity = (ann: Annotation): boolean => {
@@ -259,12 +289,41 @@ const groups = computed<SpriteGroup[]>(() => {
     g.previewBounds = computePreviewBounds(g.frames);
   }
 
-  result.sort((a, b) => {
-    if (a.inCurrentSheet !== b.inCurrentSheet) return a.inCurrentSheet ? -1 : 1;
-    return a.key.localeCompare(b.key);
-  });
+  result.sort((a, b) => a.name.localeCompare(b.name));
 
   return result;
+});
+
+interface SheetSection {
+  sheetPath: string;
+  groups: SpriteGroup[];
+}
+
+const sheetSections = computed<SheetSection[]>(() => {
+  if (!groupBySheet.value) return [];
+  const sectionMap = new Map<string, SpriteGroup[]>();
+  for (const group of groups.value) {
+    const sheetPaths = new Set(group.frames.map((f) => f.sheetFile));
+    for (const path of sheetPaths) {
+      let list = sectionMap.get(path);
+      if (!list) {
+        list = [];
+        sectionMap.set(path, list);
+      }
+      list.push(group);
+    }
+  }
+  const sections: SheetSection[] = [];
+  for (const [sheetPath, sectionGroups] of sectionMap) {
+    sections.push({ sheetPath, groups: sectionGroups });
+  }
+  sections.sort((a, b) => {
+    const currentPath = currentSheet.value?.path;
+    if (a.sheetPath === currentPath && b.sheetPath !== currentPath) return -1;
+    if (b.sheetPath === currentPath && a.sheetPath !== currentPath) return 1;
+    return a.sheetPath.localeCompare(b.sheetPath);
+  });
+  return sections;
 });
 
 function getPreviewRect(group: SpriteGroup): { width: number; height: number } {
@@ -488,55 +547,123 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
           class="w-16 text-right"
         />
       </label>
+      <button
+        type="button"
+        class="text-[10px] font-mono shrink-0 border rounded-sm px-1 transition-colors"
+        :class="groupBySheet ? 'text-copper-bright border-copper/40 bg-copper-glow' : 'text-text-faint border-border hover:border-border-strong'"
+        :title="groupBySheet ? 'Grouped by sheet — click to show flat list' : 'Flat list — click to group by sheet'"
+        @click="toggleGroupBySheet"
+      >sheet</button>
       <span
         class="text-[10px] font-mono text-text-faint border border-border rounded-sm px-1"
         >{{ groups.length }}</span
       >
     </div>
     <div
-      class="instant-scroll flex-1 overflow-y-auto min-h-0 px-2 py-2 flex flex-wrap gap-2 content-start items-start"
+      class="instant-scroll flex-1 overflow-y-auto min-h-0 px-2 py-2"
     >
-      <button
-        v-for="group in groups"
-        :key="group.key"
-        type="button"
-        class="inline-flex flex-col border rounded-sm text-left transition-all cursor-pointer active:translate-y-px overflow-hidden"
-        :class="[
-          previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
-          group.inCurrentSheet
-            ? 'bg-copper-glow border-copper/30'
-            : 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px',
-        ]"
-        :style="
-          previewScale >= 3
-            ? {
-                maxWidth:
-                  getPreviewRect(group).width * previewScale + 16 + 'px',
-              }
-            : undefined
-        "
-        @click="handleClick(group)"
-        @contextmenu.stop="onGroupContextMenu($event, group)"
-      >
-        <canvas
-          :ref="(el: any) => setCanvasRef(group.key, el)"
-          class="gallery-preview"
-          :title="`${group.name} — ${group.frameCount}f`"
-        ></canvas>
-        <template v-if="previewScale >= 3">
-          <div
-            class="text-xs font-medium truncate max-w-full"
-            :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'"
+      <!-- Grouped by sheet -->
+      <template v-if="groupBySheet">
+        <div v-for="section in sheetSections" :key="section.sheetPath" class="mb-3">
+          <button
+            type="button"
+            class="flex items-center gap-1 text-[10px] font-mono truncate mb-1 px-0.5 w-full text-left cursor-pointer hover:underline"
+            :class="section.sheetPath === currentSheet?.path ? 'text-copper-bright' : 'text-text-faint'"
+            @click="toggleSection(section.sheetPath)"
           >
-            {{ group.name }}
+            <span class="inline-block w-2.5 shrink-0 text-center">{{ collapsedSections.has(section.sheetPath) ? '▸' : '▾' }}</span>
+            <span class="truncate">{{ section.sheetPath }}</span>
+            <span class="shrink-0">({{ section.groups.length }})</span>
+          </button>
+          <div v-show="!collapsedSections.has(section.sheetPath)" class="flex flex-wrap gap-2 content-start items-start">
+            <button
+              v-for="group in section.groups"
+              :key="group.key"
+              type="button"
+              class="inline-flex flex-col border rounded-sm text-left transition-all cursor-pointer active:translate-y-px overflow-hidden"
+              :class="[
+                previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
+                group.inCurrentSheet
+                  ? 'bg-copper-glow border-copper/30'
+                  : 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px',
+              ]"
+              :style="
+                previewScale >= 3
+                  ? {
+                      maxWidth:
+                        getPreviewRect(group).width * previewScale + 16 + 'px',
+                    }
+                  : undefined
+              "
+              @click="handleClick(group)"
+              @contextmenu.stop="onGroupContextMenu($event, group)"
+            >
+              <canvas
+                :ref="(el: any) => setCanvasRef(group.key, el)"
+                class="gallery-preview"
+                :title="`${group.name} — ${group.frameCount}f`"
+              ></canvas>
+              <template v-if="previewScale >= 3">
+                <div
+                  class="text-xs font-medium truncate max-w-full"
+                  :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'"
+                >
+                  {{ group.name }}
+                </div>
+                <div
+                  class="font-mono text-[10px] text-text-faint truncate max-w-full"
+                >
+                  {{ group.frameCount }}f
+                </div>
+              </template>
+            </button>
           </div>
-          <div
-            class="font-mono text-[10px] text-text-faint truncate max-w-full"
-          >
-            {{ group.frameCount }}f
-          </div>
-        </template>
-      </button>
+        </div>
+      </template>
+      <!-- Flat list -->
+      <div v-else class="flex flex-wrap gap-2 content-start items-start">
+        <button
+          v-for="group in groups"
+          :key="group.key"
+          type="button"
+          class="inline-flex flex-col border rounded-sm text-left transition-all cursor-pointer active:translate-y-px overflow-hidden"
+          :class="[
+            previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
+            group.inCurrentSheet
+              ? 'bg-copper-glow border-copper/30'
+              : 'bg-surface-2 border-border hover:border-border-strong hover:-translate-y-px',
+          ]"
+          :style="
+            previewScale >= 3
+              ? {
+                  maxWidth:
+                    getPreviewRect(group).width * previewScale + 16 + 'px',
+                }
+              : undefined
+          "
+          @click="handleClick(group)"
+          @contextmenu.stop="onGroupContextMenu($event, group)"
+        >
+          <canvas
+            :ref="(el: any) => setCanvasRef(group.key, el)"
+            class="gallery-preview"
+            :title="`${group.name} — ${group.frameCount}f`"
+          ></canvas>
+          <template v-if="previewScale >= 3">
+            <div
+              class="text-xs font-medium truncate max-w-full"
+              :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'"
+            >
+              {{ group.name }}
+            </div>
+            <div
+              class="font-mono text-[10px] text-text-faint truncate max-w-full"
+            >
+              {{ group.frameCount }}f
+            </div>
+          </template>
+        </button>
+      </div>
     </div>
     <ContextMenu ref="ctxMenu" />
   </div>

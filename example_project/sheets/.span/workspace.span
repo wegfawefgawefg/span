@@ -4,8 +4,8 @@
   "spec": null,
   "palettes": [],
   "activePaletteId": null,
-  "lastOpenSheetPath": "03 - Dungeon Enemies.png",
-  "selectedAnnotationId": "3fe0f28f-6230-4ea7-b842-ecb6c5bf2542",
+  "lastOpenSheetPath": "01 - Link.png",
+  "selectedAnnotationId": "a114985c-142e-4687-97e4-c1490ed6b421",
   "sheets": [
     {
       "path": "01 - Link.png",
@@ -99,9 +99,9 @@
         "gridEnabled": false,
         "gridWidth": 16,
         "gridHeight": 16,
-        "zoom": 2.098,
-        "centerX": 198.76072449952338,
-        "centerY": 154.67111534795043
+        "zoom": 2.099,
+        "centerX": 192.94902334444973,
+        "centerY": 148.64221057646498
       }
     },
     {
@@ -208,9 +208,9 @@
         "gridEnabled": false,
         "gridWidth": 16,
         "gridHeight": 16,
-        "zoom": 10.664,
-        "centerX": 24.240435108777195,
-        "centerY": 23.771567891972992
+        "zoom": 16.663,
+        "centerX": 41.349096801296284,
+        "centerY": 20.404488987577267
       }
     },
     {

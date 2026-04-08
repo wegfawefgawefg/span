@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick, type Ref } from 'vue';
 import type { Annotation } from '../annotation';
 import { getEntityByLabel } from '../spec/types';
 import {
@@ -147,6 +147,13 @@ const sampleCtx = sampleCanvas.getContext('2d', {
 const checkerCanvas = document.createElement('canvas');
 const floatingSelectionCanvas = document.createElement('canvas');
 
+// Composable init has a circular dependency:
+// - useCanvasRendering reads pixelSelectionMove + spriteMove during render
+// - usePixelSelection/useSpriteMove need renderDisplayCanvas + commitSampleCanvasEdit
+// We break the cycle with proxy refs that sync via immediate watchers.
+const pixelSelectionMoveProxy = ref(null) as Ref<any>;
+const spriteMoveProxy = ref(null) as Ref<any>;
+
 const { rebuildCheckerboardSource, drawGridLines, renderDisplayCanvas } =
   useCanvasRendering({
     displayCanvas,
@@ -155,8 +162,8 @@ const { rebuildCheckerboardSource, drawGridLines, renderDisplayCanvas } =
     floatingSelectionCanvas,
     stageWidth,
     stageHeight,
-    pixelSelectionMove,
-    spriteMove,
+    pixelSelectionMove: pixelSelectionMoveProxy,
+    spriteMove: spriteMoveProxy,
   });
 
 const {
@@ -220,6 +227,10 @@ const {
   renderDisplayCanvas,
   commitSampleCanvasEdit,
 });
+
+// Sync proxy refs so useCanvasRendering sees updates from the real composable refs
+watch(pixelSelectionMove, (v) => { pixelSelectionMoveProxy.value = v; }, { flush: 'sync' });
+watch(spriteMove, (v) => { spriteMoveProxy.value = v; }, { flush: 'sync' });
 
 let loadedSheetImage: HTMLImageElement | null = null;
 let imageLoadVersion = 0;

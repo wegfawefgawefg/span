@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'bun:test';
-import { currentSheet } from '../workspace';
+import { currentSheet, sheets } from '../workspace';
 import type { Annotation } from '../annotation';
 import type { WorkspaceSheet } from '../workspace';
 import {
@@ -8,9 +8,9 @@ import {
   selectedAnnotation,
   selectedAnnotations,
   selectSingleAnnotation,
-  setSelectedAnnotationIds,
+  setSelectedProjectAnnotationIds,
   toggleSelectedAnnotation,
-  retainSelectionForCurrentSheet,
+  retainSelectionForWorkspace,
 } from './selectionState';
 
 function makeAnnotation(id: string): Annotation {
@@ -39,6 +39,7 @@ function makeSheet(path: string, annotations: Annotation[]): WorkspaceSheet {
 describe('selectionState', () => {
   beforeEach(() => {
     currentSheet.value = null;
+    sheets.value = [];
     selectedId.value = null;
     selectedIds.value = [];
   });
@@ -46,7 +47,9 @@ describe('selectionState', () => {
   it('keeps a primary selection alongside multi-select ids', () => {
     const ann1 = makeAnnotation('ann-1');
     const ann2 = makeAnnotation('ann-2');
-    currentSheet.value = makeSheet('sheet.png', [ann1, ann2]);
+    const sheet = makeSheet('sheet.png', [ann1, ann2]);
+    sheets.value = [sheet];
+    currentSheet.value = sheet;
 
     selectSingleAnnotation(ann1.id);
     expect(selectedId.value).toBe(ann1.id);
@@ -59,18 +62,22 @@ describe('selectionState', () => {
     expect(selectedAnnotation.value).toEqual(ann2);
   });
 
-  it('drops invalid ids when the current sheet changes', () => {
+  it('retains valid project-wide ids when the current sheet changes', () => {
     const ann1 = makeAnnotation('ann-1');
     const ann2 = makeAnnotation('ann-2');
-    currentSheet.value = makeSheet('sheet-a.png', [ann1, ann2]);
-    setSelectedAnnotationIds([ann1.id, ann2.id], { primaryId: ann2.id });
+    const ann3 = makeAnnotation('ann-3');
+    const sheetA = makeSheet('sheet-a.png', [ann1, ann2]);
+    const sheetB = makeSheet('sheet-b.png', [ann3]);
+    sheets.value = [sheetA, sheetB];
+    currentSheet.value = sheetA;
+    setSelectedProjectAnnotationIds([ann1.id, ann3.id], { primaryId: ann3.id });
 
-    currentSheet.value = makeSheet('sheet-b.png', [makeAnnotation('ann-3')]);
-    retainSelectionForCurrentSheet();
+    currentSheet.value = sheetB;
+    retainSelectionForWorkspace();
 
-    expect(selectedId.value).toBeNull();
-    expect(selectedIds.value).toEqual([]);
-    expect(selectedAnnotations.value).toEqual([]);
-    expect(selectedAnnotation.value).toBeNull();
+    expect(selectedId.value).toBe(ann3.id);
+    expect(selectedIds.value).toEqual([ann1.id, ann3.id]);
+    expect(selectedAnnotations.value).toEqual([ann1, ann3]);
+    expect(selectedAnnotation.value).toEqual(ann3);
   });
 });

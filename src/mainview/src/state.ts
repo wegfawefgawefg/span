@@ -45,10 +45,12 @@ import {
   selectedIds,
   selectedAnnotation,
   selectedAnnotations,
+  selectedAnnotationsInCurrentSheet,
   selectSingleAnnotation,
   setSelectedAnnotationIds as applySelectedAnnotationIds,
+  setSelectedProjectAnnotationIds,
   toggleSelectedAnnotation,
-  retainSelectionForCurrentSheet,
+  retainSelectionForWorkspace,
 } from './state/selectionState';
 export type { CanvasSheetPrefs } from './state/canvasPrefs';
 export {
@@ -187,6 +189,7 @@ export {
   selectedIds,
   selectedAnnotation,
   selectedAnnotations,
+  selectedAnnotationsInCurrentSheet,
 };
 
 export const ZOOM_MIN = 0.1;
@@ -414,7 +417,7 @@ watch(currentSheet, async (sheet, previousSheet) => {
     saveCanvasPrefsForSheet(previousSheet);
   }
 
-  retainSelectionForCurrentSheet();
+  retainSelectionForWorkspace();
 
   if (!sheet) {
     currentSheetImageSrc.value = '';
@@ -556,6 +559,37 @@ function recordCurrentSheetUndoSnapshot() {
   }
 }
 
+function selectedAnnotationEntries() {
+  if (selectedIds.value.length === 0) return [];
+  const selectedIdSet = new Set(selectedIds.value);
+  const entryMap = new Map<string, { sheet: WorkspaceSheet; annotation: Annotation }>();
+  for (const sheet of sheets.value) {
+    for (const annotation of sheet.annotations) {
+      if (!selectedIdSet.has(annotation.id)) continue;
+      entryMap.set(annotation.id, { sheet, annotation });
+    }
+  }
+  return selectedIds.value
+    .map((id) => entryMap.get(id) ?? null)
+    .filter(
+      (
+        entry
+      ): entry is { sheet: WorkspaceSheet; annotation: Annotation } => entry !== null
+    );
+}
+
+function recordUndoForSelectionEntries(
+  entries: Array<{ sheet: WorkspaceSheet; annotation: Annotation }>
+) {
+  const touchedSheetKeys = new Set<string>();
+  for (const entry of entries) {
+    const key = getSheetKey(entry.sheet);
+    if (!key || touchedSheetKeys.has(key)) continue;
+    touchedSheetKeys.add(key);
+    recordPaintUndoSnapshot(entry.sheet);
+  }
+}
+
 function valuesMatch(left: unknown, right: unknown) {
   if (Object.is(left, right)) return true;
   if (
@@ -576,6 +610,14 @@ export function selectAnnotation(id: string | null) {
 
 export function setSelectedAnnotationIds(ids: string[]) {
   applySelectedAnnotationIds(ids);
+  scheduleWorkspaceUiStateSave();
+}
+
+export function setSelectedProjectAnnotationIdSet(
+  ids: string[],
+  options?: { primaryId?: string | null }
+) {
+  setSelectedProjectAnnotationIds(ids, options);
   scheduleWorkspaceUiStateSave();
 }
 
@@ -676,15 +718,17 @@ export function addAnnotationWithSize(
 }
 
 export function duplicateSelected() {
-  const anns = selectedAnnotations.value;
-  const sheet = currentSheet.value;
-  if (anns.length === 0 || !sheet) return;
-  recordCurrentSheetUndoSnapshot();
-  const copies = anns.map((annotation) =>
-    duplicateAnnotation(annotation, activeSpec.value ?? undefined)
-  );
-  sheet.annotations.push(...copies);
-  applySelectedAnnotationIds(
+  const entries = selectedAnnotationEntries();
+  if (entries.length === 0) return;
+  recordUndoForSelectionEntries(entries);
+
+  const copies = entries.map(({ sheet, annotation }) => {
+    const copy = duplicateAnnotation(annotation, activeSpec.value ?? undefined);
+    sheet.annotations.push(copy);
+    return copy;
+  });
+
+  setSelectedProjectAnnotationIds(
     copies.map((annotation) => annotation.id),
     { primaryId: copies[0]?.id ?? null }
   );
@@ -692,14 +736,18 @@ export function duplicateSelected() {
 }
 
 export function deleteSelected() {
-  const sheet = currentSheet.value;
-  const idsToDelete = new Set(selectedAnnotations.value.map((annotation) => annotation.id));
-  if (idsToDelete.size === 0 || !sheet) return;
-  recordCurrentSheetUndoSnapshot();
-  sheet.annotations = sheet.annotations.filter(
-    (annotation) => !idsToDelete.has(annotation.id)
-  );
-  selectSingleAnnotation(sheet.annotations[0]?.id ?? null);
+  const entries = selectedAnnotationEntries();
+  const idsToDelete = new Set(entries.map(({ annotation }) => annotation.id));
+  if (idsToDelete.size === 0) return;
+  recordUndoForSelectionEntries(entries);
+
+  const touchedSheets = new Set(entries.map(({ sheet }) => sheet));
+  for (const sheet of touchedSheets) {
+    sheet.annotations = sheet.annotations.filter(
+      (annotation) => !idsToDelete.has(annotation.id)
+    );
+  }
+  selectSingleAnnotation(currentSheet.value?.annotations[0]?.id ?? null);
   markDirty(true);
 }
 
@@ -708,10 +756,7 @@ export function updateShapeData(
   patch: Record<string, number>,
   options?: EditMutationOptions
 ) {
-  const anns = selectedAnnotations.value;
-  if (anns.length === 0) return;
-  const captureHistory = shouldCaptureHistory(options);
-  const targets = anns.filter((annotation) => {
+  const entries = selectedAnnotationEntries().filter(({ annotation }) => {
     const shape =
       shapeName === 'aabb'
         ? annotation.aabb
@@ -723,13 +768,12 @@ export function updateShapeData(
       ([key, value]) => (shape as Record<string, number>)[key] !== value
     );
   });
-  if (targets.length === 0) {
-    return;
-  }
+  if (entries.length === 0) return;
+  const captureHistory = shouldCaptureHistory(options);
   if (captureHistory) {
-    recordCurrentSheetUndoSnapshot();
+    recordUndoForSelectionEntries(entries);
   }
-  for (const annotation of targets) {
+  for (const { annotation } of entries) {
     const shape =
       shapeName === 'aabb'
         ? annotation.aabb
@@ -746,18 +790,16 @@ export function updatePropertyData(
   patch: Record<string, unknown>,
   options?: EditMutationOptions
 ) {
-  const anns = selectedAnnotations.value;
-  if (anns.length === 0) return;
-  const changedTargets = anns.filter((annotation) =>
+  const changedTargets = selectedAnnotationEntries().filter(({ annotation }) =>
     Object.entries(patch).some(
       ([key, value]) => !valuesMatch(annotation.properties[key], value)
     )
   );
   if (changedTargets.length === 0) return;
   if (shouldCaptureHistory(options)) {
-    recordCurrentSheetUndoSnapshot();
+    recordUndoForSelectionEntries(changedTargets);
   }
-  for (const annotation of changedTargets) {
+  for (const { annotation } of changedTargets) {
     for (const [key, value] of Object.entries(patch)) {
       annotation.properties[key] =
         value !== null && typeof value === 'object'

@@ -5,7 +5,7 @@
   "palettes": [],
   "activePaletteId": null,
   "lastOpenSheetPath": "03 - Dungeon Enemies.png",
-  "selectedAnnotationId": null,
+  "selectedAnnotationId": "3fe0f28f-6230-4ea7-b842-ecb6c5bf2542",
   "sheets": [
     {
       "path": "01 - Link.png",
@@ -209,8 +209,8 @@
         "gridWidth": 16,
         "gridHeight": 16,
         "zoom": 6.825,
-        "centerX": 38.97435897435897,
-        "centerY": 16.336996336996336
+        "centerX": 51.42857142857143,
+        "centerY": 35.38461538461539
       }
     },
     {

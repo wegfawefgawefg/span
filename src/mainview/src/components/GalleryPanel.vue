@@ -6,9 +6,10 @@ import {
   currentSheet,
   annotations as currentAnnotations,
   openSheetByPath,
-  selectAnnotation,
+  selectedIds,
   activeSpec,
   getPreviewShapeName,
+  setSelectedProjectAnnotationIdSet,
 } from '../state';
 import { getEntityByLabel } from '../spec/types';
 import ContextMenu from './ContextMenu.vue';
@@ -72,6 +73,7 @@ const sourceCtx = sourceCanvas.getContext('2d', {
 const galleryNow = ref(Date.now());
 let galleryTimer: number | null = null;
 const canvasRefs = ref<Map<string, HTMLCanvasElement>>(new Map());
+const selectedIdSet = computed(() => new Set(selectedIds.value));
 
 function loadGalleryMsPerDuration(): number {
   try {
@@ -535,27 +537,70 @@ onUnmounted(() => {
 
 const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 
-async function handleClick(group: SpriteGroup) {
-  const target =
-    group.frames.find((f) => f.sheetFile === currentSheet.value?.path) ??
-    group.frames[0];
+function groupAnnotationIds(group: SpriteGroup): string[] {
+  return group.frames.map((frame) => frame.annotationId);
+}
+
+function groupSelectionCount(group: SpriteGroup): number {
+  return group.frames.filter((frame) => selectedIdSet.value.has(frame.annotationId))
+    .length;
+}
+
+function isGroupSelected(group: SpriteGroup): boolean {
+  return groupSelectionCount(group) > 0;
+}
+
+function getSelectionTarget(group: SpriteGroup) {
+  return group.frames.find((frame) => frame.sheetFile === currentSheet.value?.path)
+    ?? group.frames[0];
+}
+
+async function selectGalleryGroup(
+  group: SpriteGroup,
+  options?: { additive?: boolean }
+) {
+  const target = getSelectionTarget(group);
   if (!target) return;
   if (currentSheet.value?.path !== target.sheetFile) {
-    await openSheetByPath(target.sheetFile);
-  } else {
-    selectAnnotation(target.annotationId);
+    openSheetByPath(target.sheetFile);
   }
+
+  const groupIds = groupAnnotationIds(group);
+  if (options?.additive) {
+    const currentIds = new Set(selectedIds.value);
+    const allSelected = groupIds.every((id) => currentIds.has(id));
+    const nextIds = allSelected
+      ? selectedIds.value.filter((id) => !groupIds.includes(id))
+      : [...selectedIds.value, ...groupIds];
+    setSelectedProjectAnnotationIdSet(nextIds, {
+      primaryId: target.annotationId,
+    });
+    return;
+  }
+
+  setSelectedProjectAnnotationIdSet(groupIds, {
+    primaryId: target.annotationId,
+  });
+}
+
+async function handleClick(event: MouseEvent, group: SpriteGroup) {
+  await selectGalleryGroup(group, {
+    additive: event.shiftKey || event.metaKey || event.ctrlKey,
+  });
 }
 
 function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
-  const target =
-    group.frames.find((f) => f.sheetFile === currentSheet.value?.path) ??
-    group.frames[0];
+  const target = getSelectionTarget(group);
+  if (!isGroupSelected(group)) {
+    void selectGalleryGroup(group);
+  }
   const entries: MenuEntry[] = [
     {
       label: 'Select sprite',
       action: () => {
-        if (target) handleClick(group);
+        if (target) {
+          void selectGalleryGroup(group);
+        }
       },
     },
   ];
@@ -643,7 +688,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
                 controlListButtonClass,
                 'inline-flex flex-col overflow-hidden',
                 previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
-                group.inCurrentSheet
+                isGroupSelected(group)
                   ? controlListButtonActiveClass
                   : controlListButtonDefaultClass,
               ]"
@@ -655,7 +700,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
                     }
                   : undefined
               "
-              @click="handleClick(group)"
+              @click="handleClick($event, group)"
               @contextmenu.stop="onGroupContextMenu($event, group)"
             >
               <canvas
@@ -666,7 +711,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
               <template v-if="previewScale >= 3">
                 <div
                   class="text-xs font-medium truncate max-w-full"
-                  :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'"
+                  :class="isGroupSelected(group) ? 'text-copper-bright' : 'text-text'"
                 >
                   {{ group.name }}
                 </div>
@@ -690,7 +735,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
             controlListButtonClass,
             'inline-flex flex-col overflow-hidden',
             previewScale >= 3 ? 'gap-1 p-2' : 'gap-0 p-1',
-            group.inCurrentSheet
+            isGroupSelected(group)
               ? controlListButtonActiveClass
               : controlListButtonDefaultClass,
           ]"
@@ -702,7 +747,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
                 }
               : undefined
           "
-          @click="handleClick(group)"
+          @click="handleClick($event, group)"
           @contextmenu.stop="onGroupContextMenu($event, group)"
         >
           <canvas
@@ -713,7 +758,7 @@ function onGroupContextMenu(event: MouseEvent, group: SpriteGroup) {
           <template v-if="previewScale >= 3">
             <div
               class="text-xs font-medium truncate max-w-full"
-              :class="group.inCurrentSheet ? 'text-copper-bright' : 'text-text'"
+              :class="isGroupSelected(group) ? 'text-copper-bright' : 'text-text'"
             >
               {{ group.name }}
             </div>

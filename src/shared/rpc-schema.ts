@@ -48,6 +48,10 @@ export type SpanRPC = {
 				params: { path: string; dataUrl: string };
 				response: { ok: boolean };
 			};
+			deleteFile: {
+				params: { path: string };
+				response: { ok: boolean };
+			};
 			readImageAsDataUrl: {
 				params: { path: string };
 				response: string;

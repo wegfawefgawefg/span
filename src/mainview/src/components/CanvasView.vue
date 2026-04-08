@@ -26,6 +26,7 @@ import {
   canvasCheckerStrength,
   registerPaintClipboardHandlers,
   registerResizeCanvasHandler,
+  registerSpriteClipboardHandlers,
   statusText,
   markDirty,
   ZOOM_FACTOR,
@@ -43,6 +44,7 @@ import {
   recordPaintUndoSnapshot,
   redoPaintEdit,
 } from '../state/paintHistory';
+import { makeId } from '../types';
 import { useCanvas } from '../composables/useCanvas';
 import { useCanvasPanning } from '../composables/useCanvasPanning';
 import { useCanvasRendering } from '../composables/useCanvasRendering';
@@ -66,6 +68,18 @@ const { zoomTo, normalizeZoom, startDrag, onPointerMove, endDrag } =
 const PAN_MARGIN = 384;
 const FIT_PADDING = 32;
 
+interface SpriteClipboardItem {
+  annotation: Annotation;
+  imageData: ImageData;
+  relativeX: number;
+  relativeY: number;
+}
+
+interface SpriteClipboardState {
+  items: SpriteClipboardItem[];
+  bounds: { x: number; y: number; w: number; h: number };
+}
+
 const {
   drawing,
   getPrimaryShapeKind,
@@ -73,6 +87,8 @@ const {
   annotationAtPoint,
   commitDrawing,
 } = useAnnotationDrawing();
+
+let spriteClipboard: SpriteClipboardState | null = null;
 const displayCanvasKey = computed(() => currentSheet.value?.path ?? 'no-sheet');
 
 const stageWidth = computed(() => Math.round(imageWidth.value * zoom.value));
@@ -374,6 +390,11 @@ onMounted(() => {
     paste: pastePixelClipboard,
     deleteSelection: deletePixelSelectionPixels,
   });
+  registerSpriteClipboardHandlers({
+    copy: copySpriteSelectionToClipboard,
+    cut: cutSpriteSelectionToClipboard,
+    paste: pasteSpriteClipboard,
+  });
   registerResizeCanvasHandler(resizeCurrentCanvas);
   updateScrollerViewportSize();
   scrollerResizeObserver = new ResizeObserver(() => {
@@ -392,6 +413,11 @@ onUnmounted(() => {
     cut: () => false,
     paste: () => false,
     deleteSelection: () => false,
+  });
+  registerSpriteClipboardHandlers({
+    copy: () => false,
+    cut: () => false,
+    paste: () => false,
   });
   registerResizeCanvasHandler(() => false);
   scrollerResizeObserver?.disconnect();
@@ -551,6 +577,20 @@ function stagePixelFromClient(
   return { x: imgX, y: imgY };
 }
 
+function cloneAnnotationDeep(annotation: Annotation): Annotation {
+  return JSON.parse(JSON.stringify(annotation)) as Annotation;
+}
+
+function getCanvasViewportCenterPoint() {
+  const el = scroller.value;
+  if (!el) return { x: 0, y: 0 };
+  return {
+    x: Math.round((el.scrollLeft + el.clientWidth / 2 - stageOffsetX.value) / zoom.value),
+    y: Math.round((el.scrollTop + el.clientHeight / 2 - stageOffsetY.value) / zoom.value),
+  };
+}
+
+
 function resizeCurrentCanvas(width: number, height: number): boolean {
   const sheet = currentSheet.value;
   if (!sheet || !isPaintableCurrentSheet.value) return false;
@@ -603,6 +643,146 @@ function resizeCurrentCanvas(width: number, height: number): boolean {
   commitSampleCanvasEdit(`Canvas resized to ${nextWidth}x${nextHeight}`);
   return true;
 }
+
+function getSelectedSpriteAnnotations(): Annotation[] {
+  const selectionIds =
+    atlasMoveSelectionIds.value.length > 0
+      ? atlasMoveSelectionIds.value
+      : selectedId.value
+        ? [selectedId.value]
+        : [];
+  if (selectionIds.length === 0) return [];
+  return annotations.value.filter(
+    (entry) => selectionIds.includes(entry.id) && !!entry.aabb
+  );
+}
+
+function copySpriteSelectionToClipboard(): boolean {
+  if (activeAtlasTool.value !== 'sprite-move' || !isPaintableCurrentSheet.value)
+    return false;
+  const selectedAnnotations = getSelectedSpriteAnnotations();
+  if (selectedAnnotations.length === 0) return false;
+
+  const bounds = {
+    x: Math.min(...selectedAnnotations.map((annotation) => annotation.aabb!.x)),
+    y: Math.min(...selectedAnnotations.map((annotation) => annotation.aabb!.y)),
+    w:
+      Math.max(...selectedAnnotations.map((annotation) => annotation.aabb!.x + annotation.aabb!.w)) -
+      Math.min(...selectedAnnotations.map((annotation) => annotation.aabb!.x)),
+    h:
+      Math.max(...selectedAnnotations.map((annotation) => annotation.aabb!.y + annotation.aabb!.h)) -
+      Math.min(...selectedAnnotations.map((annotation) => annotation.aabb!.y)),
+  };
+
+  spriteClipboard = {
+    bounds,
+    items: selectedAnnotations.map((annotation) => ({
+      annotation: cloneAnnotationDeep(annotation),
+      imageData: sampleCtx.getImageData(
+        annotation.aabb!.x,
+        annotation.aabb!.y,
+        annotation.aabb!.w,
+        annotation.aabb!.h
+      ),
+      relativeX: annotation.aabb!.x - bounds.x,
+      relativeY: annotation.aabb!.y - bounds.y,
+    })),
+  };
+
+  statusText.value = `Copied ${selectedAnnotations.length} sprite${selectedAnnotations.length === 1 ? '' : 's'}`;
+  return true;
+}
+
+function cutSpriteSelectionToClipboard(): boolean {
+  const sheet = currentSheet.value;
+  if (!sheet || !copySpriteSelectionToClipboard()) return false;
+
+  const selectedIds = new Set(
+    getSelectedSpriteAnnotations().map((annotation) => annotation.id)
+  );
+  if (selectedIds.size === 0) return false;
+
+  recordPaintUndoSnapshot(sheet);
+  for (const annotation of sheet.annotations) {
+    if (!annotation.aabb || !selectedIds.has(annotation.id)) continue;
+    sampleCtx.clearRect(
+      annotation.aabb.x,
+      annotation.aabb.y,
+      annotation.aabb.w,
+      annotation.aabb.h
+    );
+  }
+  sheet.annotations = sheet.annotations.filter(
+    (annotation) => !selectedIds.has(annotation.id)
+  );
+  setAtlasSelection([]);
+  spriteMove.value = null;
+  commitSampleCanvasEdit('Sprites cut to clipboard');
+  markDirty(true);
+  return true;
+}
+
+function pasteSpriteClipboard(): boolean {
+  const sheet = currentSheet.value;
+  if (
+    !sheet ||
+    !spriteClipboard ||
+    activeAtlasTool.value !== 'sprite-move' ||
+    !isPaintableCurrentSheet.value
+  ) {
+    return false;
+  }
+
+  if (
+    spriteClipboard.bounds.w > sampleCanvas.width ||
+    spriteClipboard.bounds.h > sampleCanvas.height
+  ) {
+    statusText.value = 'Sprite group does not fit in this sheet';
+    return false;
+  }
+
+  recordPaintUndoSnapshot(sheet);
+  const viewportCenter = getCanvasViewportCenterPoint();
+  const originX = Math.max(
+    0,
+    Math.min(
+      Math.round(viewportCenter.x - spriteClipboard.bounds.w / 2),
+      sampleCanvas.width - spriteClipboard.bounds.w
+    )
+  );
+  const originY = Math.max(
+    0,
+    Math.min(
+      Math.round(viewportCenter.y - spriteClipboard.bounds.h / 2),
+      sampleCanvas.height - spriteClipboard.bounds.h
+    )
+  );
+
+  const pastedIds: string[] = [];
+  for (const item of spriteClipboard.items) {
+    const nextAnnotation = cloneAnnotationDeep(item.annotation);
+    nextAnnotation.id = makeId();
+    if (nextAnnotation.aabb) {
+      nextAnnotation.aabb.x = originX + item.relativeX;
+      nextAnnotation.aabb.y = originY + item.relativeY;
+    }
+    sampleCtx.putImageData(
+      item.imageData,
+      originX + item.relativeX,
+      originY + item.relativeY
+    );
+    sheet.annotations.push(nextAnnotation);
+    pastedIds.push(nextAnnotation.id);
+  }
+
+  setAtlasSelection(pastedIds);
+  commitSampleCanvasEdit(
+    `Pasted ${pastedIds.length} sprite${pastedIds.length === 1 ? '' : 's'}`
+  );
+  markDirty(true);
+  return true;
+}
+
 
 function handleWheel(event: WheelEvent) {
   if (!imageWidth.value) return;
@@ -885,7 +1065,7 @@ function handleLayerPointerMove(event: PointerEvent) {
     renderDisplayCanvas();
     return;
   }
-  if (pixelSelectionMove.value) {
+  if (pixelSelectionMove.value?.dragging) {
     const point = stagePixelFromClient(event.clientX, event.clientY);
     if (!point) return;
     updatePixelSelectionMove(point);

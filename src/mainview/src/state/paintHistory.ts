@@ -1,6 +1,7 @@
 import { computed, ref, triggerRef, type Ref } from 'vue';
 import { api, platform } from '../platform/adapter';
 import { saveImage } from '../platform/image-store';
+import type { Annotation } from '../annotation';
 import {
   sheets,
   currentSheet,
@@ -18,7 +19,7 @@ export interface EditedSheetState {
 
 export interface EditSnapshot {
   imageUrl: string;
-  annotationAabbs: Record<string, { x: number; y: number; w: number; h: number }>;
+  annotations: Annotation[];
 }
 
 // --- Late-bound refs from state.ts (avoids circular import) ---
@@ -27,6 +28,7 @@ let _currentSheetImageSrc: Ref<string>;
 let _imageWidth: Ref<number>;
 let _imageHeight: Ref<number>;
 let _statusText: Ref<string>;
+let _selectedId: Ref<string | null>;
 
 /** Called once by state.ts to wire up refs that live there. */
 export function bindPaintHistoryRefs(refs: {
@@ -34,11 +36,13 @@ export function bindPaintHistoryRefs(refs: {
   imageWidth: Ref<number>;
   imageHeight: Ref<number>;
   statusText: Ref<string>;
+  selectedId: Ref<string | null>;
 }) {
   _currentSheetImageSrc = refs.currentSheetImageSrc;
   _imageWidth = refs.imageWidth;
   _imageHeight = refs.imageHeight;
   _statusText = refs.statusText;
+  _selectedId = refs.selectedId;
 }
 
 // --- State ---
@@ -80,31 +84,17 @@ export function ensureEditedSheetState(sheet: WorkspaceSheet): EditedSheetState 
 function captureEditSnapshot(sheet: WorkspaceSheet): EditSnapshot {
   return {
     imageUrl: sheet.imageUrl,
-    annotationAabbs: Object.fromEntries(
-      sheet.annotations
-        .filter((annotation) => !!annotation.aabb)
-        .map((annotation) => [
-          annotation.id,
-          {
-            x: annotation.aabb!.x,
-            y: annotation.aabb!.y,
-            w: annotation.aabb!.w,
-            h: annotation.aabb!.h,
-          },
-        ])
-    ),
+    annotations: JSON.parse(JSON.stringify(sheet.annotations)),
   };
 }
 
 function applyEditSnapshot(sheet: WorkspaceSheet, snapshot: EditSnapshot) {
-  for (const annotation of sheet.annotations) {
-    if (!annotation.aabb) continue;
-    const next = snapshot.annotationAabbs[annotation.id];
-    if (!next) continue;
-    annotation.aabb.x = next.x;
-    annotation.aabb.y = next.y;
-    annotation.aabb.w = next.w;
-    annotation.aabb.h = next.h;
+  sheet.annotations = JSON.parse(JSON.stringify(snapshot.annotations));
+  if (currentSheet.value === sheet && _selectedId.value) {
+    const hasSelected = sheet.annotations.some((annotation) => annotation.id === _selectedId.value);
+    if (!hasSelected) {
+      _selectedId.value = sheet.annotations[0]?.id ?? null;
+    }
   }
   updateSheetImageState(sheet, snapshot.imageUrl, sheet.width, sheet.height);
   triggerRef(sheets);

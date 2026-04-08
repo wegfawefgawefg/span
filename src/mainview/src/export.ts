@@ -14,6 +14,16 @@ export interface ShapeFieldOverrides {
 	point?: [string, string];                 // [x, y]
 }
 
+function normalizeExportValue(value: unknown): unknown {
+	if (typeof value === "string") {
+		return value.trim();
+	}
+	if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+		return value.map((item) => item.trim());
+	}
+	return value;
+}
+
 function remapRect(
 	data: { x: number; y: number; w: number; h: number },
 	overrides?: [string, string, string, string],
@@ -82,7 +92,7 @@ export function buildExportData(
 		}
 
 		if (entityDef.nameField) {
-			flat["name"] = ann.properties.name ?? null;
+			flat["name"] = normalizeExportValue(ann.properties.name ?? null);
 		}
 		if (entityDef.frameField) {
 			flat["frame"] = ann.properties.frame ?? null;
@@ -103,7 +113,7 @@ export function buildExportData(
 			if (field.kind === "shape") {
 				flat[field.name] = remapShapeValue(value, field.shapeType, field.array, shapeFields);
 			} else {
-				flat[field.name] = value ?? null;
+				flat[field.name] = normalizeExportValue(value ?? null);
 			}
 		}
 

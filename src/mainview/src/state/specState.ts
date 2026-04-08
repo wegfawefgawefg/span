@@ -349,7 +349,7 @@ export async function importSpecFromPath(path: string) {
 
 // --- Path helpers (used internally) ---
 
-function workspaceDir(path: string | null): string {
+export function workspaceDir(path: string | null): string {
   return path ? path.replace(/\/[^/]+$/, '') : '';
 }
 

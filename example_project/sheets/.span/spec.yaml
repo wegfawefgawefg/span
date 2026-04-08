@@ -1,0 +1,7 @@
+- label: Sprite
+  group: sprites
+  aabb: rect
+  name: string
+  frame: ainteger
+  duration: integer
+  offset: point

@@ -3,10 +3,13 @@ import { computed, ref, watch } from 'vue';
 import {
   sheets,
   currentSheet,
+  effectiveRoot,
   openSheetByPath,
   removeSheet,
+  addSheet,
   fulfillSheet,
   statusText,
+  markDirty,
 } from '../state';
 import type { WorkspaceSheet } from '../state';
 import { api, platform } from '../platform/adapter';
@@ -16,6 +19,12 @@ import type { MenuEntry } from './ContextMenu.vue';
 const filterQuery = ref('');
 const ctxMenu = ref<InstanceType<typeof ContextMenu> | null>(null);
 const expandedFolders = ref<Set<string>>(new Set());
+const showCreateDialog = ref(false);
+const showDeleteDialog = ref(false);
+const newSheetName = ref('');
+const newSheetWidth = ref('64');
+const newSheetHeight = ref('64');
+const pendingDeleteSheet = ref<WorkspaceSheet | null>(null);
 
 type SheetTreeNode =
   | {
@@ -161,6 +170,100 @@ function toggleFolder(path: string) {
   expandedFolders.value = next;
 }
 
+function parentFolder(path: string): string {
+  const parts = path.split('/');
+  parts.pop();
+  return parts.join('/');
+}
+
+const targetFolder = computed(() => {
+  if (currentSheet.value) return parentFolder(currentSheet.value.path);
+  return '';
+});
+
+const targetFolderLabel = computed(() => targetFolder.value || '.');
+
+function buildAbsoluteSheetPath(relativePath: string): string {
+  const root = effectiveRoot.value;
+  if (!root) return relativePath;
+  return root.endsWith('/') ? `${root}${relativePath}` : `${root}/${relativePath}`;
+}
+
+function createBlankPngDataUrl(width: number, height: number): string {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Failed to create image canvas');
+  ctx.clearRect(0, 0, width, height);
+  return canvas.toDataURL('image/png');
+}
+
+function openCreateDialog() {
+  const base = currentSheet.value
+    ? filename(currentSheet.value.path).replace(/\.[^.]+$/, '')
+    : 'sheet';
+  newSheetName.value = `${base || 'sheet'}-new.png`;
+  newSheetWidth.value = '64';
+  newSheetHeight.value = '64';
+  showCreateDialog.value = true;
+}
+
+function closeCreateDialog() {
+  showCreateDialog.value = false;
+}
+
+function openDeleteDialog(sheet: WorkspaceSheet) {
+  pendingDeleteSheet.value = sheet;
+  showDeleteDialog.value = true;
+}
+
+function closeDeleteDialog() {
+  showDeleteDialog.value = false;
+  pendingDeleteSheet.value = null;
+}
+
+async function createSheet() {
+  if (platform.value !== 'desktop' || !effectiveRoot.value) return;
+  const trimmed = newSheetName.value.trim();
+  if (!trimmed) {
+    statusText.value = 'Enter a filename';
+    return;
+  }
+  const fileName = /\.png$/i.test(trimmed) ? trimmed : `${trimmed}.png`;
+  const width = Math.max(1, Math.round(Number(newSheetWidth.value) || 0));
+  const height = Math.max(1, Math.round(Number(newSheetHeight.value) || 0));
+  if (width < 1 || height < 1) {
+    statusText.value = 'Width and height must be at least 1';
+    return;
+  }
+
+  const relativePath = targetFolder.value ? `${targetFolder.value}/${fileName}` : fileName;
+  const absolutePath = buildAbsoluteSheetPath(relativePath);
+
+  try {
+    const imageUrl = createBlankPngDataUrl(width, height);
+    await api.writeImageDataUrl(absolutePath, imageUrl);
+    ensureExpandedParents(relativePath);
+    addSheet({
+      path: relativePath,
+      absolutePath,
+      annotations: [],
+      status: 'loaded',
+      imageUrl,
+      width,
+      height,
+    });
+    markDirty(true);
+    closeCreateDialog();
+    await handleOpen(relativePath);
+    statusText.value = `Created ${fileName}`;
+  } catch (e) {
+    console.error(e);
+    statusText.value = 'Failed to create PNG';
+  }
+}
+
 async function handleOpen(path: string) {
   try {
     await openSheetByPath(path);
@@ -181,6 +284,21 @@ function handleRemove(path: string, hasAnnotations: boolean) {
     }
   }
   removeSheet(path);
+}
+
+async function handleDeleteSheet(sheet: WorkspaceSheet) {
+  try {
+    if (platform.value === 'desktop' && sheet.status !== 'missing') {
+      await api.deleteFile(sheet.absolutePath);
+    }
+    removeSheet(sheet.path);
+    markDirty(true);
+    statusText.value = `Deleted ${filename(sheet.path)}`;
+    closeDeleteDialog();
+  } catch (e) {
+    console.error(e);
+    statusText.value = 'Failed to delete PNG';
+  }
 }
 
 async function handleLocateImage(sheet: WorkspaceSheet) {
@@ -231,6 +349,9 @@ function onSheetContextMenu(
         ]
       : []),
     { separator: true },
+    ...(platform.value === 'desktop'
+      ? [{ label: 'Delete PNG', action: () => openDeleteDialog(sheet) }]
+      : []),
     {
       label: 'Remove from workspace',
       action: () => handleRemove(sheet.path, sheet.annotations.length > 0),
@@ -243,6 +364,26 @@ function onSheetContextMenu(
 <template>
   <div class="h-full flex flex-col gap-2 overflow-hidden bg-surface-1">
     <div class="flex flex-col gap-1.5 p-2 pb-0">
+      <div
+        v-if="platform === 'desktop' && effectiveRoot"
+        class="grid grid-cols-2 gap-2"
+      >
+        <button
+          type="button"
+          class="sheet-action-button"
+          @click="openCreateDialog()"
+        >
+          New PNG
+        </button>
+        <button
+          type="button"
+          class="sheet-action-button"
+          :disabled="!currentSheet"
+          @click="currentSheet && openDeleteDialog(currentSheet)"
+        >
+          Delete
+        </button>
+      </div>
       <input
         v-model="filterQuery"
         type="search"
@@ -337,9 +478,209 @@ function onSheetContextMenu(
         </ul>
       </template>
     </div>
+    <div v-if="showCreateDialog" class="sheet-modal-backdrop">
+      <form class="sheet-modal-card" @submit.prevent="createSheet">
+        <div class="sheet-modal-title">New PNG</div>
+        <div class="sheet-modal-copy">
+          <div>
+            Folder: <span class="font-mono">{{ targetFolderLabel }}</span>
+          </div>
+          <div>Creates a transparent PNG in the current sheet folder.</div>
+        </div>
+        <label class="sheet-modal-field">
+          <span>Name</span>
+          <input
+            v-model="newSheetName"
+            type="text"
+            placeholder="sheet.png"
+            autofocus
+          />
+        </label>
+        <div class="sheet-modal-grid">
+          <label class="sheet-modal-field">
+            <span>Width</span>
+            <input v-model="newSheetWidth" type="number" min="1" step="1" />
+          </label>
+          <label class="sheet-modal-field">
+            <span>Height</span>
+            <input v-model="newSheetHeight" type="number" min="1" step="1" />
+          </label>
+        </div>
+        <div class="sheet-modal-actions">
+          <button
+            type="button"
+            class="sheet-action-button ghost"
+            @click="closeCreateDialog()"
+          >
+            Cancel
+          </button>
+          <button type="submit" class="sheet-action-button primary">
+            Create
+          </button>
+        </div>
+      </form>
+    </div>
+    <div v-if="showDeleteDialog && pendingDeleteSheet" class="sheet-modal-backdrop">
+      <div class="sheet-modal-card">
+        <div class="sheet-modal-title">Delete PNG</div>
+        <div class="sheet-modal-copy">
+          <div>
+            Delete
+            <span class="font-mono">{{ filename(pendingDeleteSheet.path) }}</span>
+            from disk?
+          </div>
+          <div v-if="pendingDeleteSheet.annotations.length > 0">
+            This will also remove
+            {{ pendingDeleteSheet.annotations.length }}
+            annotation{{ pendingDeleteSheet.annotations.length === 1 ? '' : 's' }}
+            from the workspace.
+          </div>
+          <div v-else>This only removes the file and sheet entry.</div>
+        </div>
+        <div class="sheet-modal-actions">
+          <button
+            type="button"
+            class="sheet-action-button ghost"
+            @click="closeDeleteDialog()"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            class="sheet-action-button danger"
+            @click="handleDeleteSheet(pendingDeleteSheet)"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    </div>
     <ContextMenu ref="ctxMenu" />
   </div>
 </template>
+
+<style scoped>
+.sheet-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.sheet-action-button:hover {
+  border-color: var(--color-copper);
+  color: var(--color-copper-bright);
+  background: color-mix(
+    in srgb,
+    var(--color-surface-2) 82%,
+    var(--color-copper-glow)
+  );
+}
+
+.sheet-action-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+  color: var(--color-text-faint);
+  border-color: var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.sheet-action-button.primary {
+  border-color: color-mix(in srgb, var(--color-copper) 60%, var(--color-border));
+  background: color-mix(
+    in srgb,
+    var(--color-copper-glow) 55%,
+    var(--color-surface-1)
+  );
+  color: var(--color-copper-bright);
+}
+
+.sheet-action-button.danger {
+  border-color: color-mix(in srgb, var(--color-danger) 60%, var(--color-border));
+  background: color-mix(in srgb, var(--color-danger) 18%, var(--color-surface-1));
+  color: #f0b0b0;
+}
+
+.sheet-action-button.danger:hover {
+  border-color: var(--color-danger);
+  color: #ffd1d1;
+  background: color-mix(in srgb, var(--color-danger) 28%, var(--color-surface-1));
+}
+
+.sheet-action-button.ghost {
+  background: transparent;
+}
+
+.sheet-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.sheet-modal-card {
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-surface-1);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+}
+
+.sheet-modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.sheet-modal-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text-dim);
+  font-size: 12px;
+}
+
+.sheet-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sheet-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--color-text-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.sheet-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+</style>
 
 <style scoped>
 .sheet-tree {

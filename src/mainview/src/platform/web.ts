@@ -97,6 +97,10 @@ export function createWebAdapter(): WebPlatformAdapter {
 			return { ok: true };
 		},
 
+		async deleteFile(): Promise<{ ok: boolean }> {
+			return { ok: false };
+		},
+
 		async readImageAsDataUrl(path: string): Promise<string> {
 			const file = fileRegistry.get(path);
 			if (!file) throw new Error(`File not found: ${path}`);

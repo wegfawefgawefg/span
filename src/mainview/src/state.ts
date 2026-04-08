@@ -11,7 +11,7 @@ import {
   undoPaintEdit,
   redoPaintEdit,
 } from './state/paintHistory';
-import { setSelectTool, activeTool, activePaintColor } from './state/toolState';
+import { setSelectTool, activeTool, activePaintTool, activeAtlasTool, activePaintColor } from './state/toolState';
 import {
   paintPalette,
   projectPalettes,
@@ -162,6 +162,15 @@ export {
   redoPaintEdit,
 };
 
+// Re-export tool state for consumers
+export {
+  activeTool,
+  activePaintTool,
+  activeAtlasTool,
+  activePaintColor,
+  setSelectTool,
+};
+
 export const ZOOM_MIN = 0.1;
 export const ZOOM_MAX = 32;
 export const ZOOM_FACTOR = 1.25;
@@ -178,9 +187,10 @@ export const canvasGridHeight = ref(16);
 export const currentSheetImageSrc = ref<string>('');
 export const imageWidth = ref(0);
 export const imageHeight = ref(0);
+export const exportFilePath = ref<string | null>(null);
 
 // Wire up refs needed by paintHistory (avoids circular import)
-bindPaintHistoryRefs({ currentSheetImageSrc, imageWidth, imageHeight, statusText });
+bindPaintHistoryRefs({ currentSheetImageSrc, imageWidth, imageHeight, statusText, selectedId });
 
 
 export const canvasCheckerStrength = ref(loadCheckerStrength());
@@ -229,6 +239,9 @@ let copyPixelSelectionHandler: () => boolean = () => false;
 let cutPixelSelectionHandler: () => boolean = () => false;
 let pastePixelSelectionHandler: () => boolean = () => false;
 let deletePixelSelectionHandler: () => boolean = () => false;
+let copySpriteSelectionHandler: () => boolean = () => false;
+let cutSpriteSelectionHandler: () => boolean = () => false;
+let pasteSpriteSelectionHandler: () => boolean = () => false;
 let resizeCanvasHandler: (width: number, height: number) => boolean = () => false;
 
 export function registerPaintClipboardHandlers(handlers: {
@@ -241,6 +254,16 @@ export function registerPaintClipboardHandlers(handlers: {
   cutPixelSelectionHandler = handlers.cut;
   pastePixelSelectionHandler = handlers.paste;
   deletePixelSelectionHandler = handlers.deleteSelection;
+}
+
+export function registerSpriteClipboardHandlers(handlers: {
+  copy: () => boolean;
+  cut: () => boolean;
+  paste: () => boolean;
+}) {
+  copySpriteSelectionHandler = handlers.copy;
+  cutSpriteSelectionHandler = handlers.cut;
+  pasteSpriteSelectionHandler = handlers.paste;
 }
 
 export function copyPixelSelection() {
@@ -257,6 +280,18 @@ export function pastePixelSelection() {
 
 export function deletePixelSelection() {
   return deletePixelSelectionHandler();
+}
+
+export function copySpriteSelection() {
+  return copySpriteSelectionHandler();
+}
+
+export function cutSpriteSelection() {
+  return cutSpriteSelectionHandler();
+}
+
+export function pasteSpriteSelection() {
+  return pasteSpriteSelectionHandler();
 }
 
 export function registerResizeCanvasHandler(handler: (width: number, height: number) => boolean) {
@@ -431,6 +466,7 @@ function performSave() {
     projectPalettes.value,
     activeProjectPaletteId.value,
     makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value),
+    makeWorkspaceRelativePath(exportFilePath.value, spanFilePath.value),
     currentSheet.value?.path ?? null,
     getPersistedSelectedAnnotationId(),
   );
@@ -473,6 +509,7 @@ bindIoStateRefs({
   dirty,
   statusText,
   selectedId,
+  exportFilePath,
   paintPixelSelection,
   hasPaintClipboard,
   markDirty,
@@ -519,6 +556,7 @@ export function closeProject() {
   editedSheetState.value = {};
   projectPalettes.value = [];
   activeProjectPaletteId.value = null;
+  exportFilePath.value = null;
   paintPalette.value = [];
   paintPixelSelection.value = null;
   hasPaintClipboard.value = false;

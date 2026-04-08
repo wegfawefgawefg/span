@@ -1,0 +1,373 @@
+{
+  "version": 5,
+  "specPath": "spec.yaml",
+  "spec": null,
+  "palettes": [],
+  "activePaletteId": null,
+  "lastOpenSheetPath": "03 - Dungeon Enemies.png",
+  "selectedAnnotationId": "3fe0f28f-6230-4ea7-b842-ecb6c5bf2542",
+  "sheets": [
+    {
+      "path": "01 - Link.png",
+      "annotations": [
+        {
+          "id": "0dd8afef-b516-46aa-a482-921bcacdeede",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 1,
+            "y": 11,
+            "w": 16,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "link",
+            "frame": 0,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "id": "425e7f50-94e6-4af0-9b5d-347519c86d44",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 18,
+            "y": 11,
+            "w": 16,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "link",
+            "frame": 1,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "id": "38a27376-e832-40d5-bb08-edade8f74a56",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 35,
+            "y": 11,
+            "w": 16,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "link1",
+            "frame": 2,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "id": "a114985c-142e-4687-97e4-c1490ed6b421",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 52,
+            "y": 11,
+            "w": 16,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "link1",
+            "frame": 3,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        }
+      ],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 2.098,
+        "centerX": 198.76072449952338,
+        "centerY": 154.67111534795043
+      }
+    },
+    {
+      "path": "02 - Bosses.png",
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 2.069,
+        "centerX": 262.4456259062349,
+        "centerY": 181.48864185596906
+      }
+    },
+    {
+      "path": "03 - Dungeon Enemies.png",
+      "annotations": [
+        {
+          "id": "e2a99f42-69c1-4e67-9ebc-eeb727f3242c",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 1,
+            "y": 11,
+            "w": 8,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "Gel1",
+            "frame": 0,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "id": "daccddcc-e8d8-4259-bac7-f0f813a829aa",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 10,
+            "y": 11,
+            "w": 8,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "Gel1",
+            "frame": 1,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "id": "3fe0f28f-6230-4ea7-b842-ecb6c5bf2542",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 19,
+            "y": 11,
+            "w": 8,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "Gel2",
+            "frame": 1,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        },
+        {
+          "id": "521193ee-a319-40fd-a273-e8c43d20eca3",
+          "entityType": "Sprite",
+          "aabb": {
+            "x": 28,
+            "y": 11,
+            "w": 8,
+            "h": 16
+          },
+          "point": null,
+          "chromaKey": null,
+          "properties": {
+            "name": "Gel2",
+            "frame": 2,
+            "duration": 10,
+            "offset": {
+              "x": 0,
+              "y": 0
+            }
+          }
+        }
+      ],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 10.664,
+        "centerX": 24.240435108777195,
+        "centerY": 23.771567891972992
+      }
+    },
+    {
+      "path": "04 - Overworld Enemies.png",
+      "annotations": []
+    },
+    {
+      "path": "05 - Overworld (First Quest).png",
+      "annotations": []
+    },
+    {
+      "path": "06 - Level 1 (Eagle).png",
+      "annotations": []
+    },
+    {
+      "path": "07 - Level 2 (Crescent).png",
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 0.485,
+        "centerX": 1119.5876288659795,
+        "centerY": 774.2268041237114
+      }
+    },
+    {
+      "path": "08 - Level 3 (Manji).png",
+      "annotations": []
+    },
+    {
+      "path": "09 - Level 4 (Snake).png",
+      "annotations": []
+    },
+    {
+      "path": "10 - Level 5 (Lizard).png",
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 0.485,
+        "centerX": 1119.5876288659795,
+        "centerY": 774.2268041237114
+      }
+    },
+    {
+      "path": "11 - Level 6 (Dragon).png",
+      "annotations": []
+    },
+    {
+      "path": "12 - Level 7 (Demon).png",
+      "annotations": []
+    },
+    {
+      "path": "13 - Level 8 (Lion).png",
+      "annotations": []
+    },
+    {
+      "path": "14 - Level 9 (Death Mountain).png",
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 0.485,
+        "centerX": 1119.5876288659795,
+        "centerY": 774.2268041237114
+      }
+    },
+    {
+      "path": "15 - Level 1 (E).png",
+      "annotations": []
+    },
+    {
+      "path": "16 - Level 2 (A).png",
+      "annotations": []
+    },
+    {
+      "path": "17 - Level 3 (L).png",
+      "annotations": []
+    },
+    {
+      "path": "18 - Level 4 (D).png",
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 0.478,
+        "centerX": 1135.9832635983264,
+        "centerY": 785.5648535564853
+      }
+    },
+    {
+      "path": "19 - Level 5 (Z).png",
+      "annotations": []
+    },
+    {
+      "path": "20 - Level 6.png",
+      "annotations": [],
+      "view": {
+        "gridEnabled": false,
+        "gridWidth": 16,
+        "gridHeight": 16,
+        "zoom": 0.485,
+        "centerX": 1119.5876288659795,
+        "centerY": 774.2268041237114
+      }
+    },
+    {
+      "path": "21 - Level 7.png",
+      "annotations": []
+    },
+    {
+      "path": "22 - Level 8.png",
+      "annotations": []
+    },
+    {
+      "path": "23 - Level 9.png",
+      "annotations": []
+    },
+    {
+      "path": "24 - Dungeon Tileset.png",
+      "annotations": []
+    },
+    {
+      "path": "25 - Overworld Tileset.png",
+      "annotations": []
+    },
+    {
+      "path": "26 - Enemy Death.png",
+      "annotations": []
+    },
+    {
+      "path": "27 - File Select.png",
+      "annotations": []
+    },
+    {
+      "path": "28 - Fonts.png",
+      "annotations": []
+    },
+    {
+      "path": "29 - HUD & Pause Screen.png",
+      "annotations": []
+    },
+    {
+      "path": "30 - Items & Weapons.png",
+      "annotations": []
+    },
+    {
+      "path": "31 - NPCs.png",
+      "annotations": []
+    },
+    {
+      "path": "32 - Title Screen & Story - All of Treasures.png",
+      "annotations": []
+    }
+  ]
+}

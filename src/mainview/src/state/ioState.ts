@@ -5,6 +5,7 @@ import {
   sheets,
   currentSheet,
   spanFilePath,
+  effectiveRoot,
   addSheet,
   resetWorkspace,
 } from '../workspace';
@@ -29,6 +30,7 @@ import {
   saveSpecFileNow,
   defaultProjectSpecPathForWorkspace,
   makeWorkspaceRelativePath,
+  workspaceDir,
   resetToDefaultSpec,
 } from './specState';
 import {
@@ -45,6 +47,7 @@ import type { Ref } from 'vue';
 let _dirty: Ref<boolean>;
 let _statusText: Ref<string>;
 let _selectedId: Ref<string | null>;
+let _exportFilePath: Ref<string | null>;
 let _paintPixelSelection: Ref<{ x: number; y: number; w: number; h: number } | null>;
 let _hasPaintClipboard: Ref<boolean>;
 let _markDirty: (isDirty: boolean) => void;
@@ -56,6 +59,7 @@ export function bindIoStateRefs(refs: {
   dirty: Ref<boolean>;
   statusText: Ref<string>;
   selectedId: Ref<string | null>;
+  exportFilePath: Ref<string | null>;
   paintPixelSelection: Ref<{ x: number; y: number; w: number; h: number } | null>;
   hasPaintClipboard: Ref<boolean>;
   markDirty: (isDirty: boolean) => void;
@@ -66,6 +70,7 @@ export function bindIoStateRefs(refs: {
   _dirty = refs.dirty;
   _statusText = refs.statusText;
   _selectedId = refs.selectedId;
+  _exportFilePath = refs.exportFilePath;
   _paintPixelSelection = refs.paintPixelSelection;
   _hasPaintClipboard = refs.hasPaintClipboard;
   _markDirty = refs.markDirty;
@@ -75,6 +80,14 @@ export function bindIoStateRefs(refs: {
 }
 
 // --- Path helpers ---
+
+export function defaultProjectExportPath(): string | null {
+  const root = effectiveRoot.value;
+  const spec = activeSpecRaw.value;
+  if (!root || !spec) return null;
+  const ext = spec.format === 'json' ? 'json' : 'yaml';
+  return `${root}/annotations.${ext}`;
+}
 
 // --- Persist / snapshot ---
 
@@ -88,6 +101,7 @@ export async function persistWorkspaceSnapshotNow() {
     projectPalettes.value,
     activeProjectPaletteId.value,
     makeWorkspaceRelativePath(specFilePath.value, spanFilePath.value),
+    makeWorkspaceRelativePath(_exportFilePath.value, spanFilePath.value),
     currentSheet.value?.path ?? null,
     _getPersistedSelectedAnnotationId(),
   );
@@ -181,6 +195,7 @@ export async function openProjectDirectory(
   editedSheetState.value = {};
   projectPalettes.value = [];
   activeProjectPaletteId.value = null;
+  _exportFilePath.value = null;
   paintPalette.value = [];
   _paintPixelSelection.value = null;
   _hasPaintClipboard.value = false;
@@ -272,6 +287,10 @@ export async function doExportWrite(
     savePath = defaultName;
   } else if (dialogPath) {
     savePath = dialogPath;
+  } else if (_exportFilePath.value) {
+    savePath = _exportFilePath.value;
+  } else if (defaultProjectExportPath()) {
+    savePath = defaultProjectExportPath()!;
   } else {
     // Fallback: show dialog from webview (used if called directly)
     const path = await api.showSaveDialog(defaultName, []);
@@ -281,11 +300,30 @@ export async function doExportWrite(
 
   try {
     await api.writeFile(savePath, output);
+    _exportFilePath.value = savePath;
     _statusText.value = `Exported to ${savePath.split('/').pop()}`;
   } catch (e) {
     console.error('Export failed:', e);
     _statusText.value = 'Export failed';
   }
+}
+
+async function saveExportManifestIfConfigured() {
+  const spec = activeSpec.value;
+  if (!spec || platform.value !== 'desktop') return;
+
+  const exportPath = _exportFilePath.value ?? defaultProjectExportPath();
+  if (!exportPath) return;
+
+  const entries: ExportEntry[] = sheets.value.flatMap((s) =>
+    s.annotations.map((a) => ({
+      annotation: a,
+      sheetFile: s.path.split('/').pop() ?? s.path,
+    }))
+  );
+  const output = exportToString(entries, spec);
+  await api.writeFile(exportPath, output);
+  _exportFilePath.value = exportPath;
 }
 
 // --- Save / Save As / Open ---
@@ -301,6 +339,7 @@ export async function saveWorkspace(): Promise<{ needsSaveAs: boolean }> {
   }
   try {
     await savePendingImageEdits();
+    await saveExportManifestIfConfigured();
     _performSave();
   } catch (e) {
     console.error('Save failed:', e);
@@ -338,6 +377,7 @@ export async function saveWorkspaceAs(dialogPath?: string) {
     projectPalettes.value,
     activeProjectPaletteId.value,
     makeWorkspaceRelativePath(specFilePath.value, savePath),
+    makeWorkspaceRelativePath(_exportFilePath.value ?? defaultProjectExportPath(), savePath),
     currentSheet.value?.path ?? null,
     _getPersistedSelectedAnnotationId(),
   );
@@ -345,6 +385,7 @@ export async function saveWorkspaceAs(dialogPath?: string) {
 
   try {
     await savePendingImageEdits();
+    await saveExportManifestIfConfigured();
     await api.writeFile(savePath, data);
     await saveSpecFileNow();
     console.log('[saveWorkspaceAs] write succeeded');
@@ -391,7 +432,14 @@ export async function restoreWorkspace(raw: string, filePath?: string) {
   if (filePath) {
     spanFilePath.value = filePath;
   }
+  const resolvedExportPath =
+    data.exportPath
+      ? (filePath && !data.exportPath.startsWith('/')
+          ? `${workspaceDir(filePath)}/${data.exportPath}`
+          : data.exportPath)
+      : null;
   await resolveProjectSpecForWorkspace(filePath ?? null, data.specPath ?? null, data.spec);
+  _exportFilePath.value = resolvedExportPath ?? defaultProjectExportPath();
 
   const fileDir = filePath ? filePath.replace(/\/[^/]+$/, '') : '';
   const dir = fileDir.endsWith('/.span')

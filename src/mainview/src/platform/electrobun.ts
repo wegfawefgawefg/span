@@ -74,6 +74,8 @@ export function createElectrobunAdapter(): PlatformAdapter {
 			electroview.rpc.request.writeFile({ path, contents }),
 		writeImageDataUrl: (path: string, dataUrl: string) =>
 			electroview.rpc.request.writeImageDataUrl({ path, dataUrl }),
+		deleteFile: (path: string) =>
+			electroview.rpc.request.deleteFile({ path }),
 		readImageAsDataUrl: (path: string) =>
 			electroview.rpc.request.readImageAsDataUrl({ path }),
 		revealFile: (path: string) =>

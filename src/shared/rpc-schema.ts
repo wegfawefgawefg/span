@@ -56,6 +56,14 @@ export type SpanRPC = {
 				params: { path: string };
 				response: string;
 			};
+			readClipboardImageDataUrl: {
+				params: {};
+				response: string | null;
+			};
+			writeClipboardImageDataUrl: {
+				params: { dataUrl: string };
+				response: { ok: boolean };
+			};
 			revealFile: {
 				params: { path: string };
 				response: void;

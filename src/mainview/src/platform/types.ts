@@ -21,6 +21,8 @@ export interface PlatformAdapter {
 	writeImageDataUrl(path: string, dataUrl: string): Promise<{ ok: boolean }>;
 	deleteFile(path: string): Promise<{ ok: boolean }>;
 	readImageAsDataUrl(path: string): Promise<string>;
+	readClipboardImageDataUrl(): Promise<string | null>;
+	writeClipboardImageDataUrl(dataUrl: string): Promise<{ ok: boolean }>;
 
 	// Register a dropped/selected File for later reads (web only, no-op on desktop)
 	registerFile?(name: string, file: File): void;

@@ -258,6 +258,31 @@ const rpc = BrowserView.defineRPC<SpanRPC>({
 					: "image/png";
 				return `data:${mimeType};base64,${base64}`;
 			},
+			readClipboardImageDataUrl: async () => {
+				try {
+					const pngData = Utils.clipboardReadImage();
+					if (!pngData || pngData.length === 0) {
+						return null;
+					}
+					return `data:image/png;base64,${Buffer.from(pngData).toString("base64")}`;
+				} catch (error) {
+					console.warn("[clipboard] failed to read image from clipboard:", error);
+					return null;
+				}
+			},
+			writeClipboardImageDataUrl: async ({ dataUrl }) => {
+				const match = dataUrl.match(/^data:image\/png;base64,(.+)$/);
+				if (!match) {
+					throw new Error("Unsupported data URL for clipboard image write");
+				}
+				try {
+					Utils.clipboardWriteImage(new Uint8Array(Buffer.from(match[1], "base64")));
+					return { ok: true };
+				} catch (error) {
+					console.warn("[clipboard] failed to write image to clipboard:", error);
+					return { ok: false };
+				}
+			},
 			// TODO: Verify the correct Electrobun API for revealing files in Finder.
 			// Utils.showItemInFolder may be the right call — confirm against Electrobun docs.
 			revealFile: ({ path }) => {

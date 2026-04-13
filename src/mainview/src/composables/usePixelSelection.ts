@@ -64,6 +64,14 @@ export function usePixelSelection(deps: {
   isPaintableCurrentSheet: Ref<boolean>;
   renderDisplayCanvas: () => void;
   commitSampleCanvasEdit: (message: string) => void;
+  readExternalClipboardImageDataUrl: () => Promise<string | null>;
+  writeExternalClipboardImageDataUrl: (
+    dataUrl: string
+  ) => Promise<{ ok: boolean }>;
+  getDefaultPasteOrigin: (
+    width: number,
+    height: number
+  ) => { x: number; y: number };
 }) {
   const {
     sampleCanvas,
@@ -72,11 +80,16 @@ export function usePixelSelection(deps: {
     isPaintableCurrentSheet,
     renderDisplayCanvas,
     commitSampleCanvasEdit,
+    readExternalClipboardImageDataUrl,
+    writeExternalClipboardImageDataUrl,
+    getDefaultPasteOrigin,
   } = deps;
 
   const pixelSelectionDrag = ref<PixelSelectionDragState | null>(null);
   const pixelSelectionMove = ref<PixelSelectionMoveState | null>(null);
   let pixelClipboard: PixelClipboardState | null = null;
+  let lastWrittenClipboardImageSignature: string | null = null;
+  let preferInternalClipboard = false;
 
   function normalizeRect(
     x0: number,
@@ -135,6 +148,28 @@ export function usePixelSelection(deps: {
     ctx.putImageData(imageData, 0, 0);
   }
 
+  function imageDataToPngDataUrl(imageData: ImageData): string {
+    const canvas = document.createElement('canvas');
+    canvas.width = imageData.width;
+    canvas.height = imageData.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      throw new Error('Failed to create canvas for clipboard write');
+    }
+    ctx.putImageData(imageData, 0, 0);
+    return canvas.toDataURL('image/png');
+  }
+
+  function imageDataSignature(imageData: ImageData): string {
+    let hash = 2166136261;
+    const bytes = imageData.data;
+    for (let i = 0; i < bytes.length; i += 1) {
+      hash ^= bytes[i]!;
+      hash = Math.imul(hash, 16777619);
+    }
+    return `${imageData.width}x${imageData.height}:${hash >>> 0}`;
+  }
+
   function copyPixelSelectionToClipboard(): boolean {
     const floating = pixelSelectionMove.value;
     const rect = floating?.currentRect ?? paintPixelSelection.value;
@@ -150,6 +185,10 @@ export function usePixelSelection(deps: {
       imageData,
     };
     hasPaintClipboard.value = true;
+    const dataUrl = imageDataToPngDataUrl(imageData);
+    lastWrittenClipboardImageSignature = imageDataSignature(imageData);
+    preferInternalClipboard = true;
+    void writeExternalClipboardImageDataUrl(dataUrl);
     statusText.value = `Copied ${rect.w}x${rect.h} pixels`;
     return true;
   }
@@ -174,31 +213,204 @@ export function usePixelSelection(deps: {
     return deletePixelSelectionPixels({ keepSelection: true });
   }
 
-  function pastePixelClipboard(): boolean {
+  async function imageDataFromDataUrl(dataUrl: string): Promise<ImageData | null> {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error('Failed to decode clipboard image'));
+      img.src = dataUrl;
+    });
+    if (!img.naturalWidth || !img.naturalHeight) {
+      return null;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    return ctx.getImageData(0, 0, canvas.width, canvas.height);
+  }
+
+  async function readExternalClipboard(): Promise<{
+    source: 'external' | 'internal';
+    clipboard: PixelClipboardState;
+  } | null> {
+    if (preferInternalClipboard && pixelClipboard) {
+      const dataUrl = await readExternalClipboardImageDataUrl();
+      if (!dataUrl) {
+        return { source: 'internal', clipboard: pixelClipboard };
+      }
+      const imageData = await imageDataFromDataUrl(dataUrl);
+      if (!imageData) {
+        return { source: 'internal', clipboard: pixelClipboard };
+      }
+      const externalSignature = imageDataSignature(imageData);
+      if (
+        lastWrittenClipboardImageSignature &&
+        externalSignature === lastWrittenClipboardImageSignature
+      ) {
+        return { source: 'internal', clipboard: pixelClipboard };
+      }
+      if (
+        imageData.width === pixelClipboard.width &&
+        imageData.height === pixelClipboard.height
+      ) {
+        const bytes = imageData.data;
+        const internalBytes = pixelClipboard.imageData.data;
+        let identical = true;
+        for (let i = 0; i < bytes.length; i += 1) {
+          if (bytes[i] !== internalBytes[i]) {
+            identical = false;
+            break;
+          }
+        }
+        if (identical) {
+          lastWrittenClipboardImageSignature = externalSignature;
+          return { source: 'internal', clipboard: pixelClipboard };
+        }
+      }
+      preferInternalClipboard = false;
+      const origin = getDefaultPasteOrigin(imageData.width, imageData.height);
+      statusText.value = `Loaded ${imageData.width}x${imageData.height} clipboard image`;
+      return {
+        source: 'external',
+        clipboard: {
+          width: imageData.width,
+          height: imageData.height,
+          sourceX: origin.x,
+          sourceY: origin.y,
+          imageData,
+        },
+      };
+    }
+
+    const dataUrl = await readExternalClipboardImageDataUrl();
+    if (!dataUrl) {
+      return pixelClipboard
+        ? { source: 'internal', clipboard: pixelClipboard }
+        : null;
+    }
+    const imageData = await imageDataFromDataUrl(dataUrl);
+    if (!imageData) {
+      return pixelClipboard
+        ? { source: 'internal', clipboard: pixelClipboard }
+        : null;
+    }
+    if (pixelClipboard && lastWrittenClipboardImageSignature) {
+      const externalSignature = imageDataSignature(imageData);
+      if (externalSignature === lastWrittenClipboardImageSignature) {
+        preferInternalClipboard = true;
+        return { source: 'internal', clipboard: pixelClipboard };
+      }
+    }
+    if (
+      pixelClipboard &&
+      imageData.width === pixelClipboard.width &&
+      imageData.height === pixelClipboard.height
+    ) {
+      const bytes = imageData.data;
+      const internalBytes = pixelClipboard.imageData.data;
+      let identical = true;
+      for (let i = 0; i < bytes.length; i += 1) {
+        if (bytes[i] !== internalBytes[i]) {
+          identical = false;
+          break;
+        }
+      }
+      if (identical) {
+        lastWrittenClipboardImageSignature = imageDataSignature(imageData);
+        preferInternalClipboard = true;
+        return { source: 'internal', clipboard: pixelClipboard };
+      }
+    }
+    preferInternalClipboard = false;
+    const origin = getDefaultPasteOrigin(imageData.width, imageData.height);
+    statusText.value = `Loaded ${imageData.width}x${imageData.height} clipboard image`;
+    return {
+      source: 'external',
+      clipboard: {
+        width: imageData.width,
+        height: imageData.height,
+        sourceX: origin.x,
+        sourceY: origin.y,
+        imageData,
+      },
+    };
+  }
+
+  function pasteClipboard(
+    clipboard: PixelClipboardState,
+    source: 'external' | 'internal'
+  ): boolean {
     const sheet = currentSheet.value;
-    if (!pixelClipboard || !sheet || !isPaintableCurrentSheet.value)
+    if (!sheet || !isPaintableCurrentSheet.value) {
       return false;
-    const maxX = Math.max(0, sampleCanvas.width - pixelClipboard.width);
-    const maxY = Math.max(0, sampleCanvas.height - pixelClipboard.height);
+    }
+    const maxX = Math.max(0, sampleCanvas.width - clipboard.width);
+    const maxY = Math.max(0, sampleCanvas.height - clipboard.height);
+    const defaultOrigin = getDefaultPasteOrigin(clipboard.width, clipboard.height);
+    const selection = paintPixelSelection.value;
+    const pastingCopiedSelectionBackInPlace =
+      source === 'internal' &&
+      !!selection &&
+      selection.x === clipboard.sourceX &&
+      selection.y === clipboard.sourceY &&
+      selection.w === clipboard.width &&
+      selection.h === clipboard.height;
     const targetX = Math.max(
       0,
-      Math.min(paintPixelSelection.value?.x ?? pixelClipboard.sourceX, maxX)
+      Math.min(
+        pastingCopiedSelectionBackInPlace
+          ? defaultOrigin.x
+          : selection?.x ?? clipboard.sourceX,
+        maxX
+      )
     );
     const targetY = Math.max(
       0,
-      Math.min(paintPixelSelection.value?.y ?? pixelClipboard.sourceY, maxY)
+      Math.min(
+        pastingCopiedSelectionBackInPlace
+          ? defaultOrigin.y
+          : selection?.y ?? clipboard.sourceY,
+        maxY
+      )
     );
     recordPaintUndoSnapshot(sheet);
-    sampleCtx.putImageData(pixelClipboard.imageData, targetX, targetY);
+    sampleCtx.putImageData(clipboard.imageData, targetX, targetY);
     paintPixelSelection.value = {
       x: targetX,
       y: targetY,
-      w: pixelClipboard.width,
-      h: pixelClipboard.height,
+      w: clipboard.width,
+      h: clipboard.height,
     };
     commitSampleCanvasEdit('Image edits pending save');
-    statusText.value = `${sheet.path} • Pasted ${pixelClipboard.width}x${pixelClipboard.height} pixels`;
+    statusText.value = `${sheet.path} • Pasted ${clipboard.width}x${clipboard.height} pixels`;
     return true;
+  }
+
+  function pasteInternalPixelClipboard(): boolean {
+    if (!pixelClipboard) {
+      return false;
+    }
+    return pasteClipboard(pixelClipboard, 'internal');
+  }
+
+  async function pasteExternalPixelClipboard(): Promise<boolean> {
+    const clipboardState = await readExternalClipboard();
+    if (!clipboardState || clipboardState.source !== 'external') {
+      return false;
+    }
+    return pasteClipboard(clipboardState.clipboard, 'external');
+  }
+
+  async function pastePixelClipboard(): Promise<boolean> {
+    const clipboardState = await readExternalClipboard();
+    if (!clipboardState) {
+      return false;
+    }
+    return pasteClipboard(clipboardState.clipboard, clipboardState.source);
   }
 
   function clearPixelSelection() {
@@ -375,6 +587,8 @@ export function usePixelSelection(deps: {
 
   function resetClipboard() {
     pixelClipboard = null;
+    lastWrittenClipboardImageSignature = null;
+    preferInternalClipboard = false;
     hasPaintClipboard.value = false;
   }
 
@@ -386,6 +600,8 @@ export function usePixelSelection(deps: {
     selectionStyle,
     copyPixelSelectionToClipboard,
     cutPixelSelectionToClipboard,
+    pasteInternalPixelClipboard,
+    pasteExternalPixelClipboard,
     pastePixelClipboard,
     deletePixelSelectionPixels,
     clearPixelSelection,

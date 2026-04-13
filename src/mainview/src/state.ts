@@ -262,7 +262,9 @@ export const hasPaintClipboard = ref(false);
 
 let copyPixelSelectionHandler: () => boolean = () => false;
 let cutPixelSelectionHandler: () => boolean = () => false;
-let pastePixelSelectionHandler: () => boolean = () => false;
+let pasteInternalPixelSelectionHandler: () => boolean = () => false;
+let pasteExternalPixelSelectionHandler: () => Promise<boolean> = async () => false;
+let pastePixelSelectionHandler: () => Promise<boolean> = async () => false;
 let deletePixelSelectionHandler: () => boolean = () => false;
 let copySpriteSelectionHandler: () => boolean = () => false;
 let cutSpriteSelectionHandler: () => boolean = () => false;
@@ -272,11 +274,15 @@ let resizeCanvasHandler: (width: number, height: number) => boolean = () => fals
 export function registerPaintClipboardHandlers(handlers: {
   copy: () => boolean;
   cut: () => boolean;
-  paste: () => boolean;
+  pasteInternal: () => boolean;
+  pasteExternal: () => Promise<boolean>;
+  paste: () => Promise<boolean>;
   deleteSelection: () => boolean;
 }) {
   copyPixelSelectionHandler = handlers.copy;
   cutPixelSelectionHandler = handlers.cut;
+  pasteInternalPixelSelectionHandler = handlers.pasteInternal;
+  pasteExternalPixelSelectionHandler = handlers.pasteExternal;
   pastePixelSelectionHandler = handlers.paste;
   deletePixelSelectionHandler = handlers.deleteSelection;
 }
@@ -299,8 +305,16 @@ export function cutPixelSelection() {
   return cutPixelSelectionHandler();
 }
 
-export function pastePixelSelection() {
-  return pastePixelSelectionHandler();
+export function pasteInternalPixelSelection() {
+  return pasteInternalPixelSelectionHandler();
+}
+
+export async function pasteExternalPixelSelection() {
+  return await pasteExternalPixelSelectionHandler();
+}
+
+export async function pastePixelSelection() {
+  return await pastePixelSelectionHandler();
 }
 
 export function deletePixelSelection() {

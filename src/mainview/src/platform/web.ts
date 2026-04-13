@@ -112,6 +112,14 @@ export function createWebAdapter(): WebPlatformAdapter {
 			});
 		},
 
+		async readClipboardImageDataUrl(): Promise<string | null> {
+			return null;
+		},
+
+		async writeClipboardImageDataUrl(): Promise<{ ok: boolean }> {
+			return { ok: false };
+		},
+
 		async revealFile(): Promise<void> {
 			// No-op on web
 		},

@@ -227,6 +227,8 @@ const {
   selectionStyle,
   copyPixelSelectionToClipboard,
   cutPixelSelectionToClipboard,
+  pasteInternalPixelClipboard,
+  pasteExternalPixelClipboard,
   pastePixelClipboard,
   deletePixelSelectionPixels,
   clearPixelSelection,
@@ -244,6 +246,10 @@ const {
   isPaintableCurrentSheet,
   renderDisplayCanvas,
   commitSampleCanvasEdit,
+  readExternalClipboardImageDataUrl: () => api.readClipboardImageDataUrl(),
+  writeExternalClipboardImageDataUrl: (dataUrl) =>
+    api.writeClipboardImageDataUrl(dataUrl),
+  getDefaultPasteOrigin,
 });
 
 const {
@@ -298,6 +304,22 @@ function computeFitZoomForImage(width: number, height: number): number | null {
   return normalizeZoom(
     Math.min(availableWidth / width, availableHeight / height)
   );
+}
+
+function getDefaultPasteOrigin(width: number, height: number) {
+  const el = scroller.value;
+  const stageEl = stage.value;
+  if (!el || !stageEl) return { x: 0, y: 0 };
+  const scrollerRect = el.getBoundingClientRect();
+  const stageRect = stageEl.getBoundingClientRect();
+  const centerX =
+    (scrollerRect.left + el.clientWidth / 2 - stageRect.left) / zoom.value;
+  const centerY =
+    (scrollerRect.top + el.clientHeight / 2 - stageRect.top) / zoom.value;
+  return {
+    x: Math.round(centerX - width / 2),
+    y: Math.round(centerY - height / 2),
+  };
 }
 
 async function waitForImageReady(img: HTMLImageElement): Promise<void> {
@@ -406,6 +428,8 @@ onMounted(() => {
   registerPaintClipboardHandlers({
     copy: copyPixelSelectionToClipboard,
     cut: cutPixelSelectionToClipboard,
+    pasteInternal: pasteInternalPixelClipboard,
+    pasteExternal: pasteExternalPixelClipboard,
     paste: pastePixelClipboard,
     deleteSelection: deletePixelSelectionPixels,
   });
@@ -430,7 +454,9 @@ onUnmounted(() => {
   registerPaintClipboardHandlers({
     copy: () => false,
     cut: () => false,
-    paste: () => false,
+    pasteInternal: () => false,
+    pasteExternal: async () => false,
+    paste: async () => false,
     deleteSelection: () => false,
   });
   registerSpriteClipboardHandlers({

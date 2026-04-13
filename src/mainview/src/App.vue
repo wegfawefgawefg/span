@@ -9,6 +9,7 @@ import {
 	effectiveRoot,
 	currentSheet,
 	activePaintTool,
+	hasPaintClipboard,
 	activeAtlasTool,
 	copyPixelSelection,
 	copySpriteSelection,
@@ -22,6 +23,8 @@ import {
 	addSheet,
 	fulfillSheet,
 	closeProject,
+	pasteExternalPixelSelection,
+	pasteInternalPixelSelection,
 	pastePixelSelection,
 	getCurrentSheetCanvasSize,
 	resizeCurrentSheetCanvas,
@@ -499,7 +502,11 @@ async function handleMenuAction(action: string) {
 	} else if (action === "cutPixels") {
 		cutPixelSelection();
 	} else if (action === "pastePixels") {
-		pastePixelSelection();
+		if (activePaintTool.value === "marquee" && hasPaintClipboard.value) {
+			pasteInternalPixelSelection();
+		} else {
+			await pastePixelSelection();
+		}
 	} else if (action === "deletePixels") {
 		deletePixelSelection();
 	} else if (action === "resizeCanvas") {
@@ -513,7 +520,7 @@ async function handleMenuAction(action: string) {
 	}
 }
 
-function onKeydown(event: KeyboardEvent) {
+async function onKeydown(event: KeyboardEvent) {
 	const mod = event.ctrlKey || event.metaKey;
 	const tag = (document.activeElement?.tagName ?? "").toUpperCase();
 	const inInput =
@@ -609,12 +616,17 @@ function onKeydown(event: KeyboardEvent) {
 				return;
 			}
 		} else if (activePaintTool.value) {
-			if (pastePixelSelection()) {
-				event.preventDefault();
-				return;
+			event.preventDefault();
+			if (event.shiftKey) {
+				await pasteExternalPixelSelection();
+			} else if (activePaintTool.value === "marquee" && hasPaintClipboard.value) {
+				pasteInternalPixelSelection();
+			} else {
+				await pastePixelSelection();
 			}
+			return;
 		} else {
-			if (pastePixelSelection() || pasteSpriteSelection()) {
+			if ((await pastePixelSelection()) || pasteSpriteSelection()) {
 				event.preventDefault();
 				return;
 			}

@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import {
+  beginRotatePixelSelection,
   copyPixelSelection,
   currentSheet,
   cutPixelSelection,
   deletePixelSelection,
+  flipPixelSelectionHorizontal,
+  flipPixelSelectionVertical,
   hasPaintClipboard,
   importPaletteFromPath,
   paintPixelSelection,
@@ -131,6 +134,35 @@ function handlePaletteSelection(event: Event) {
               >
                 Delete
               </button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                :class="controlButtonClass"
+                :disabled="!paintPixelSelection"
+                @click="flipPixelSelectionHorizontal()"
+              >
+                Flip H
+              </button>
+              <button
+                type="button"
+                :class="controlButtonClass"
+                :disabled="!paintPixelSelection"
+                @click="flipPixelSelectionVertical()"
+              >
+                Flip V
+              </button>
+              <button
+                type="button"
+                :class="controlButtonClass"
+                :disabled="!paintPixelSelection"
+                @click="beginRotatePixelSelection()"
+              >
+                Rotate
+              </button>
+            </div>
+            <div class="font-mono text-[11px] text-text-faint">
+              H/V flip, R rotate, Shift snaps, Enter commits, Esc cancels
             </div>
           </div>
 

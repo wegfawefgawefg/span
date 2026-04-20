@@ -266,6 +266,11 @@ let pasteInternalPixelSelectionHandler: () => boolean = () => false;
 let pasteExternalPixelSelectionHandler: () => Promise<boolean> = async () => false;
 let pastePixelSelectionHandler: () => Promise<boolean> = async () => false;
 let deletePixelSelectionHandler: () => boolean = () => false;
+let flipPixelSelectionHorizontalHandler: () => boolean = () => false;
+let flipPixelSelectionVerticalHandler: () => boolean = () => false;
+let beginRotatePixelSelectionHandler: () => boolean = () => false;
+let commitRotatePixelSelectionHandler: () => boolean = () => false;
+let cancelRotatePixelSelectionHandler: () => boolean = () => false;
 let copySpriteSelectionHandler: () => boolean = () => false;
 let cutSpriteSelectionHandler: () => boolean = () => false;
 let pasteSpriteSelectionHandler: () => boolean = () => false;
@@ -285,6 +290,20 @@ export function registerPaintClipboardHandlers(handlers: {
   pasteExternalPixelSelectionHandler = handlers.pasteExternal;
   pastePixelSelectionHandler = handlers.paste;
   deletePixelSelectionHandler = handlers.deleteSelection;
+}
+
+export function registerPaintTransformHandlers(handlers: {
+  flipHorizontal: () => boolean;
+  flipVertical: () => boolean;
+  beginRotate: () => boolean;
+  commitRotate: () => boolean;
+  cancelRotate: () => boolean;
+}) {
+  flipPixelSelectionHorizontalHandler = handlers.flipHorizontal;
+  flipPixelSelectionVerticalHandler = handlers.flipVertical;
+  beginRotatePixelSelectionHandler = handlers.beginRotate;
+  commitRotatePixelSelectionHandler = handlers.commitRotate;
+  cancelRotatePixelSelectionHandler = handlers.cancelRotate;
 }
 
 export function registerSpriteClipboardHandlers(handlers: {
@@ -319,6 +338,26 @@ export async function pastePixelSelection() {
 
 export function deletePixelSelection() {
   return deletePixelSelectionHandler();
+}
+
+export function flipPixelSelectionHorizontal() {
+  return flipPixelSelectionHorizontalHandler();
+}
+
+export function flipPixelSelectionVertical() {
+  return flipPixelSelectionVerticalHandler();
+}
+
+export function beginRotatePixelSelection() {
+  return beginRotatePixelSelectionHandler();
+}
+
+export function commitRotatePixelSelection() {
+  return commitRotatePixelSelectionHandler();
+}
+
+export function cancelRotatePixelSelection() {
+  return cancelRotatePixelSelectionHandler();
 }
 
 export function copySpriteSelection() {

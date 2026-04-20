@@ -26,6 +26,7 @@ import {
   canvasGridHeight,
   canvasCheckerStrength,
   registerPaintClipboardHandlers,
+  registerPaintTransformHandlers,
   registerResizeCanvasHandler,
   registerSpriteClipboardHandlers,
   statusText,
@@ -163,6 +164,7 @@ const drawPreviewClass =
 const pixelSelectionClass =
   'pointer-events-none absolute z-[9998] border-2 border-dashed border-copper-bright bg-[linear-gradient(90deg,color-mix(in_srgb,var(--color-copper-glow)_18%,transparent)_50%,transparent_50%),linear-gradient(color-mix(in_srgb,var(--color-copper-glow)_18%,transparent)_50%,transparent_50%)] bg-[length:8px_8px] [image-rendering:pixelated]';
 const pixelSelectionPreviewClass = `${pixelSelectionClass} border-copper`;
+const rotatePivotClass = 'pointer-events-none absolute z-[10000] h-3 w-3 -ml-1.5 -mt-1.5 rounded-full border border-copper-bright bg-surface-0 shadow-[0_0_0_1px_rgba(0,0,0,0.5)]';
 const annotationSelectionAnimation = {
   animation: 'select-pulse 0.4s steps(4), pixel-pop 0.25s steps(3)',
 };
@@ -222,6 +224,7 @@ const {
 const {
   pixelSelectionDrag,
   pixelSelectionMove,
+  pixelSelectionRotate,
   normalizePixelSelectionRect,
   pointInRect,
   selectionStyle,
@@ -238,6 +241,15 @@ const {
   beginPixelSelectionMove,
   updatePixelSelectionMove,
   nudgePixelSelection,
+  flipSelectionHorizontal,
+  flipSelectionVertical,
+  beginRotateSelection,
+  setRotatePivot,
+  startRotateDrag,
+  updateRotateDrag,
+  endRotateDrag,
+  commitRotateSelection,
+  cancelRotateSelection,
   resetClipboard,
 } = usePixelSelection({
   sampleCanvas,
@@ -355,10 +367,17 @@ async function waitForImageReady(img: HTMLImageElement): Promise<void> {
 }
 
 function onKeyDown(e: KeyboardEvent) {
+  const tag = (document.activeElement?.tagName ?? '').toUpperCase();
+  const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
   if (e.code === 'Escape' && activeEyedropper.value) {
     const original = activeEyedropper.value.originalValue;
     activeEyedropper.value.callback(original);
     activeEyedropper.value = null;
+    return;
+  }
+  if (e.code === 'Escape' && pixelSelectionRotate.value) {
+    e.preventDefault();
+    cancelRotateSelection();
     return;
   }
   if (
@@ -371,11 +390,34 @@ function onKeyDown(e: KeyboardEvent) {
     renderDisplayCanvas();
     return;
   }
+  if (!inInput && activePaintTool.value === 'marquee' && paintPixelSelection.value) {
+    if (e.key === 'Enter' && pixelSelectionRotate.value) {
+      e.preventDefault();
+      commitRotateSelection();
+      return;
+    }
+    if ((e.key === 'h' || e.key === 'H') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      flipSelectionHorizontal();
+      return;
+    }
+    if ((e.key === 'v' || e.key === 'V') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      flipSelectionVertical();
+      return;
+    }
+    if ((e.key === 'r' || e.key === 'R') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      beginRotateSelection();
+      return;
+    }
+  }
   if (
     activePaintTool.value === 'marquee' &&
     paintPixelSelection.value &&
     !pixelSelectionDrag.value &&
     !pixelSelectionMove.value?.dragging &&
+    !pixelSelectionRotate.value?.dragging &&
     ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)
   ) {
     e.preventDefault();
@@ -433,6 +475,13 @@ onMounted(() => {
     paste: pastePixelClipboard,
     deleteSelection: deletePixelSelectionPixels,
   });
+  registerPaintTransformHandlers({
+    flipHorizontal: flipSelectionHorizontal,
+    flipVertical: flipSelectionVertical,
+    beginRotate: beginRotateSelection,
+    commitRotate: commitRotateSelection,
+    cancelRotate: cancelRotateSelection,
+  });
   registerSpriteClipboardHandlers({
     copy: copySpriteSelectionToClipboard,
     cut: cutSpriteSelectionToClipboard,
@@ -458,6 +507,13 @@ onUnmounted(() => {
     pasteExternal: async () => false,
     paste: async () => false,
     deleteSelection: () => false,
+  });
+  registerPaintTransformHandlers({
+    flipHorizontal: () => false,
+    flipVertical: () => false,
+    beginRotate: () => false,
+    commitRotate: () => false,
+    cancelRotate: () => false,
   });
   registerSpriteClipboardHandlers({
     copy: () => false,
@@ -618,6 +674,19 @@ function stagePixelFromClient(
   )
     return null;
   return { x: imgX, y: imgY };
+}
+
+function stagePointFloatFromClient(
+  clientX: number,
+  clientY: number
+): { x: number; y: number } | null {
+  const stageEl = stage.value;
+  if (!stageEl) return null;
+  const rect = stageEl.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left) / zoom.value,
+    y: (clientY - rect.top) / zoom.value,
+  };
 }
 
 function cloneAnnotationDeep(annotation: Annotation): Annotation {
@@ -998,9 +1067,19 @@ function handleLayerPointerDown(event: PointerEvent) {
     if (!point) return;
 
     if (activePaintTool.value === 'marquee') {
+      const layerEl = event.currentTarget as HTMLElement;
+      if (pixelSelectionRotate.value) {
+        const floatPoint = stagePointFloatFromClient(event.clientX, event.clientY);
+        if (!floatPoint) return;
+        if (pixelSelectionRotate.value.awaitingPivot) {
+          setRotatePivot(floatPoint);
+        }
+        startRotateDrag(floatPoint);
+        layerEl.setPointerCapture(event.pointerId);
+        return;
+      }
       if (pointInRect(point, paintPixelSelection.value)) {
         beginPixelSelectionMove(point);
-        const layerEl = event.currentTarget as HTMLElement;
         layerEl.setPointerCapture(event.pointerId);
         return;
       }
@@ -1013,7 +1092,6 @@ function handleLayerPointerDown(event: PointerEvent) {
         currentX: point.x,
         currentY: point.y,
       };
-      const layerEl = event.currentTarget as HTMLElement;
       layerEl.setPointerCapture(event.pointerId);
       return;
     }
@@ -1102,6 +1180,12 @@ function handleLayerPointerMove(event: PointerEvent) {
     renderDisplayCanvas();
     return;
   }
+  if (pixelSelectionRotate.value?.dragging) {
+    const point = stagePointFloatFromClient(event.clientX, event.clientY);
+    if (!point) return;
+    updateRotateDrag(point, event.shiftKey);
+    return;
+  }
   if (pixelSelectionMove.value?.dragging) {
     const point = stagePixelFromClient(event.clientX, event.clientY);
     if (!point) return;
@@ -1168,6 +1252,11 @@ function handleLayerPointerUp(event: PointerEvent) {
     return;
   }
 
+  if (pixelSelectionRotate.value?.dragging) {
+    endRotateDrag();
+    return;
+  }
+
   if (pixelSelectionMove.value) {
     commitPixelSelectionMove();
     return;
@@ -1198,6 +1287,9 @@ function handleLayerPointerUp(event: PointerEvent) {
 function handleLayerPointerCancel() {
   if (paintStroke.value) {
     commitPaintStroke();
+  }
+  if (pixelSelectionRotate.value?.dragging) {
+    endRotateDrag();
   }
   if (pixelSelectionMove.value?.dragging) {
     pixelSelectionMove.value = {
@@ -1262,6 +1354,14 @@ const marqueeSelectionStyle = computed(() =>
 );
 const atlasSelectionPreviewStyle = computed(() =>
   selectionStyle(atlasSelectionPreviewRect.value)
+);
+const rotatePivotStyle = computed(() =>
+  pixelSelectionRotate.value
+    ? {
+        left: `${pixelSelectionRotate.value.pivot.x * zoom.value}px`,
+        top: `${pixelSelectionRotate.value.pivot.y * zoom.value}px`,
+      }
+    : {}
 );
 
 function isAnnotationCanvasSelected(annotation: Annotation) {
@@ -1487,6 +1587,11 @@ function onCanvasContextMenu(event: MouseEvent) {
                 v-if="pixelSelectionDrag && marqueePreviewRect"
                 :class="pixelSelectionPreviewClass"
                 :style="marqueePreviewStyle"
+              ></div>
+              <div
+                v-if="pixelSelectionRotate"
+                :class="rotatePivotClass"
+                :style="rotatePivotStyle"
               ></div>
               <div
                 v-if="
